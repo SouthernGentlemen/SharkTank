@@ -10,5 +10,3 @@ export { useRoomSocket } from "./net/useRoomSocket.js";
 export type { RoomSocket } from "./net/useRoomSocket.js";
 export { SettingsProvider, useSettings, DEFAULT_SETTINGS } from "./settings/SettingsContext.js";
 export type { Settings } from "./settings/SettingsContext.js";
-export { getBackend, switchBackend } from "./net/backend.js";
-export type { Backend, BackendId } from "./net/backend.js";

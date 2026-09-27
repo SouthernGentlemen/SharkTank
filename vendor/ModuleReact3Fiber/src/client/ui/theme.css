@@ -41,9 +41,8 @@
   --success: #4ade80;
   --warning: #ffcf5c;
 
-  /* Status — chrome painted over the game canvas or the inspector's own dark panel,
-     both of which stay dark in every theme. Never redefined: a light-theme value here
-     would put dark-on-dark inside .debug-panel and the connection banner. */
+  /* Status — chrome painted over the game canvas, which stays dark in every theme.
+     Never redefined: a light-theme value here would put dark-on-dark in the connection banner. */
   --danger-on-dark: #ff6b6b;
   --success-on-dark: #4ade80;
   --warning-on-dark: #ffcf5c;
@@ -285,37 +284,6 @@ body {
   .table .btn { min-height: 44px; padding: 0 12px; }
 }
 
-/* Live execution inspector: deliberately game-specific, not a generic tutorial shell. */
-.debug-game-layout { position: absolute; inset: 0; overflow: hidden; display: grid; grid-template-columns: minmax(260px, 23vw) minmax(0, 1fr); background: var(--bg); }
-.debug-game-stage { position: relative; min-width: 0; min-height: 0; overflow: hidden; border-left: 1px solid var(--border-strong); }
-.debug-panel { min-width: 0; overflow: auto; padding: 14px; background: rgba(16,15,31,.96); color: var(--text); font-size: .78rem; scrollbar-width: thin; }
-.debug-drawer { position:absolute;z-index:24;left:12px;top:100px;bottom:76px;width:min(430px,calc(100% - 24px));border:1px solid var(--border-strong);border-radius:16px;box-shadow:0 24px 80px rgba(0,0,0,.46);backdrop-filter:blur(18px); }
-.debug-panel__head { display:flex;align-items:center;justify-content:space-between;gap:10px;margin-bottom:12px;font:.72rem ui-monospace,SFMono-Regular,Consolas,monospace;color:var(--success-on-dark); }
-.debug-panel__head>span{display:flex;align-items:center;gap:7px}.debug-panel__head .icon-button{width:38px;height:38px;border-radius:10px}.debug-panel__head .icon-button svg{width:20px;height:20px}
-.debug-live-dot { display:inline-block;width:7px;height:7px;border-radius:50%;background:var(--success-on-dark);box-shadow:0 0 10px var(--success-on-dark); }
-.debug-eyebrow, .debug-label { display: block; color: var(--text-faint); font-size: .68rem; font-weight: 800; letter-spacing: .12em; text-transform: uppercase; }
-.debug-compact-button { border: 1px solid var(--border-strong); border-radius: 999px; padding: 5px 9px; background: transparent; color: var(--text-muted); font: inherit; cursor: pointer; }
-.debug-language { display: flex; gap: 4px; margin-bottom: 8px; }
-.debug-language button { min-height: 28px; padding: 0 9px; border: 1px solid var(--border); border-radius: 999px; background: transparent; color: var(--text-muted); font: inherit; font-weight: 700; cursor: pointer; }
-.debug-language button[aria-pressed="true"] { background: var(--accent); color: var(--accent-contrast); }
-.debug-admin-gate { display: grid; place-items: center; gap: 4px; min-height: 112px; margin: 0 0 10px; padding: 14px; border: 3px solid var(--warning-on-dark); border-radius: 8px; background: #171006; color: #fff2bd; text-align: center; text-decoration: none; }
-.debug-admin-gate strong { font-size: clamp(1rem, 1.8vw, 1.55rem); letter-spacing: .06em; }
-.debug-admin-gate span { color: #eadc9d; font-size: .72rem; }
-.debug-section, .debug-data, .debug-code { margin: 0 0 8px; }
-.debug-event { margin: 0 0 8px; color: var(--text-muted); }
-.debug-section h2 { margin: 4px 0; font: 800 1.15rem/1.2 ui-monospace, SFMono-Regular, Consolas, monospace; color: var(--warning-on-dark); overflow-wrap: anywhere; }
-.debug-section p { margin: 0; color: var(--text-muted); }
-.debug-data dl { margin: 3px 0 0; padding: 5px 7px; background: var(--surface-2); border-radius: 6px; }
-.debug-data dl > div { display: flex; justify-content: space-between; gap: 12px; }
-.debug-data dt { color: var(--text-faint); }
-.debug-data dd { margin: 0; font-family: ui-monospace, SFMono-Regular, Consolas, monospace; text-align: right; }
-.debug-code pre { margin: 3px 0 0; padding: 6px 0; overflow-x: auto; border: 1px solid var(--border); border-radius: 6px; background: #090812; color: #dcd8ff; font: .65rem/1.4 ui-monospace, SFMono-Regular, Consolas, monospace; }
-.debug-code code > span { display: block; padding: 0 10px; white-space: pre; }
-.debug-code code > span.is-active { background: rgba(143, 123, 255, .2); color: #fff; border-left: 2px solid var(--focus-ring); padding-left: 8px; }
-.debug-code-compare { display: grid; grid-template-columns: 1fr; gap: 3px; }
-.debug-code-compare .debug-code pre { font-size: .63rem; }
-.debug-demo { display: flex; align-items: center; gap: 6px; padding-top: 2px; }
-.debug-demo small { color: var(--text-faint); text-align: center; }
 /* ─────────────────────────────────────────────────────────────────────────────
    In-game overlay layout.
 
@@ -450,25 +418,13 @@ body {
 .game-screen--stick-left .ability-rail{right:calc(12px + var(--safe-r));left:auto;justify-items:end}
 .game-screen--stick-left .game-tools{right:calc(12px + var(--safe-r));left:auto}
 .game-screen--stick-left .gearbox__popover{left:auto;right:0}
-.game-screen--touch .debug-drawer{bottom:calc(170px + var(--safe-b))}
 .game-screen--touch .conn-banner{bottom:auto;top:calc(64px + var(--safe-t))}
 
 .help-note{margin:0;padding:11px 13px;border:1px solid #6a5a2e;border-radius:12px;background:rgba(255,213,74,.09);color:var(--text-muted);font-size:.86rem}.help-note strong{color:var(--warning)}
 .control-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px}.control-card{display:grid;grid-template-columns:48px 1fr;align-items:center;gap:8px;padding:14px;border:1px solid var(--border);border-radius:12px;background:var(--surface-2);min-width:0}.control-card__icon{grid-row:1/3;width:42px;height:42px;fill:none;stroke:var(--accent);stroke-width:1.8;stroke-linecap:round;stroke-linejoin:round}.control-card>strong{min-width:0;text-align:left;overflow-wrap:anywhere}.control-card>div{display:flex;align-items:center;gap:6px;flex-wrap:wrap;min-width:0;color:var(--text-muted)}.control-card small{width:100%;text-align:left;overflow-wrap:anywhere}
 
-@media (max-width: 800px) {
-  .debug-game-layout { grid-template-columns: minmax(230px, 38vw) minmax(0, 1fr); }
-  .debug-panel { padding: 12px; }
-  .debug-code-compare { grid-template-columns: 1fr; }
-}
+
 @media (max-width: 560px) {
-  .debug-game-layout { grid-template-columns: 1fr; grid-template-rows: minmax(180px, 38dvh) minmax(0, 62dvh); }
-  .debug-game-stage { border-left: 0; border-top: 1px solid var(--border-strong); }
-  .debug-panel { padding: 10px 12px; }
-  .debug-panel__head { margin-bottom: 8px; }
-  .debug-language { margin-bottom: 10px; }
-  .debug-section, .debug-data, .debug-code { margin-bottom: 10px; }
-  .debug-section h2 { font-size: 1rem; }
   .game-hud { top: calc(6px + var(--safe-t)); left: calc(6px + var(--safe-l)); gap: 4px; max-width: 58vw; }
   .hud-card { min-width: 0; padding: 4px 8px; }
   .hud-card__label { font-size: .6rem; letter-spacing: .04em; }
@@ -504,7 +460,6 @@ body {
   .frenzy-banner{top:calc(64px + var(--safe-t));left:calc(6px + var(--safe-l));right:auto;transform:none;justify-items:start;max-width:56vw;padding:5px 12px;border-radius:14px;text-align:left}
   .frenzy-banner strong{font-size:.72rem;letter-spacing:.08em}
   .frenzy-banner span{font-size:.6rem;line-height:1.25}
-  .debug-drawer{left:6px;right:6px;top:88px;bottom:68px;width:auto}.control-grid{grid-template-columns:1fr}
 }
 /* Very short viewports (landscape phones): the pads and the tools trigger cannot stack. */
 @media (max-height: 430px) {
@@ -547,10 +502,6 @@ body {
 .shark-menu--centered{width:min(620px,100%);text-align:center}
 .row--center{justify-content:center}.row--end{justify-content:flex-end}
 .menu-player-summary{margin:0;color:var(--text-muted);font-size:.9rem}
-.backend-switcher{gap:6px}.backend-label{color:var(--text-faint);font-size:.8rem}
-.backend-segments{display:inline-flex;gap:4px;padding:4px;border:1px solid var(--border);border-radius:999px;background:var(--surface-2)}
-.backend-segment{min-height:36px;padding:0 16px;border:0;border-radius:999px;background:transparent;color:var(--text-muted);font:inherit;font-weight:600;cursor:pointer}
-.backend-segment.is-active{background:var(--accent);color:var(--accent-contrast)}
 
 .screen-title,.dialog-title{margin:0}.screen-title{font-size:1.6rem}
 .lobby-panel,.settings-panel{width:min(720px,100%)}.customize-panel,.help-panel{width:min(560px,100%)}

@@ -8,9 +8,6 @@ export interface Env {
   OPS_TOKEN?: string;
   AUDIT_GENERATION?: string;
   CF_VERSION_METADATA?: WorkerVersionMetadata;
-  PHP_HTTP_ORIGIN?: string;
-  PHP_WS_ORIGIN?: string;
-  PHP_ORIGIN_TOKEN?: string;
   /** Object storage. Bound in wrangler.jsonc; holds the state copies runBackup writes. */
   R2_ASSETS?: R2Bucket;
   R2_PREFIX?: string;

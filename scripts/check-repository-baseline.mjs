@@ -273,7 +273,7 @@ expect(packageJson.scripts?.["check:local-readiness"] === "node --test scripts/l
 
 for (const requiredCheck of [
   "npm run test:plan-queue","npm run check:implementation-plan","npm run test:release-tagging","npm run test:release-publication","npm run check:release-workflow","npm run test:release-identity","npm run test:deploy-prod",
-  "npm run typecheck","npm test","npm run test:php","npm run build","npm run check:repository-baseline",
+  "npm run typecheck","npm test","npm run build","npm run check:repository-baseline",
   "npm run check:change-contract","npm run test:github-settings","npm run check:history","npm run test:public-secrets","npm run check:public-secrets","npm run check:provenance",
   "npm run check:local-readiness","npm run check:dev-command","npm run check:local-http","npm run test:dependency-advisories","npm run check:whitespace",
 ]) has(packageJson.scripts?.check ?? "", requiredCheck, "npm run check must remain complete");

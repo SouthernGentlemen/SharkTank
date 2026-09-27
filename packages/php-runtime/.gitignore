@@ -1,6 +1,0 @@
-/vendor/
-/data/
-composer.lock
-*.log
-/.workerman.pid
-.DS_Store

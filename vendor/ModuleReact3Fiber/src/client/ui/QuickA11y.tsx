@@ -9,7 +9,7 @@ import { useSettings } from "../settings/SettingsContext.js";
  * whole set into one gear trigger whose popover holds everything — the rail then costs
  * a single 52px target instead of a strip wider than half the phone.
  */
-export function QuickA11y({ onQuit, onHelp, onSettings, onDebug, debugOpen, collapsed = false }: { onQuit: () => void; onHelp: () => void; onSettings: () => void; onDebug: () => void; debugOpen: boolean; collapsed?: boolean }) {
+export function QuickA11y({ onQuit, onHelp, onSettings, collapsed = false }: { onQuit: () => void; onHelp: () => void; onSettings: () => void; collapsed?: boolean }) {
   const { settings, update } = useSettings();
   const [open, setOpen] = useState(false);
   const a = settings.a11y;
@@ -20,7 +20,6 @@ export function QuickA11y({ onQuit, onHelp, onSettings, onDebug, debugOpen, coll
   const exit = <IconButton key="exit" icon="exit" label="Exit to tank (Escape)" onClick={onQuit} />;
   const music = <button key="music" type="button" className={musicOn ? "icon-button is-active" : "icon-button"} aria-pressed={musicOn} aria-label={`Music: ${musicOn ? "on" : "off"}`} title={`Music: ${musicOn ? "on" : "off"}`} onClick={toggleMusic}><Icon name={musicOn ? "volume" : "volumeOff"} /></button>;
   const help = <IconButton key="help" icon="help" label="Controls" onClick={onHelp} />;
-  const debug = <button key="debug" type="button" className={debugOpen ? "icon-button is-active" : "icon-button"} onClick={onDebug} aria-expanded={debugOpen} aria-label="TypeScript and PHP inspector" title="TypeScript / PHP inspector"><Icon name="code" /></button>;
   const display = [
     <Toggle key="contrast" icon="contrast" label="High contrast" pressed={a.contrast === "high"} onClick={() => update("a11y", { contrast: a.contrast === "high" ? "normal" : "high" })} />,
     <Toggle key="motion" icon="motion" label="Reduced motion" pressed={a.motion === "reduced"} onClick={() => update("a11y", { motion: a.motion === "reduced" ? "full" : "reduced" })} />,
@@ -39,17 +38,15 @@ export function QuickA11y({ onQuit, onHelp, onSettings, onDebug, debugOpen, coll
           {collapsed && music}
           {display}
           {collapsed && help}
-          {collapsed && debug}
         </div>}
         <button type="button" className={open ? "icon-button gearbox__trigger is-active" : "icon-button gearbox__trigger"} aria-expanded={open} aria-label={collapsed ? "Game tools" : "More settings"} title={collapsed ? "Game tools" : "More settings"} onClick={() => setOpen((value) => !value)}><Icon name="gear" /></button>
       </div>
       {!collapsed && help}
-      {!collapsed && debug}
     </div>
   );
 }
 
-type IconName = "exit" | "gear" | "contrast" | "motion" | "labels" | "captions" | "volume" | "volumeOff" | "settings" | "help" | "code";
+type IconName = "exit" | "gear" | "contrast" | "motion" | "labels" | "captions" | "volume" | "volumeOff" | "settings" | "help";
 
 function Toggle({ icon, label, pressed, onClick }: { icon: IconName; label: string; pressed: boolean; onClick: () => void }) {
   return (
@@ -71,7 +68,6 @@ function Icon({ name }: { name: IconName }) {
     volumeOff: <><path d="M4 10v4h4l5 4V6l-5 4H4Z"/><path d="m16 10 5 5M21 10l-5 5"/></>,
     settings: <><path d="M5 7h14M5 12h14M5 17h14"/><circle cx="9" cy="7" r="2" fill="var(--surface-2)"/><circle cx="15" cy="12" r="2" fill="var(--surface-2)"/><circle cx="11" cy="17" r="2" fill="var(--surface-2)"/></>,
     help: <><circle cx="12" cy="12" r="9"/><path d="M9.8 9a2.4 2.4 0 1 1 3.1 2.3c-.9.4-.9 1-.9 1.7M12 17h.01"/></>,
-    code: <><path d="m9 7-5 5 5 5M15 7l5 5-5 5"/><path d="m14 4-4 16"/></>,
   };
   return <svg viewBox="0 0 24 24" aria-hidden="true">{path[name]}</svg>;
 }

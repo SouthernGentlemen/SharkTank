@@ -36,7 +36,7 @@ export function isOpsPath(path: string): boolean {
 }
 
 export function isGameShellPath(path: string): boolean {
-  return path === "/play/" || path === "/ts" || path === "/ts/" || path === "/php" || path === "/php/";
+  return path === "/play/";
 }
 
 export function isStaticAssetPath(path: string): boolean {

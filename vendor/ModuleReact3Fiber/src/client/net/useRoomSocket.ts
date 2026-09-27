@@ -5,8 +5,7 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import { TICKS_PER_SECOND } from "../../engine/index.js";
-import { type CaptureLanguage, type ClientMessage, type NetState, type ScoreEntry, type ServerMessage } from "../../protocol/index.js";
-import { getBackend } from "./backend.js";
+import { type ClientMessage, type NetState, type ScoreEntry, type ServerMessage } from "../../protocol/index.js";
 
 const TICK_MS = 1000 / TICKS_PER_SECOND;
 
@@ -41,8 +40,6 @@ export interface RoomSocket {
   status: ConnectionStatus;
   leaderboard: ScoreEntry[];
   death: DeathInfo | null;
-  captureLanguage: CaptureLanguage;
-  setCaptureLanguage: (language: CaptureLanguage) => void;
   setHeading: (angle: number) => void;
   setBoost: (on: boolean) => void;
   rocket: () => void;
@@ -50,7 +47,9 @@ export interface RoomSocket {
 }
 
 function wsUrl(roomId: string, roomName: string): string {
-  return getBackend().socketUrl(roomId, roomName);
+  const protocol = typeof window !== "undefined" && window.location.protocol === "https:" ? "wss:" : "ws:";
+  const host = typeof window !== "undefined" ? window.location.host : "localhost";
+  return `${protocol}//${host}/room/${encodeURIComponent(roomId)}/ws?roomName=${encodeURIComponent(roomName)}`;
 }
 
 export function useRoomSocket(
@@ -74,9 +73,6 @@ export function useRoomSocket(
   const identityRef = useRef(identity);
   identityRef.current = identity;
 
-  const [captureLanguage, setCaptureLanguageState] = useState<CaptureLanguage>(initialCaptureLanguage);
-  const captureLanguageRef = useRef<CaptureLanguage>(captureLanguage);
-  captureLanguageRef.current = captureLanguage;
 
   const [status, setStatus] = useState<ConnectionStatus>("connecting");
   const [youId, setYouId] = useState<string | null>(null);
@@ -140,7 +136,7 @@ export function useRoomSocket(
       ws.onopen = () => {
         retry = 0;
         setStatus("open");
-        send({ t: "hello", name: identityRef.current.name, skin: identityRef.current.skin, debugLanguage: captureLanguageRef.current });
+        send({ t: "hello", name: identityRef.current.name, skin: identityRef.current.skin });
       };
 
       ws.onmessage = (ev) => {
@@ -240,12 +236,6 @@ export function useRoomSocket(
     send({ t: "input", action: { type: "respawn", playerId: "me" } });
   }, [send]);
   const rocket = useCallback(() => send({ t: "input", action: { type: "rocket", playerId: "me" } }), [send]);
-  const setCaptureLanguage = useCallback((language: CaptureLanguage) => {
-    captureLanguageRef.current = language;
-    setCaptureLanguageState(language);
-    try { localStorage.setItem("shark.capture-language", language); } catch { /* unavailable */ }
-    send({ t: "debug", language });
-  }, [send]);
 
   return {
     stateRef,
@@ -255,22 +245,9 @@ export function useRoomSocket(
     status,
     leaderboard,
     death,
-    captureLanguage,
-    setCaptureLanguage,
     setHeading,
     setBoost,
     rocket,
     respawn,
   };
-}
-
-function initialCaptureLanguage(): CaptureLanguage {
-  if (typeof window === "undefined") return "ts";
-  const route = window.location.pathname.startsWith("/php") ? "php" : null;
-  const backend = getBackend().id;
-  try {
-    const saved = localStorage.getItem("shark.capture-language");
-    if (saved === "ts" || saved === "php") return saved;
-  } catch { /* unavailable */ }
-  return route ?? backend;
 }

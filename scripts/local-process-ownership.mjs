@@ -106,14 +106,6 @@ export function isOwnedProcessIdentity(
   return true;
 }
 
-export function isPhpMasterIdentity(identity, { moduleRoot, startFile }) {
-  if (!identity) return false;
-  return (
-    resolve(identity.cwd) === resolve(moduleRoot) &&
-    identity.command.includes(`start_file=${resolve(startFile)}`)
-  );
-}
-
 export function readOwnershipRecord(path, { readFileFn = readFileSync } = {}) {
   try {
     const parsed = JSON.parse(readFileFn(path, "utf8"));
