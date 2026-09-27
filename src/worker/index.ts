@@ -519,29 +519,6 @@ export default {
         return html(renderPolicyNotFoundDocument(legacyPolicy[1]), 404);
       }
 
-      // Same-origin facade keeps the TypeScript ⇄ PHP proof-of-concept toggle usable
-      // on HTTPS production. PHP itself runs on a separately hosted Workerman origin.
-      if (path === "/php-room") {
-        if (!env.PHP_WS_ORIGIN) return json({ ok: false, error: "PHP WebSocket origin unavailable" }, 503);
-        if (request.headers.get("Upgrade")?.toLowerCase() !== "websocket") return new Response("WebSocket upgrade required", { status: 426 });
-        const target = checkedOrigin(env.PHP_WS_ORIGIN, url.origin); if (!target) return json({ ok: false, error: "invalid PHP origin" }, 503);
-        const headers = new Headers(request.headers); if (env.PHP_ORIGIN_TOKEN) headers.set("x-wg-origin-token", env.PHP_ORIGIN_TOKEN);
-        return fetch(new Request(target, { method: request.method, headers }));
-      }
-      if (path === "/php-api" || path.startsWith("/php-api/")) {
-        const phpPath = path.slice(8) || "/";
-        if (isOpsPath(phpPath) && !(await opsAuthorized(request, env, url))) return opsDenied(env);
-        if (!env.PHP_HTTP_ORIGIN) return json({ ok: false, error: "PHP API origin unavailable" }, 503);
-        const target = checkedOrigin(env.PHP_HTTP_ORIGIN, url.origin); if (!target) return json({ ok: false, error: "invalid PHP origin" }, 503);
-        const proxied = new URL(phpPath, target); proxied.search = url.search;
-        const owner = profileId(request);
-        if (proxied.pathname === API.profile) proxied.searchParams.set("id", owner.id);
-        const headers = new Headers(request.headers); headers.delete("cookie"); headers.delete("authorization"); headers.set("x-forwarded-host", url.host);
-        if (env.PHP_ORIGIN_TOKEN) headers.set("x-wg-origin-token", env.PHP_ORIGIN_TOKEN);
-        const res = await fetch(new Request(proxied, { method: request.method, headers, body: request.body, redirect: "manual" }));
-        if (!owner.fresh || proxied.pathname !== API.profile) return res;
-        const out = new Response(res.body, res); out.headers.append("set-cookie", `wg_player=${owner.id}; Path=/; HttpOnly; SameSite=Strict; Max-Age=31536000; Secure`); return out;
-      }
       // ── WebSocket → Room DO ────────────────────────────────────────────────
       const roomId = parseRoomPath(path);
       if (roomId) {
@@ -695,10 +672,6 @@ export default {
         if (!event.ok) return json({ ok: false, error: "unable to record test alert" }, 502);
         return new Response(event.body, { status: event.status, headers: { "content-type": "application/json; charset=utf-8", "cache-control": "no-store" } });
       }
-      if (path === "/admin/switch") {
-        const api = url.searchParams.get("api") === "php" ? "php" : "ts";
-        return Response.redirect(`${url.origin}/${api}/?admin=1`, 302);
-      }
       if (path === "/docs/openapi.json" || path === "/openapi.json") {
         return json(OPENAPI);
       }
@@ -745,7 +718,7 @@ export default {
       if (path === "/logs.json") {
         const { service, tanks, caps } = await publicLogData(env);
         const gameTanks = AUDIT_ROOMS.map((room, index) => ({ tankId: room, tank: AUDIT_ROOM_NAMES[room] ?? room, download: `/logs/game/${room}.txt`, records: tanks[index].records }));
-        return json({ ok: true, retention: { serviceDays: 90, captureHours: 24, serviceRecords: service.length, capturesPerTankLimit: LOG_FETCH_CAPTURES, truncated: caps }, serviceFormat: ["timestamp", "reasonCode", "action", "subject", "details"], captureFormat: ["timestamp", "reasonCode", "tick", "action", "language", "name", "details"], events: service, gameTanks });
+        return json({ ok: true, retention: { serviceDays: 90, captureHours: 24, serviceRecords: service.length, capturesPerTankLimit: LOG_FETCH_CAPTURES, truncated: caps }, serviceFormat: ["timestamp", "reasonCode", "action", "subject", "details"], captureFormat: ["timestamp", "reasonCode", "tick", "action", "name", "details"], events: service, gameTanks });
       }
       // ── The trust estate's front door ──────────────────────────────────────
       // Six figures, six links. Each one is computed here from the same source the owning
@@ -857,7 +830,7 @@ export default {
       return html(renderNotFoundDocument(), 404);
     }
 
-    // /play/ (plus retained game-shell compatibility aliases) intentionally maps to the one
+    // /play/ intentionally maps to the one
     // Vite-built document. Static assets keep their requested path and can therefore miss.
     const assetTarget = gameShell
       ? new Request(new URL("/index.html", request.url), { method: request.method, headers: request.headers })
@@ -873,7 +846,3 @@ export default {
     ctx.waitUntil(runBackup(env).then((result) => { if (!result.ok) console.error("scheduled backup failed", result.error); }));
   },
 };
-
-function checkedOrigin(configured: string, workerOrigin: string): string | null {
-  try { const value = new URL(configured); return value.protocol === "https:" && value.origin !== workerOrigin ? value.toString() : null; } catch { return null; }
-}

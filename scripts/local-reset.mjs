@@ -4,24 +4,14 @@ import { isAbsolute, join, normalize, relative, resolve, sep } from "node:path";
 const RESET_DEFINITIONS = Object.freeze({
   dist: Object.freeze({ relativePath: "dist", classification: "disposable" }),
   wrangler: Object.freeze({ relativePath: ".wrangler", classification: "disposable" }),
-  "php-data": Object.freeze({
-    relativePath: join("packages", "php-runtime", "data"),
-    classification: "developer-state",
-  }),
 });
 
 export function parseLocalResetArgs(args) {
   if (!Array.isArray(args)) throw new TypeError("local reset arguments must be an array");
-
-  let resetPhpData = false;
-  for (const arg of args) {
-    if (arg === "--reset-php-data" && !resetPhpData) {
-      resetPhpData = true;
-      continue;
-    }
-    throw new Error(`unsupported local reset option: ${JSON.stringify(arg)}`);
+  if (args.length > 0) {
+    throw new Error(`unsupported local reset option: ${JSON.stringify(args[0])}`);
   }
-  return { resetPhpData };
+  return {};
 }
 
 function requireAbsoluteNormalizedPath(label, value) {
@@ -69,7 +59,7 @@ function assertNoSymlinkEscape(projectRoot, targetPath, { lstatFn, realpathFn })
 }
 
 export function validateResetTarget(
-  { projectRoot, key, targetPath, resetPhpData = false },
+  { projectRoot, key, targetPath },
   { lstatFn = lstatSync, realpathFn = realpathSync } = {},
 ) {
   const root = requireAbsoluteNormalizedPath("project root", projectRoot);
@@ -86,33 +76,22 @@ export function validateResetTarget(
   if (!isContained(root, target)) {
     throw new Error("reset target must stay inside the checkout");
   }
-  if (key === "php-data" && !resetPhpData) {
-    throw new Error("PHP data reset requires --reset-php-data");
-  }
 
   assertNoSymlinkEscape(root, target, { lstatFn, realpathFn });
   return { key, path: target, classification: definition.classification };
 }
 
-export function createLocalResetPlan(projectRoot, { resetPhpData = false } = {}) {
+export function createLocalResetPlan(projectRoot) {
   const root = requireAbsoluteNormalizedPath("project root", resolve(projectRoot));
-  const keys = ["dist", "wrangler", ...(resetPhpData ? ["php-data"] : [])];
+  const keys = ["dist", "wrangler"];
 
   return {
     projectRoot: root,
-    resetPhpData,
     targets: keys.map((key) => ({
       key,
       path: join(root, RESET_DEFINITIONS[key].relativePath),
       classification: RESET_DEFINITIONS[key].classification,
     })),
-    preserved: resetPhpData
-      ? []
-      : [{
-          key: "php-data",
-          path: join(root, RESET_DEFINITIONS["php-data"].relativePath),
-          classification: RESET_DEFINITIONS["php-data"].classification,
-        }],
   };
 }
 
@@ -128,7 +107,6 @@ export function executeLocalResetPlan(
         projectRoot: plan.projectRoot,
         key: target?.key,
         targetPath: target?.path,
-        resetPhpData: plan.resetPhpData === true,
       },
       { lstatFn, realpathFn },
     );

@@ -86,7 +86,7 @@ export const OPENAPI = {
         tags: ["realtime"],
         summary: "Realtime play (WebSocket upgrade)",
         description:
-          "Upgrades the connection (HTTP 101) into the tank's realtime Room. **Client → server** messages: `{t:'hello',name,skin,debugLanguage}`, `{t:'debug',language}` (selected TypeScript/PHP capture tag), `{t:'input',action}` (action = setHeading/setBoost/rocket/respawn), `{t:'ping',ts}`. **Server → client**: `welcome`, `state` (per-tick snapshot), `leaderboard`, `died`, `pong`.",
+          "Upgrades the connection (HTTP 101) into the tank's realtime Room. **Client → server** messages: `{t:'hello',name,skin}`, `{t:'input',action}` (action = setHeading/setBoost/rocket/respawn), `{t:'ping',ts}`. **Server → client**: `welcome`, `state` (per-tick snapshot), `leaderboard`, `died`, `pong`.",
         parameters: [
           { name: "id", in: "path", required: true, description: "Tank id (e.g. room-1)", schema: { type: "string" } },
           { name: "roomName", in: "query", required: false, description: "Display name for the tank", schema: { type: "string" } },
@@ -185,10 +185,10 @@ export const OPENAPI = {
       get: { tags: ["ops"], summary: "Public reason-coded logs (moved)", description: "Permanently redirects to `/evidence/#logs`; raw JSON and tank TXT downloads retain their addresses.", responses: { "301": { description: "Moved to /evidence/#logs" } } },
     },
     "/logs.json": {
-      get: { tags: ["ops"], summary: "Public service and tank logs (JSON)", description: "Every row includes a letter-plus-three-digit reason code. Tank records use the same timestamp, reasonCode, tick, action, language, name, and details fields as the live inspector and TXT export.", responses: { "200": jsonResponse("Public service and tank event stream") } },
+      get: { tags: ["ops"], summary: "Public service and tank logs (JSON)", description: "Every row includes a letter-plus-three-digit reason code. Tank records use the same timestamp, reasonCode, tick, action, name, and details fields as the TXT export.", responses: { "200": jsonResponse("Public service and tank event stream") } },
     },
     "/logs/game/{id}.txt": {
-      get: { tags: ["ops"], summary: "Download a sanitized Shark Tank log", description: "Plain UTF-8 text with timestamp,reason_code,tick,action,language,name,details comma-separated fields and newline-separated records. Internal player ids are omitted.", parameters: [{ name: "id", in: "path", required: true, schema: { type: "string" } }], responses: { "200": { description: "Downloadable TXT log", content: { "text/plain": { schema: { type: "string" } } } }, "404": { description: "Unknown tank" } } },
+      get: { tags: ["ops"], summary: "Download a sanitized Shark Tank log", description: "Plain UTF-8 text with timestamp,reason_code,tick,action,name,details comma-separated fields and newline-separated records. Internal player ids are omitted.", parameters: [{ name: "id", in: "path", required: true, schema: { type: "string" } }], responses: { "200": { description: "Downloadable TXT log", content: { "text/plain": { schema: { type: "string" } } } }, "404": { description: "Unknown tank" } } },
     },
     "/audit/": {
       get: {

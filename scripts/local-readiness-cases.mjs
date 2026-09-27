@@ -114,15 +114,13 @@ test("browser launch failure remains best-effort after readiness", async () => {
   assert.deepEqual(events, ["ready", "open-attempt"]);
 });
 
-test("lifecycle options fail closed while reset authorization keeps its exact meaning", () => {
-  assert.deepEqual(parseLocalLifecycleArgs([]), { noOpen: false, resetPhpData: false });
-  assert.deepEqual(parseLocalLifecycleArgs(["--no-open"]), { noOpen: true, resetPhpData: false });
-  assert.deepEqual(parseLocalLifecycleArgs(["--reset-php-data"]), { noOpen: false, resetPhpData: true });
-  assert.deepEqual(parseLocalLifecycleArgs(["--no-open", "--reset-php-data"]), { noOpen: true, resetPhpData: true });
+test("lifecycle options fail closed while no-open remains the one supported option", () => {
+  assert.deepEqual(parseLocalLifecycleArgs([]), { noOpen: false });
+  assert.deepEqual(parseLocalLifecycleArgs(["--no-open"]), { noOpen: true });
 
   for (const args of [
-    [""], ["--open"], ["--no-open=true"], ["--reset-php-data=true"], ["positional"],
-    ["--no-open", "--no-open"], ["--reset-php-data", "--reset-php-data"],
+    [""], ["--open"], ["--no-open=true"], ["--reset-data"], ["positional"],
+    ["--no-open", "--no-open"],
   ]) {
     assert.throws(() => parseLocalLifecycleArgs(args), /unsupported local (?:lifecycle|reset) option/);
   }

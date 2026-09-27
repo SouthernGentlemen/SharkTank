@@ -7,16 +7,6 @@ MVP target for every task below: SharkTank is the game at `/play/`, a short serv
 Shared validation for every task: pinned `npm ci`, focused tests for the touched modules and scripts, canonical `npm run check`, `npm run audit:dependencies`, committed-range whitespace, exact-head required CI, post-merge CI, history and completed-branch cleanup.
 
 
-### ST-102 — [REFACTOR] Remove the PHP runtime and TypeScript/PHP switching
-
-- Dependency: ST-101 has merged.
-- Why: The PHP parity runtime is validation-only, yet it makes PHP 8.2 a prerequisite of `npm run check`, adds Workerman processes and a PHP data reset to `npm run dev`, and leaks into the product: `/php/` and `/ts/` serve the game shell, `/php-api/*` and `/php-room` answer 503 in production, `/admin/switch` redirects to those aliases, the menu shows a backend switcher on localhost, and the in-game "TypeScript / PHP inspector" writes a `language` value into public tank captures.
-- Scope: Delete `packages/php-runtime/`, `scripts/php.mjs` and `docs/PARITY.md`. Remove the `php:*` and `test:php` scripts, `test:php` from `check` and from the baseline's required checks, and the PHP lifecycle, ports 8080 and 8081, `--reset-php-data` and Workerman ownership from `scripts/local.mjs`, `scripts/local-reset.mjs`, `scripts/local-process-ownership.mjs` and their cases. In the Worker, remove `/php-room`, `/php-api/*`, `checkedOrigin`, the `PHP_*` env fields, the `/php`, `/php/`, `/ts` and `/ts/` shell aliases and `/admin/switch`. Make the client same-origin only by removing `backend.ts` switching and the menu switcher. Remove `CaptureLanguage`, the `debug` client message, `hello.debugLanguage`, the stored capture-language preference and the code inspector (`DebugPanel`, `debugActions`, its rail button and styles). The Room stops reading a capture language, keeps its SQLite `language` column without a migration and writes `ts`; the public capture table, the `/logs.json` capture format and the TXT export drop the Language column. Remove PHP from README and `docs/ARCHITECTURE.md`.
-- Non-goals: No engine, determinism, replay, Durable Object class, migration or binding change. Keep the `docs/history/*.csv` lineage rows that name ModulePHP. No release.
-- Owner decision: The inspector is removed with PHP by default; the alternative keeps a TypeScript-only inspector.
-- Acceptance: Outside `docs/history/*.csv`, `git grep -i php` finds nothing; `npm run check` passes on a host without PHP; `/php/`, `/ts/`, `/php-api/health` and `/php-room` return the standard 404, as does `/admin/switch` for an authenticated operator; a stale client that still sends `debug` or `hello.debugLanguage` stays connected; the room WebSocket welcome and determinism tests pass; `npm run dev -- --no-open` reaches readiness without PHP.
-- Authorities: README.md, docs/ARCHITECTURE.md, docs/PARITY.md, package.json, scripts/local.mjs, scripts/local-reset.mjs, scripts/local-process-ownership.mjs and their cases, scripts/check-repository-baseline.mjs, src/worker/index.ts, src/worker/room-do.ts, vendor/ModuleReact3Fiber.
-
 ### ST-103 — [REFACTOR] Retire SharkTank's ISO claims, register and policy set
 
 - Dependency: ST-102 has merged.

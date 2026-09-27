@@ -1,6 +1,6 @@
 # Architecture
 
-SharkTank is one Cloudflare Worker deployment with a React browser game, two Durable Object classes, one R2 binding, and an optional PHP protocol-parity runtime. The PHP runtime is validation-only and is not required to build or operate the TypeScript deployment.
+SharkTank is one Cloudflare Worker deployment with a React browser game, two Durable Object classes, and one R2 binding.
 
 ```text
 browser ── HTTPS ──> Worker router ──> Lobby Durable Object
@@ -47,4 +47,4 @@ Repository delivery is also intentionally squash-only so each controlled ST chan
 
 The governance pages and supported game controls use semantic structure, keyboard operation, visible focus, managed focus, alternative status output, configurable contrast/text scale, and reduced-motion support. The implemented interface target is WCAG 2.0 AA; no certification is claimed.
 
-`vendor/ModuleReact3Fiber` is first-party source and supplies the deterministic engine and protocol used by the Worker and browser client. `packages/php-runtime` independently exercises the replay contract as a cross-language parity check. See [Runtime parity](PARITY.md) for that validation boundary.
+`vendor/ModuleReact3Fiber` is first-party source and supplies the deterministic engine and protocol used by the Worker and browser client.

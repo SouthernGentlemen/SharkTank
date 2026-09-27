@@ -9,7 +9,7 @@ npm ci
 npm run check
 ```
 
-`npm run check` is the complete credential-free acceptance gate. It covers TypeScript, tests, PHP parity, the production build, controlled-change policy, sequential history, reconstruction provenance, local public information architecture and evidence HTTP acceptance, GitHub-settings comparison tests, pure dependency-advisory policy cases, and patch whitespace. `npm run audit:dependencies` is the separate live network advisory gate required by CI and release verification.
+`npm run check` is the complete credential-free acceptance gate. It covers TypeScript, tests, the production build, controlled-change policy, sequential history, reconstruction provenance, local public information architecture and evidence HTTP acceptance, GitHub-settings comparison tests, pure dependency-advisory policy cases, and patch whitespace. `npm run audit:dependencies` is the separate live network advisory gate required by CI and release verification.
 
 Pull-request CI supplies event metadata to that same gate and performs the locked install, `npm run check`, and the separate network advisory gate.
 

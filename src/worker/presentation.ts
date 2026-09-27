@@ -1297,9 +1297,9 @@ function controlsHtml(): string {
 
 
 interface PublicLogEvent { ts: number; type: string; room?: string | null; subject?: string | null; detail?: string | null }
-interface GameLogWireEvent { ts: number; tick: number; language?: unknown; action: Record<string, unknown> }
+interface GameLogWireEvent { ts: number; tick: number; action: Record<string, unknown> }
 interface PublicServiceLogRecord { timestamp: string; reasonCode: string; action: string; subject: string; details: string }
-interface PublicGameLogRecord { timestamp: string; reasonCode: string; tick: number; action: string; language: "typescript" | "php"; name: string; details: string }
+interface PublicGameLogRecord { timestamp: string; reasonCode: string; tick: number; action: string; name: string; details: string }
 interface PublicTankLog { room: string; records: PublicGameLogRecord[] }
 
 const SERVICE_REASON_CODES: Readonly<Record<string, string>> = {
@@ -1323,7 +1323,7 @@ function normalizeServiceLogEvent(event: PublicLogEvent): PublicServiceLogRecord
 function normalizeGameLogEvent(event: GameLogWireEvent): PublicGameLogRecord {
   const action = event.action ?? {}, type = String(action.type ?? "unknown"), name = type === "join" ? String(action.name ?? "") : "";
   const details = Object.entries(action).filter(([key]) => !["type", "playerId", "name"].includes(key)).map(([key, value]) => `${key}=${String(value)}`).join(";");
-  return { timestamp: new Date(event.ts).toISOString(), reasonCode: reasonCode(GAME_REASON_CODES, type, "G999"), tick: event.tick, action: type, language: event.language === "php" ? "php" : "typescript", name, details: tankCopy(details) };
+  return { timestamp: new Date(event.ts).toISOString(), reasonCode: reasonCode(GAME_REASON_CODES, type, "G999"), tick: event.tick, action: type, name, details: tankCopy(details) };
 }
 
 function reasonOptions(records: Array<{ reasonCode: string }>): string { return [...new Set(records.map((record) => record.reasonCode))].sort().map((code) => `<option value="${esc(code)}">${esc(code)}</option>`).join(""); }
@@ -1358,10 +1358,10 @@ function publicLogsHtml(events: PublicLogEvent[], gameLogs: PublicTankLog[], cap
   const rows = serviceRecords.map((record) => { const search = `${record.timestamp} ${record.reasonCode} ${record.action} ${record.subject} ${record.details}`.toLowerCase(); return `<tr data-log-row="1" data-search="${esc(search)}" data-reason="${esc(record.reasonCode)}"><td class="cell-time" title="${esc(record.timestamp)}"><time datetime="${esc(record.timestamp)}">${esc(record.timestamp)}</time></td><td class="cell-code"><code>${esc(record.reasonCode)}</code></td><td class="cell-code" title="${esc(record.action)}"><code>${esc(record.action)}</code></td><td class="cell-key" title="${esc(record.subject)}">${esc(record.subject)}</td><td class="cell-detail" title="${esc(record.details)}"><span>${esc(record.details)}</span></td></tr>`; }).join("");
   const tanks = gameLogs.map(({ room, records }) => {
     const tableId = `game-log-${room}`;
-    const captures = records.slice().reverse().map((record) => { const search = `${record.timestamp} ${record.reasonCode} ${record.tick} ${record.action} ${record.language} ${record.name} ${record.details}`.toLowerCase(); return `<tr data-log-row="1" data-search="${esc(search)}" data-reason="${esc(record.reasonCode)}" data-timestamp="${esc(record.timestamp)}" data-code="${esc(record.reasonCode)}" data-tick="${record.tick}" data-action="${esc(record.action.toLowerCase())}" data-language="${esc(record.language)}" data-details="${esc(record.details.toLowerCase())}"><td class="cell-time" title="${esc(record.timestamp)}"><time datetime="${esc(record.timestamp)}">${esc(record.timestamp)}</time></td><td class="cell-code"><code>${esc(record.reasonCode)}</code></td><td class="cell-seq">${record.tick}</td><td class="cell-code" title="${esc(record.action)}"><code>${esc(record.action)}</code></td><td class="cell-key" title="${esc(record.language)}">${esc(record.language)}</td><td class="cell-detail" title="${esc(record.details)}"><span>${esc(record.details)}</span></td></tr>`; }).join("");
+    const captures = records.slice().reverse().map((record) => { const search = `${record.timestamp} ${record.reasonCode} ${record.tick} ${record.action} ${record.name} ${record.details}`.toLowerCase(); return `<tr data-log-row="1" data-search="${esc(search)}" data-reason="${esc(record.reasonCode)}" data-timestamp="${esc(record.timestamp)}" data-code="${esc(record.reasonCode)}" data-tick="${record.tick}" data-action="${esc(record.action.toLowerCase())}" data-details="${esc(record.details.toLowerCase())}"><td class="cell-time" title="${esc(record.timestamp)}"><time datetime="${esc(record.timestamp)}">${esc(record.timestamp)}</time></td><td class="cell-code"><code>${esc(record.reasonCode)}</code></td><td class="cell-seq">${record.tick}</td><td class="cell-code" title="${esc(record.action)}"><code>${esc(record.action)}</code></td><td class="cell-detail" title="${esc(record.details)}"><span>${esc(record.details)}</span></td></tr>`; }).join("");
     const sortButton = (key: string, label: string, direction = "") => `<th scope="col" aria-sort="${direction === "asc" ? "ascending" : direction === "desc" ? "descending" : "none"}"><button type="button" class="table-sort" data-table="${tableId}" data-key="${key}"${direction ? ` data-direction="${direction}"` : ""}>${label}</button></th>`;
     const tankName = AUDIT_ROOM_NAMES[room] ?? room;
-    return `<details class="card log-room"><summary><span class="log-summary"><strong>${esc(tankName)} Tank</strong><code>${esc(room)}</code><span class="log-count">${records.length} ${records.length === 1 ? "capture" : "captures"} · past 24h</span></span></summary><div class="log-room-body"><div class="log-actions"><a class="action-link" href="/logs/game/${encodeURIComponent(room)}.txt" download>Download the full 24-hour capture (TXT)</a></div>${logToolbar(tableId, records, `${tankName} Tank captures`)}<div class="table-scroll" role="region" aria-label="${esc(tankName)} Tank captures" tabindex="0"><table class="capture-table" id="${tableId}"><caption class="sr-only">${esc(tankName)} Tank captures</caption><thead><tr>${sortButton("timestamp", "Timestamp", "desc")}${sortButton("code", "Reason")}${sortButton("tick", "Tick")}${sortButton("action", "Action")}${sortButton("language", "Language")}${sortButton("details", "Details")}</tr></thead><tbody>${captures || '<tr><td colspan="6">No captures in the past 24 hours.</td></tr>'}</tbody></table></div>${records.length > LOG_PAGE_SIZE ? logPager(tableId, records.length) : ""}</div></details>`;
+    return `<details class="card log-room"><summary><span class="log-summary"><strong>${esc(tankName)} Tank</strong><code>${esc(room)}</code><span class="log-count">${records.length} ${records.length === 1 ? "capture" : "captures"} · past 24h</span></span></summary><div class="log-room-body"><div class="log-actions"><a class="action-link" href="/logs/game/${encodeURIComponent(room)}.txt" download>Download the full 24-hour capture (TXT)</a></div>${logToolbar(tableId, records, `${tankName} Tank captures`)}<div class="table-scroll" role="region" aria-label="${esc(tankName)} Tank captures" tabindex="0"><table class="capture-table" id="${tableId}"><caption class="sr-only">${esc(tankName)} Tank captures</caption><thead><tr>${sortButton("timestamp", "Timestamp", "desc")}${sortButton("code", "Reason")}${sortButton("tick", "Tick")}${sortButton("action", "Action")}${sortButton("details", "Details")}</tr></thead><tbody>${captures || '<tr><td colspan="5">No captures in the past 24 hours.</td></tr>'}</tbody></table></div>${records.length > LOG_PAGE_SIZE ? logPager(tableId, records.length) : ""}</div></details>`;
   }).join("");
   const truncationNote = caps.serviceTruncated || caps.captureTruncated
     ? `<p class="table-note u-m-0">Showing the newest ${caps.serviceTruncated ? `${serviceRecords.length} service records` : ""}${caps.serviceTruncated && caps.captureTruncated ? " and " : ""}${caps.captureTruncated ? "captures per tank" : ""} — the retained record is larger than one page can carry. The JSON and TXT exports carry the rest.</p>`
@@ -1483,10 +1483,10 @@ function gameLogText(roomId: string, events: GameLogWireEvent[]): Response {
     const safe = /^[=+\-@]/.test(plain) ? `'${plain}` : plain;
     return /[",]/.test(safe) ? `"${safe.replace(/"/g, '""')}"` : safe;
   };
-  const lines = ["timestamp,reason_code,tick,action,language,name,details"];
+  const lines = ["timestamp,reason_code,tick,action,name,details"];
   for (const event of events) {
     const record = normalizeGameLogEvent(event);
-    lines.push([record.timestamp, record.reasonCode, record.tick, record.action, record.language, record.name, record.details].map(field).join(","));
+    lines.push([record.timestamp, record.reasonCode, record.tick, record.action, record.name, record.details].map(field).join(","));
   }
   return new Response(lines.join("\n") + "\n", { headers: { "content-type": "text/plain; charset=utf-8", "content-disposition": `attachment; filename="${roomId}-game-log.txt"`, "cache-control": "no-store", "x-content-type-options": "nosniff" } });
 }

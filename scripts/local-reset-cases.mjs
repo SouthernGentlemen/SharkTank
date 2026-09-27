@@ -10,7 +10,7 @@ import {
   writeFileSync,
 } from "node:fs";
 import { tmpdir } from "node:os";
-import { dirname, join, resolve, sep } from "node:path";
+import { dirname, join, resolve } from "node:path";
 import {
   createLocalResetPlan,
   executeLocalResetPlan,
@@ -20,16 +20,14 @@ import {
 
 function fixture() {
   const root = resolve(mkdtempSync(join(tmpdir(), "sharktank-reset-")));
-  mkdirSync(join(root, "packages", "php-runtime", "data"), { recursive: true });
   mkdirSync(join(root, "dist"), { recursive: true });
   mkdirSync(join(root, ".wrangler"), { recursive: true });
-  writeFileSync(join(root, "packages", "php-runtime", "data", "developer.json"), "keep");
   writeFileSync(join(root, "dist", "bundle.js"), "generated");
   writeFileSync(join(root, ".wrangler", "cache"), "generated");
   return root;
 }
 
-test("default reset preserves PHP developer state while removing disposable generated paths", () => {
+test("default reset removes only disposable generated paths", () => {
   const root = fixture();
   const plan = createLocalResetPlan(root);
 
@@ -37,99 +35,53 @@ test("default reset preserves PHP developer state while removing disposable gene
     plan.targets.map(({ key, classification }) => [key, classification]),
     [["dist", "disposable"], ["wrangler", "disposable"]],
   );
-  assert.deepEqual(
-    plan.preserved.map(({ key, classification }) => [key, classification]),
-    [["php-data", "developer-state"]],
-  );
 
   executeLocalResetPlan(plan);
 
   assert.equal(existsSync(join(root, "dist")), false);
   assert.equal(existsSync(join(root, ".wrangler")), false);
-  assert.equal(
-    readFileSync(join(root, "packages", "php-runtime", "data", "developer.json"), "utf8"),
-    "keep",
-  );
 });
 
-test("PHP data deletion requires the one explicit local option", () => {
-  assert.deepEqual(parseLocalResetArgs([]), { resetPhpData: false });
-  assert.deepEqual(parseLocalResetArgs(["--reset-php-data"]), { resetPhpData: true });
+test("local reset accepts no destructive path options", () => {
+  assert.deepEqual(parseLocalResetArgs([]), {});
 
-  for (const args of [
-    [""],
-    ["../data"],
-    ["/tmp/data"],
-    ["--reset-path=/tmp/data"],
-    ["--reset-php-data", "--reset-php-data"],
-  ]) {
+  for (const args of [[""], ["../data"], ["/tmp/data"], ["--reset-path=/tmp/data"], ["--reset-data"]]) {
     assert.throws(() => parseLocalResetArgs(args), /unsupported local reset option/);
   }
 });
 
-test("explicit opt-in removes only this checkout's canonical PHP data target", () => {
+test("unsafe, escaped, ambiguous, and malformed reset paths are refused", () => {
   const root = fixture();
-  const outside = resolve(mkdtempSync(join(tmpdir(), "sharktank-reset-outside-")));
-  writeFileSync(join(outside, "keep.txt"), "outside");
-
-  const plan = createLocalResetPlan(root, { resetPhpData: true });
-  assert.deepEqual(plan.targets.map(({ key }) => key), ["dist", "wrangler", "php-data"]);
-
-  executeLocalResetPlan(plan);
-
-  assert.equal(existsSync(join(root, "packages", "php-runtime", "data")), false);
-  assert.equal(readFileSync(join(outside, "keep.txt"), "utf8"), "outside");
-});
-
-test("unsafe, escaped, ambiguous, and malformed PHP reset paths are refused", () => {
-  const root = fixture();
-  const parent = dirname(root);
-  const canonical = join(root, "packages", "php-runtime", "data");
+  const canonical = join(root, "dist");
   const candidates = [
-    parent,
-    join(root, "packages", "php-runtime"),
-    join(root, "packages", "php-runtime", "data-sibling"),
-    join(parent, "another-checkout", "packages", "php-runtime", "data"),
+    dirname(root),
+    root,
+    join(root, "dist-sibling"),
     resolve(tmpdir(), "arbitrary-absolute-reset"),
-    `${root}${sep}packages${sep}php-runtime${sep}..${sep}php-runtime${sep}data`,
     "",
-    "packages/php-runtime/data",
+    "dist",
     `${canonical}\0escape`,
   ];
 
   for (const targetPath of candidates) {
     assert.throws(
-      () => validateResetTarget({
-        projectRoot: root,
-        key: "php-data",
-        targetPath,
-        resetPhpData: true,
-      }),
+      () => validateResetTarget({ projectRoot: root, key: "dist", targetPath }),
       /reset target|path|checkout|canonical/,
     );
   }
-
-  assert.throws(
-    () => validateResetTarget({
-      projectRoot: root,
-      key: "php-data",
-      targetPath: canonical,
-    }),
-    /requires --reset-php-data/,
-  );
 });
 
-test("symlinked canonical data cannot redirect an opted-in reset outside the checkout", () => {
+test("a symlinked canonical reset target cannot redirect outside the checkout", () => {
   const root = fixture();
-  const data = join(root, "packages", "php-runtime", "data");
+  const target = join(root, "dist");
   const outside = resolve(mkdtempSync(join(tmpdir(), "sharktank-reset-link-target-")));
   writeFileSync(join(outside, "keep.txt"), "outside");
-  rmSync(data, { recursive: true, force: true });
-  symlinkSync(outside, data, "dir");
+  rmSync(target, { recursive: true, force: true });
+  symlinkSync(outside, target, "dir");
 
   const mutations = [];
   assert.throws(
-    () => executeLocalResetPlan(createLocalResetPlan(root, { resetPhpData: true }), {
+    () => executeLocalResetPlan(createLocalResetPlan(root), {
       rmFn: (...args) => mutations.push(args),
     }),
     /symbolic link/,
@@ -140,13 +92,13 @@ test("symlinked canonical data cannot redirect an opted-in reset outside the che
 
 test("all reset targets are validated before the first destructive mutation", () => {
   const root = fixture();
-  const plan = createLocalResetPlan(root, { resetPhpData: true });
-  plan.targets[2] = { ...plan.targets[2], path: join(dirname(root), "outside-data") };
+  const plan = createLocalResetPlan(root);
+  plan.targets[1] = { ...plan.targets[1], path: join(dirname(root), "outside-data") };
 
   const mutations = [];
   assert.throws(
     () => executeLocalResetPlan(plan, { rmFn: (...args) => mutations.push(args) }),
-    /canonical php-data path/,
+    /canonical wrangler path/,
   );
   assert.deepEqual(mutations, []);
   assert.equal(existsSync(join(root, "dist", "bundle.js")), true);

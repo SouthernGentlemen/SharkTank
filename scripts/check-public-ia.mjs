@@ -59,7 +59,7 @@ async function verifyRoomWebSocket() {
         if (error) reject(error); else resolve(value);
       };
       timer = setTimeout(() => finish(new Error("timed out waiting for welcome")), 5_000);
-      socket.addEventListener("open", () => socket.send(JSON.stringify({ t: "hello", name: "Acceptance Shark", skin: "cyan" })), { once: true });
+      socket.addEventListener("open", () => socket.send(JSON.stringify({ t: "hello", name: "Acceptance Shark", skin: "cyan", debugLanguage: "ts" })), { once: true });
       socket.addEventListener("message", (event) => {
         let message;
         try { message = JSON.parse(String(event.data)); } catch { return; }
@@ -71,6 +71,30 @@ async function verifyRoomWebSocket() {
     if (welcome?.roomId !== "room-1") fail(`WebSocket welcome expected room-1, got ${welcome?.roomId}`);
     if (typeof welcome?.youId !== "string" || !welcome.youId) fail("WebSocket welcome lost player identity");
     if (!welcome?.state || typeof welcome.state.tick !== "number") fail("WebSocket welcome lost authoritative room state");
+
+    const staleFrameSurvived = await new Promise((resolve) => {
+      let settled = false;
+      const ts = Date.now();
+      const timer = setTimeout(() => {
+        if (settled) return;
+        settled = true;
+        resolve(false);
+      }, 2_000);
+      const onMessage = (event) => {
+        let message;
+        try { message = JSON.parse(String(event.data)); } catch { return; }
+        if (message?.t !== "pong" || message.ts !== ts) return;
+        if (settled) return;
+        settled = true;
+        clearTimeout(timer);
+        socket.removeEventListener("message", onMessage);
+        resolve(true);
+      };
+      socket.addEventListener("message", onMessage);
+      socket.send(JSON.stringify({ t: "debug", language: "ts" }));
+      socket.send(JSON.stringify({ t: "ping", ts }));
+    });
+    if (!staleFrameSurvived) fail("legacy debug frame disconnected the room socket");
   } catch (error) {
     fail(`Room WebSocket acceptance failed: ${error instanceof Error ? error.message : String(error)}`);
   } finally {
@@ -184,6 +208,22 @@ async function main() {
     assertNotGameDocument(retiredPath, retiredBody);
   }
 
+  const retiredRuntimeRoot = "/" + ["p", "h", "p"].join("");
+  for (const retiredPath of [
+    retiredRuntimeRoot,
+    retiredRuntimeRoot + "/",
+    "/ts",
+    "/ts/",
+    retiredRuntimeRoot + "-api/health",
+    retiredRuntimeRoot + "-room",
+  ]) {
+    const retired = await request(retiredPath);
+    if (retired.status !== 404) fail(`${retiredPath} expected retired runtime surface to return 404, got ${retired.status}`);
+    const retiredBody = await retired.text();
+    assertStrictPresentation(retiredPath, retired, retiredBody);
+    assertNotGameDocument(retiredPath, retiredBody);
+  }
+
   const unknownPage = await request("/not-a-real-route");
   if (unknownPage.status !== 404) fail(`unknown human route expected 404, got ${unknownPage.status}`);
   if (!(unknownPage.headers.get("content-type") || "").startsWith("text/html")) fail("unknown human route must remain HTML");
@@ -224,6 +264,15 @@ async function main() {
   const adminHtml = await admin.text();
   assertStrictPresentation("/admin/", admin, adminHtml);
   if (!adminHtml.includes("<h1>Admin</h1>")) fail("authenticated /admin/ lost its control-room content");
+
+  const retiredSwitch = await fetch(`${base}/admin/switch`, {
+    redirect: "manual",
+    headers: { authorization: `Basic ${auth}`, "cache-control": "no-cache" },
+  });
+  if (retiredSwitch.status !== 404) fail(`authenticated /admin/switch expected 404, got ${retiredSwitch.status}`);
+  const retiredSwitchHtml = await retiredSwitch.text();
+  assertStrictPresentation("/admin/switch", retiredSwitch, retiredSwitchHtml);
+  assertNotGameDocument("/admin/switch", retiredSwitchHtml);
 
   const docs = await request("/docs/");
   if (docs.status !== 200) fail(`/docs/ expected 200, got ${docs.status}`);

@@ -24,7 +24,6 @@ import { QuickA11y } from "./QuickA11y.js";
 import { HelpOverlay } from "./HelpOverlay.js";
 import { SnakeLabels } from "./SnakeLabels.js";
 import { Captions } from "./Captions.js";
-import { DebugPanel } from "./DebugPanel.js";
 import { TouchControls, useTouchControls } from "./TouchControls.js";
 
 export interface GameScreenProps {
@@ -42,7 +41,6 @@ export function GameScreen({ room, identity, onQuit }: GameScreenProps) {
   const stickRef = useRef<StickState>({ active: false, angle: 0 });
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [helpOpen, setHelpOpen] = useState(false);
-  const [debugOpen, setDebugOpen] = useState(false);
   const touch = useTouchControls(settings);
   const stickSide = settings.controls.stickSide;
 
@@ -59,10 +57,8 @@ export function GameScreen({ room, identity, onQuit }: GameScreenProps) {
   // are passed straight to dialogs that key effects off them — see useFocusTrap.
   const closeSettings = useCallback(() => setSettingsOpen(false), []);
   const closeHelp = useCallback(() => setHelpOpen(false), []);
-  const closeDebug = useCallback(() => setDebugOpen(false), []);
   const openSettings = useCallback(() => setSettingsOpen(true), []);
   const openHelp = useCallback(() => setHelpOpen(true), []);
-  const toggleDebug = useCallback(() => setDebugOpen((value) => !value), []);
 
   // Help is keyboard-addressable; Escape closes a tool first, then exits the tank.
   useEffect(() => {
@@ -78,17 +74,16 @@ export function GameScreen({ room, identity, onQuit }: GameScreenProps) {
       if (e.code === "Escape") {
         if (settingsOpen) return;
         if (helpOpen) { e.preventDefault(); setHelpOpen(false); }
-        else if (debugOpen) { e.preventDefault(); setDebugOpen(false); }
         else { e.preventDefault(); handleQuit(); }
       }
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  }, [settingsOpen, helpOpen, debugOpen, handleQuit]);
+  }, [settingsOpen, helpOpen, handleQuit]);
 
   // A dialog owns input; death does not — the respawn card is deliberately non-modal so
   // the tools rail (exit, audio, settings) stays reachable while you wait to come back.
-  const dialogOpen = settingsOpen || helpOpen || debugOpen;
+  const dialogOpen = settingsOpen || helpOpen;
   const inputEnabled = !dialogOpen && !socket.death;
 
   return (
@@ -105,7 +100,7 @@ export function GameScreen({ room, identity, onQuit }: GameScreenProps) {
       <FrenzyBanner socket={socket} />
       {settings.graphics.showMinimap && <Minimap socket={socket} />}
       <MinimapSummary socket={socket} />
-      <QuickA11y onQuit={handleQuit} onHelp={openHelp} onSettings={openSettings} onDebug={toggleDebug} debugOpen={debugOpen} collapsed={touch} />
+      <QuickA11y onQuit={handleQuit} onHelp={openHelp} onSettings={openSettings} collapsed={touch} />
       <div className="ability-rail">
         <DashButton socket={socket} compact={touch} />
         <RocketButton socket={socket} compact={touch} />
@@ -124,7 +119,6 @@ export function GameScreen({ room, identity, onQuit }: GameScreenProps) {
 
       {settingsOpen && <Settings onClose={closeSettings} />}
       {helpOpen && <HelpOverlay onClose={closeHelp} />}
-      {debugOpen && <DebugPanel socket={socket} onClose={closeDebug} />}
     </main>
   );
 }

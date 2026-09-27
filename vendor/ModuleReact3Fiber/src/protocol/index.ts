@@ -54,12 +54,9 @@ export interface ErrorResponse {
 }
 
 // ── WebSocket: realtime play (client ⇄ Room DO) ───────────────────────────────
-export type CaptureLanguage = "ts" | "php";
-
 /** Client → server. `input` carries the same Action union the engine applies. */
 export type ClientMessage =
-  | { t: "hello"; name: string; skin: string; debugLanguage?: CaptureLanguage }
-  | { t: "debug"; language: CaptureLanguage }
+  | { t: "hello"; name: string; skin: string }
   | { t: "input"; action: Action }
   | { t: "ping"; ts: number };
 

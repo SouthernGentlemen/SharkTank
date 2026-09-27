@@ -5,9 +5,7 @@ import { createServer } from "node:net";
 import {
   createOwnershipRecord,
   foreignPortError,
-  isOwnedProcessIdentity,
-  isPhpMasterIdentity,
-  requirePortsFree,
+  isOwnedProcessIdentity,  requirePortsFree,
   stopOwnedProcess,
 } from "./local-process-ownership.mjs";
 
@@ -144,32 +142,6 @@ test("identity change after graceful stop prevents escalation against a recycled
   });
   assert.equal(result.stopped, true);
   assert.deepEqual(signals, [[43210, "SIGTERM"]]);
-});
-
-test("PHP master identity requires this checkout's runtime cwd and exact start file", () => {
-  const moduleRoot = "/work/SharkTank/packages/php-runtime";
-  const startFile = `${moduleRoot}/start.php`;
-  const php = {
-    pid: 50001,
-    startedAt: "Tue Sep 22 05:10:00 2026",
-    cwd: moduleRoot,
-    command: `Workerman: master process start_file=${startFile}`,
-  };
-  assert.equal(isPhpMasterIdentity(php, { moduleRoot, startFile }), true);
-  assert.equal(
-    isPhpMasterIdentity(
-      { ...php, cwd: "/work/other/SharkTank/packages/php-runtime" },
-      { moduleRoot, startFile },
-    ),
-    false,
-  );
-  assert.equal(
-    isPhpMasterIdentity(
-      { ...php, command: "php start.php start -d" },
-      { moduleRoot, startFile },
-    ),
-    false,
-  );
 });
 
 test("occupied-port refusal identifies the port and never claims ownership", () => {
