@@ -4,7 +4,6 @@ import type { MaintenanceState } from "./env.js";
 import {
   PAGE_CSS_PATH,
   adminViewerHtml,
-  controlsHtml,
   evidenceDashboardHtml,
 } from "./presentation.js";
 
@@ -14,18 +13,18 @@ const WIZARDGANG_FAVICON = "data:image/svg+xml,%3Csvg%20xmlns%3D%22http%3A%2F%2F
 
 const PRIMARY_NAV = [
   ["/", "Overview"],
-  ["/controls/", "Controls"],
   ["/evidence/", "Evidence"],
   ["/play/", "Play"],
 ] as const;
 
 const ESTATE_FOOTER = [
-  ["Public", [["/", "Overview"], ["/controls/", "Controls"], ["/evidence/", "Evidence"], ["/play/", "Play"]]],
-  ["Machine evidence", [["/status.json", "Status JSON"], ["/incidents.json", "Incidents JSON"], ["/spend.json", "Spend JSON"], ["/logs.json", "Logs JSON"], ["/policies.json", "Policies JSON"], ["/audit/manifest.json", "Register JSON"]]],
+  ["Public", [["/", "Overview"], ["/evidence/", "Evidence"], ["/play/", "Play"]]],
+  ["Machine evidence", [["/status.json", "Status JSON"], ["/incidents.json", "Incidents JSON"], ["/spend.json", "Spend JSON"], ["/logs.json", "Logs JSON"]]],
   ["Technical", [["/docs/", "Developer API"], ["/openapi.json", "OpenAPI JSON"], ["https://github.com/Wizard-Gang/SharkTank", "GitHub source"]]],
+
 ] as const;
 
-type AuditedRawArtifactKind = "openapi" | "controls" | "evidence" | "admin";
+type AuditedRawArtifactKind = "openapi" | "evidence" | "admin";
 
 interface DocumentMetadata {
   title: string;
@@ -34,13 +33,10 @@ interface DocumentMetadata {
 }
 
 interface OverviewPresentationInput {
-  portal: { availabilityPercent: number; windowLabel: string };
-  tank: unknown;
-  incidents: unknown[];
+  tank: { availabilityPercent: number; windowLabel: string };
   integrity: { chainStatus?: string; entryCount: number; algorithm: string };
   spendUsd: number;
   hardLimitUsd: number;
-  readiness: { percent: number; met: number; partial: number; total: number };
   release: string;
   environment: string;
 }
@@ -53,8 +49,8 @@ interface GeneratedMainProps {
 /**
  * The only raw-HTML bridge in the React Worker presentation.
  *
- * These four inputs are pre-existing, first-party generators whose contracts are already
- * exercised by conformance, public-copy, accessibility, and local HTTP acceptance tests.
+ * These three inputs are pre-existing, first-party generators whose contracts are already
+ * exercised by public-copy, accessibility, and local HTTP acceptance tests.
  * New Worker presentation must use React elements instead of adding another raw insertion
  * site or another artifact kind here.
  */
@@ -101,7 +97,7 @@ function EstateFooter() {
           ))}
         </nav>
         <p className="footer-note">
-          The game is the workload. The management system around it is the case study. Every control position links to inspectable implementation or evidence.
+          SharkTank is the game. Evidence and operator tools report the running service without changing gameplay.
         </p>
       </div>
     </footer>
@@ -166,6 +162,7 @@ function ProofTile({ href, label, value, detail, tone }: { href: string; label: 
   );
 }
 
+
 function SharkMark() {
   return (
     <svg viewBox="0 0 180 110" role="img" aria-label="Goofy Shark Tank mascot">
@@ -181,59 +178,36 @@ function SharkMark() {
   );
 }
 
+
 function OverviewMain({ input }: { input: OverviewPresentationInput }) {
   const chainOk = input.integrity.chainStatus === "verified";
-  const uptimeClaim = input.portal.availabilityPercent === 100
-    ? "100% uptime maintained"
-    : input.portal.availabilityPercent + "% server availability";
   return (
     <main id="main" tabIndex={-1}>
-      <section className="governance-hero home-hero">
+      <section className="home-hero">
         <div className="home-hero__copy">
-          <div className="eyebrow">SharkTank · governed realtime production workload</div>
-          <h1>Governance you can inspect.</h1>
-          <p>SharkTank is a running realtime application that demonstrates how ISO/IEC 27001, ISO/IEC 42001, reliability, accessibility, operational continuity, and spend governance become measurable production requirements.</p>
-          <div className="proof-row" aria-label="Demonstrated production capabilities">
-            <span>ISO 27001</span><span>ISO 42001</span><span>{uptimeClaim}</span><span>WCAG 2.0 AA</span><span>Controlled spend</span><span>Live evidence</span>
-          </div>
+          <div className="eyebrow">Realtime multiplayer Shark Tank</div>
+          <h1>Play SharkTank.</h1>
+          <p>SharkTank is a realtime multiplayer game backed by authoritative Cloudflare Durable Objects. Swim a shark, grow, and race the leaderboard while the same service exposes a concise live operations snapshot.</p>
           <div className="action-links">
-            <a className="button" href="/controls/">Explore Controls →</a>
-            <a className="button secondary" href="/evidence/">Inspect Evidence →</a>
-            <a className="button secondary" href="/play/">Play →</a>
+            <a className="button" href="/play/">Play →</a>
+            <a className="button secondary" href="/evidence/">Evidence →</a>
             <a className="button secondary" href="https://github.com/Wizard-Gang/SharkTank">GitHub →</a>
+            <a className="button secondary" href="https://demo.wizardgang.ai/assurance">Portfolio assurance →</a>
           </div>
         </div>
-        <figure className="governance-art">
-          <img src="/sharktank-art.jpg" width="1280" height="720" alt="SharkTank main menu showing the interactive production workload" />
-          <figcaption>Live workload · the system behind the evidence</figcaption>
+        <figure className="workload-art">
+          <img src="/sharktank-art.jpg" width="1280" height="720" alt="SharkTank main menu showing the realtime multiplayer game" />
+          <figcaption>Realtime game · live service</figcaption>
         </figure>
       </section>
-      <section className="governance-flow" aria-label="SharkTank governance evidence model">
-        <div><strong>Running system</strong><span>Realtime software with users, agents, state, change, and failure modes.</span></div><i aria-hidden="true">↓</i>
-        <div><strong>Operational evidence</strong><span>Status, incidents, logs, receipts, backups, recovery, and resource use.</span></div><i aria-hidden="true">↓</i>
-        <div><strong>Controls</strong><span>Technical and operational responses tied to requirements.</span></div><i aria-hidden="true">↓</i>
-        <div><strong>Management system</strong><span>Scope, risk, policy, objectives, review, and continuous improvement.</span></div>
-      </section>
-      <section className="standard-pair" aria-label="Implemented management systems">
-        <a className="standard-card" href="/controls/#iso-27001"><span>ISO/IEC 27001:2022</span><h2>Information Security Management</h2><p>Scope, risk treatment, Annex A applicability, secure development, operations, recovery, and improvement.</p><strong>Inspect implementation →</strong></a>
-        <a className="standard-card" href="/controls/#iso-42001"><span>ISO/IEC 42001:2023</span><h2>AI Management System</h2><p>Purpose, intended use, impact, human authority, monitoring, transparency, change, and known limitations.</p><strong>Inspect implementation →</strong></a>
-      </section>
-      <section className="case-principle">
-        <div><div className="eyebrow">Evidence rule</div><h2>Requirement → meaning → implementation → proof.</h2></div>
-        <p>A control is not treated as evidenced merely because it is described. Each supported position resolves to a live route or operational record. Partial implementations and gaps stay visible rather than being flattened into a compliance score.</p>
-      </section>
       <section aria-labelledby="live-snapshot">
-        <div className="section-head"><div><div className="eyebrow">Live system snapshot</div><h2 id="live-snapshot">Current operational evidence.</h2></div><a className="action-link" href="/evidence/">Open the evidence index →</a></div>
+        <div className="section-head"><div><div className="eyebrow">Live snapshot</div><h2 id="live-snapshot">Current service state.</h2></div><a className="action-link" href="/evidence/">Open Evidence →</a></div>
         <div className="trust-grid">
-          <ProofTile href="/evidence/#availability" label="Server availability" value={input.portal.availabilityPercent + "%"} detail={input.portal.windowLabel + " measured"} tone="tone-green" />
+          <ProofTile href="/evidence/#availability" label="Tank availability" value={input.tank.availabilityPercent + "%"} detail={input.tank.windowLabel + " from recorded incidents"} tone="tone-green" />
           <ProofTile href="/evidence/#spend" label="Metered resource cost" value={"$" + input.spendUsd.toFixed(4)} detail={"of the $" + input.hardLimitUsd.toFixed(2) + " hard stop"} tone="tone-cyan" />
           <ProofTile href="/version.json" label="Current release" value={input.release} detail={input.environment + " environment"} tone="tone-cyan" />
           <ProofTile href="/evidence/#receipts" label="Receipt chain" value={chainOk ? "Verified" : "Unverified"} detail={input.integrity.entryCount + " receipts · " + input.integrity.algorithm} tone={chainOk ? "tone-green" : "tone-red"} />
         </div>
-      </section>
-      <section className="workload-card">
-        <div><div className="eyebrow">Running workload</div><h2>The game gives the controls something real to govern.</h2><p>Authentication, authorization, availability, application state, secure development, change control, monitoring, incidents, recovery, operational logging, resource consumption, and AI-system governance are exercised against a live realtime application.</p></div>
-        <div><SharkMark /><a className="button" href="/play/">Play →</a></div>
       </section>
     </main>
   );
@@ -300,31 +274,20 @@ function tickPick<T>(items: readonly T[], tick: number, salt: number): T {
 export function renderOverviewDocument(input: OverviewPresentationInput): string {
   return renderDocument(
     {
-      title: "SharkTank — Governed realtime production engineering",
-      description: "A running realtime production system demonstrating ISO/IEC 27001, ISO/IEC 42001, WCAG-oriented accessibility, reliability, continuity, and controlled spend through live evidence.",
+      title: "SharkTank — Realtime multiplayer game",
+      description: "Play the realtime multiplayer SharkTank game and inspect live availability, spend, release identity, and receipt-chain evidence.",
       canonicalPath: "/",
     },
     <OverviewMain input={input} />,
   );
 }
 
-export function renderControlsDocument(): string {
-  return renderGeneratedDocument(
-    {
-      title: "SharkTank — ISO 27001, ISO 42001, and production controls",
-      description: "SharkTank's information-security, AI-management, accessibility, continuity, change, and operational controls with complete registers and policy records.",
-      canonicalPath: "/controls/",
-    },
-    "controls",
-    controlsHtml(),
-  );
-}
 
 export function renderEvidenceDocument(...args: Parameters<typeof evidenceDashboardHtml>): string {
   return renderGeneratedDocument(
     {
       title: "SharkTank — Live production evidence",
-      description: "Live availability, incidents, continuity, spend governance, controlled degradation, logs, receipts, and release identity from the running SharkTank production workload.",
+      description: "Live availability, incidents, continuity, spend, controlled degradation, logs, receipts, and release identity from the running SharkTank service.",
       canonicalPath: "/evidence/",
     },
     "evidence",
@@ -340,18 +303,6 @@ export function renderOpenApiDocument(openApiHtml: string): string {
   return renderGeneratedDocument({ title: "Shark — API Docs" }, "openapi", openApiHtml);
 }
 
-export function renderPolicyNotFoundDocument(id: string): string {
-  return renderDocument(
-    { title: "SharkTank — Policy not found" },
-    <main id="main" tabIndex={-1}>
-      <section className="page-intro">
-        <div className="eyebrow">Not found</div>
-        <h1>Policy record not found.</h1>
-        <p className="sub">There is no maintained control document with the identifier <code>{id}</code>. <a href="/controls/#policies">Browse the complete policy record →</a></p>
-      </section>
-    </main>,
-  );
-}
 
 export function renderNotFoundDocument(): string {
   return renderDocument(

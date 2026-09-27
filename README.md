@@ -1,6 +1,6 @@
 # SharkTank
 
-SharkTank is a realtime multiplayer game backed by authoritative Cloudflare Durable Objects. The same deployment publishes operational status, controls, incidents, logs, continuity evidence, and spend limits.
+SharkTank is a realtime multiplayer game backed by authoritative Cloudflare Durable Objects. The same deployment publishes operational status, incidents, logs, continuity evidence, receipt-chain integrity, and spend limits.
 
 **[Overview](https://sharktank.wizardgang.ai)** · **[Play](https://sharktank.wizardgang.ai/play/)** · **[Evidence](https://sharktank.wizardgang.ai/evidence/)**
 
@@ -31,7 +31,7 @@ Release publication and production deployment are therefore separate evidence bo
 
 ## Repository map
 
-- `src/worker/` — Worker routing, Durable Objects, controls, operations, and public evidence.
+- `src/worker/` — Worker routing, Durable Objects, operations, and public evidence.
 - `src/client/` — browser application entry and progressive enhancement.
 - `vendor/ModuleReact3Fiber/` — first-party deterministic game engine and client source.
 - `scripts/` — local development, verification, release, and deployment tooling.
@@ -53,7 +53,6 @@ For organization baseline questions, consult WG-ARCH-001 §27 in the [architectu
 - [Deployment](docs/DEPLOYMENT.md)
 - [Release management](docs/RELEASE-MANAGEMENT.md)
 - [Change management](docs/CHANGE-MANAGEMENT.md)
-- [AI applicability](docs/AI-APPLICABILITY.md)
 - [Security reporting](SECURITY.md)
 
 These documents describe the current system and operating policy. Git/GitHub are authoritative for implementation and release history; provider evidence is authoritative for deployment/runtime provider state.

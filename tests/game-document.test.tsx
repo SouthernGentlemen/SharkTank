@@ -35,7 +35,7 @@ describe("React game document", () => {
     const html = renderGameDocument();
 
     expect(html).toMatch(/^<!doctype html><html lang="en">/);
-    expect(html).toContain("<title>Shark Tank — WizardGang systems demo</title>");
+    expect(html).toContain("<title>Play SharkTank — WizardGang</title>");
     expect(html).toContain(
       'rel="canonical" href="https://sharktank.wizardgang.ai/play/"',
     );

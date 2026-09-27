@@ -14,10 +14,10 @@ function GameDocument() {
         />
         <meta name="theme-color" content="#0b0a14" />
         <meta name="mobile-web-app-capable" content="yes" />
-        <title>Shark Tank — WizardGang systems demo</title>
+        <title>Play SharkTank — WizardGang</title>
         <meta
           name="description"
-          content="Play the realtime SharkTank workload behind an inspectable ISO 27001, ISO 42001, accessibility, reliability, continuity, and spend-governance case study."
+          content="Play the realtime multiplayer SharkTank game backed by authoritative Cloudflare Durable Objects."
         />
         <link rel="canonical" href="https://sharktank.wizardgang.ai/play/" />
         <meta property="og:title" content="Play SharkTank — WizardGang" />
@@ -43,7 +43,7 @@ function GameDocument() {
               and race the leaderboard. The game is loading.
             </p>
             <p>
-              <a href="/evidence/">Inspect governance evidence →</a>
+              <a href="/evidence/">View live evidence →</a>
             </p>
           </main>
         </div>

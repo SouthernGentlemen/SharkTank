@@ -15,7 +15,7 @@ browser ── HTTPS ──> Worker router ──> Lobby Durable Object
 
 ## Public and operator boundaries
 
-The canonical human destinations are `/`, `/controls/`, `/evidence/`, and `/play/`. Compatibility human routes redirect directly to their owning canonical section. Machine-readable evidence remains on its stable JSON/text routes, public APIs live under `/api/`, authenticated operations live under `/admin/`, and room WebSockets terminate at `/room/:id/ws`.
+The canonical human destinations are `/`, `/evidence/`, and `/play/`. Compatibility human routes redirect directly to their owning canonical section. Machine-readable evidence remains on its stable JSON/text routes, public APIs live under `/api/`, authenticated operations live under `/admin/`, and room WebSockets terminate at `/room/:id/ws`.
 
 The Lobby Durable Object uses the stable name `global`. Room objects use stable room identifiers. Production Durable Object class names, migration tag `v1`, environment identity, and storage bindings are stateful compatibility boundaries and must not be changed as ordinary refactors.
 
@@ -23,7 +23,7 @@ The Lobby Durable Object uses the stable name `global`. Room objects use stable 
 
 `src/worker/index.ts` owns request sequencing and controller flow. `src/worker/routes.ts` owns route declarations and predicates, `src/worker/responses.ts` owns shared security-aware response construction, and `src/worker/presentation-data.ts` owns public presentation shaping and redaction.
 
-`src/worker/presentation-react.tsx` renders ordinary human documents with React 19 `renderToStaticMarkup`. `src/worker/presentation.ts` supplies focused evidence and conformance generators through one audited raw-artifact boundary. Ordinary Worker documents are complete without JavaScript and are not hydrated. `src/client/human-docs.ts` provides optional progressive enhancement only.
+`src/worker/presentation-react.tsx` renders ordinary human documents with React 19 `renderToStaticMarkup`. `src/worker/presentation.ts` supplies focused operational evidence generators through one audited raw-artifact boundary. Ordinary Worker documents are complete without JavaScript and are not hydrated. `src/client/human-docs.ts` provides optional progressive enhancement only.
 
 ## Game client boundary
 
@@ -45,6 +45,6 @@ Repository delivery is also intentionally squash-only so each controlled ST chan
 
 ## Accessibility and deterministic runtime
 
-The governance pages and supported game controls use semantic structure, keyboard operation, visible focus, managed focus, alternative status output, configurable contrast/text scale, and reduced-motion support. The implemented interface target is WCAG 2.0 AA; no certification is claimed.
+The Worker-rendered pages and supported game controls use semantic structure, keyboard operation, visible focus, managed focus, alternative status output, configurable contrast/text scale, and reduced-motion support. The implemented interface target is WCAG 2.0 AA.
 
 `vendor/ModuleReact3Fiber` is first-party source and supplies the deterministic engine and protocol used by the Worker and browser client.
