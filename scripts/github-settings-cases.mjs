@@ -27,6 +27,7 @@ function actual() {
       allow_merge_commit: expected.mergeMethods.mergeCommit,
       allow_squash_merge: expected.mergeMethods.squash,
       allow_rebase_merge: expected.mergeMethods.rebase,
+      allow_auto_merge: expected.allowAutoMerge,
       delete_branch_on_merge: expected.deleteBranchOnMerge,
       updated_at: "2026-09-23T13:38:21Z",
     },
@@ -112,6 +113,7 @@ test("rebase merge unexpectedly enabled fails", () => {
 });
 
 test("automatic branch deletion disabled fails", () => {
+  assert.match(failuresFor((state) => { state.repository.allow_auto_merge = false; }), /auto-merge availability/);
   assert.match(failuresFor((state) => { state.repository.delete_branch_on_merge = false; }), /delete branch on merge/);
 });
 

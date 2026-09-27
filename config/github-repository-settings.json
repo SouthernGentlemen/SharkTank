@@ -6,6 +6,7 @@
     "squash": true,
     "rebase": false
   },
+  "allowAutoMerge": true,
   "deleteBranchOnMerge": true,
   "requiredStatusChecks": [
     "verify"

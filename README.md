@@ -61,3 +61,7 @@ For organization baseline questions, consult WG-ARCH-001 §27 in the [architectu
 - [Security reporting](SECURITY.md)
 
 These documents describe the current system and operating policy. Git/GitHub are authoritative for implementation and release history; provider evidence is authoritative for deployment/runtime provider state.
+
+## GitHub auto-merge
+
+The committed repository settings enable per-PR auto-merge. Enabling this repository capability does not enroll a PR: an authorized contributor chooses auto-merge for that PR. GitHub then waits for required reviews and exact-head checks and uses the repository's squash-only merge policy. Run `npm run verify:github-settings` for a read-only live check; `npm run apply:github-settings` applies the committed authority and independently verifies it.
