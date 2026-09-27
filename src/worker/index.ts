@@ -12,7 +12,7 @@ export { Room } from "./room-do.js";
 export { Lobby } from "./lobby-do.js";
 import type { Env, MaintenanceState } from "./env.js";
 import { assetCsp, SECURITY_HEADERS, html, json, mintNonce, movedTo, ndjson, opsDenied, tlsRequired } from "./responses.js";
-import { CANONICAL_HUMAN_ROUTES, HUMAN_REDIRECTS, isGameShellPath, isOpsPath, isStaticAssetPath, parseRoomPath } from "./routes.js";
+import { CANONICAL_HUMAN_ROUTES, isGameShellPath, isOpsPath, isStaticAssetPath, parseRoomPath } from "./routes.js";
 import { numberValue, publicBillingWindow, publicStatusProjection, recordValue } from "./presentation-data.js";
 import {
   AUDIT_ROOMS,
@@ -44,9 +44,6 @@ import {
   renderOverviewDocument,
 } from "./presentation-react.js";
 
-export { HUMAN_REDIRECTS } from "./routes.js";
-
-
 
 /**
  * The billing window as the public may see it.
@@ -54,7 +51,7 @@ export { HUMAN_REDIRECTS } from "./routes.js";
  * The DO's own record carries the running deployment version id and the production R2
  * bucket name. Neither is a secret in the credential sense, but both are unauthenticated
  * infrastructure disclosure — the version id dates the running build and the bucket name
- * names a real storage target. `/audit/status.json` still gets the unredacted record; it
+ * names a real storage target. `/admin/status.json` still gets the unredacted record; it
  * is behind ops auth and the dashboard reads both.
  *
  * Keyed on field name and applied at every depth, because the same shapes repeat under
@@ -215,20 +212,15 @@ const METERED_PUBLIC_WRITES = new Set<string>([API.profile, "/api/audit"]);
  */
 function maintenanceBypass(path: string, method: string): boolean {
   if (METERED_PUBLIC_WRITES.has(path) && method !== "GET" && method !== "HEAD") return false;
-  // The stylesheet the bypassed trust pages link. Without this it would answer with the
-  // downtime page under a text/css request and every bypassed page would render unstyled.
+  // The stylesheet and enhancement script used by the surviving Worker-rendered pages.
   if (path.startsWith("/styles/") || path === "/assets/human-docs.js") return true;
   return path === "/" || path === "/robots.txt" || path === "/sitemap.xml" ||
-    path === "/api" || path.startsWith("/api/") ||
+    path === API.health || path === API.tank || path === API.profile || path === API.leaderboard ||
+    path === "/api/audit" || path === "/api/security-report" ||
     path === "/docs" || path.startsWith("/docs/") || path === "/openapi.json" ||
-    path === "/status" || path.startsWith("/status/") || path === "/status.json" ||
-    path === "/incidents" || path.startsWith("/incidents/") || path === "/incidents.json" ||
-    path === "/inquiry" || path.startsWith("/inquiry/") || path === "/inquiry.json" ||
-    path === "/spend" || path.startsWith("/spend/") || path === "/spend.json" ||
-    path === "/trust" || path.startsWith("/trust/") ||
-    path === "/evidence" || path.startsWith("/evidence/") ||
-    path === "/logs" || path.startsWith("/logs/") || path === "/logs.json" ||
-    path === "/audit.json" || path === "/audit.jsonl" || path === "/audit/status.json" || path.startsWith("/audit/game/") || path.startsWith("/audit/replay/") ||
+    path === "/status.json" || path === "/incidents.json" || path === "/spend.json" ||
+    path === "/evidence" || path === "/evidence/" ||
+    path === "/logs.json" || path.startsWith("/logs/game/") ||
     path === "/admin" || path.startsWith("/admin/");
 }
 
@@ -493,7 +485,6 @@ export default {
       if (path.startsWith("/styles/")) return new Response("Not found", { status: 404, headers: { "content-type": "text/plain; charset=utf-8", "cache-control": "no-store", ...SECURITY_HEADERS } });
 
       if (path === "/play") return movedTo(url, "/play/");
-      if (/^\/(?:arena|uno|x4|21|game|checkers|battleship|3d|shark-?run)(?:\/.*)?$/i.test(path)) return movedTo(url, "/play/");
       if (path === "/favicon.ico") return new Response(null, { status: 404, headers: { "cache-control": "public, max-age=3600", ...SECURITY_HEADERS } });
       if (path === "/robots.txt") return new Response("User-agent: *\nAllow: /\nDisallow: /admin/\nDisallow: /docs/\nDisallow: /logs/game/\nDisallow: /*.json$\nDisallow: /*.jsonl$\nSitemap: https://sharktank.wizardgang.ai/sitemap.xml\n", { headers: { "content-type": "text/plain; charset=utf-8", "cache-control": "public, max-age=3600", ...SECURITY_HEADERS } });
       if (path === "/sitemap.xml") {
@@ -501,10 +492,6 @@ export default {
         const body = `<?xml version="1.0" encoding="UTF-8"?><urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">${routes.map((route) => `<url><loc>https://sharktank.wizardgang.ai${route}</loc></url>`).join("")}</urlset>`;
         return new Response(body, { headers: { "content-type": "application/xml; charset=utf-8", "cache-control": "public, max-age=3600", ...SECURITY_HEADERS } });
       }
-
-      const compatibilityTarget = HUMAN_REDIRECTS[path];
-      if (compatibilityTarget) return movedTo(url, compatibilityTarget);
-
 
 
       // ── WebSocket → Room DO ────────────────────────────────────────────────
@@ -532,7 +519,7 @@ export default {
         return json({ product: "SharkTank", release: env.SHARKTANK_RELEASE ?? "unknown", environment: env.ENVIRONMENT ?? "unknown" });
       }
 
-      if (path === API.tank || path === "/api/lobby") {
+      if (path === API.tank) {
         const stub = env.LOBBY.get(env.LOBBY.idFromName("global"));
         return stub.fetch("https://lobby/list");
       }
@@ -682,12 +669,9 @@ export default {
         return html(renderEvidenceDocument(data, incidentRecord, logs));
       }
 
-      // Human compatibility redirects are handled once by HUMAN_REDIRECTS above. The
-      // machine-readable contracts remain stable because operator tooling and the OpenAPI
-      // document still reference them.
       if (path === "/incidents.json") { const data = await incidentData(env); return json({ ok: true, summary: incidentSummary(data.incidents), ...data }); }
 
-      if (path === "/spend.json" || path === "/inquiry.json") {
+      if (path === "/spend.json") {
         const res = await lobbyStub(env).fetch("https://lobby/status");
         const data = (await res.json()) as { billingWindow?: Record<string, unknown> };
         return json({ ok: true, billingWindow: publicBillingWindow(data.billingWindow ?? {}) });
@@ -734,7 +718,7 @@ export default {
         }));
       }
 
-      if (path === "/admin/status.json" || path === "/audit/status.json") {
+      if (path === "/admin/status.json") {
         const res = await lobbyStub(env).fetch("https://lobby/status");
         const data = (await res.json()) as Record<string, unknown> & { maintenanceIncidents?: IncidentRecord[] };
         const incidents = [...INCIDENTS, ...(data.maintenanceIncidents ?? [])];
@@ -767,19 +751,18 @@ export default {
         return json(result, result.ok ? 200 : 500);
       }
 
-      // User action log (90-day retention) as JSON / JSONL. `/audit.*` are the pre-move
-      // names, kept working so operator tooling written against them does not break.
-      if (path === "/admin/log.json" || path === "/audit.json") {
+      // User action log (90-day retention) as JSON / JSONL.
+      if (path === "/admin/log.json") {
         return lobbyStub(env).fetch("https://lobby/audit" + url.search);
       }
-      if (path === "/admin/log.jsonl" || path === "/audit.jsonl") {
+      if (path === "/admin/log.jsonl") {
         const res = await lobbyStub(env).fetch("https://lobby/audit" + url.search);
         const data = (await res.json()) as { events: unknown[] };
         return ndjson(data.events);
       }
 
       // Per-game deterministic log (3-day retention): seed + action stream.
-      const gameLog = path.match(/^\/(?:admin|audit)\/game\/([^/]+?)(\.jsonl|\.json)?$/);
+      const gameLog = path.match(/^\/admin\/game\/([^/]+?)(\.jsonl|\.json)?$/);
       if (gameLog) {
         const roomId = decodeURIComponent(gameLog[1]);
         const res = await roomFetch(env, roomId, "/log");
@@ -789,7 +772,7 @@ export default {
       }
 
       // Deterministic replay of a game's state at ?tick=T (rollback / fast-forward).
-      const replayMatch = path.match(/^\/(?:admin|audit)\/replay\/([^/]+?)(\.json)?$/);
+      const replayMatch = path.match(/^\/admin\/replay\/([^/]+?)(\.json)?$/);
       if (replayMatch) {
         const roomId = decodeURIComponent(replayMatch[1]);
         return roomFetch(env, roomId, "/replay?tick=" + encodeURIComponent(url.searchParams.get("tick") ?? ""));

@@ -51,14 +51,30 @@ describe("canonical public information architecture", () => {
     expect(nav.match(/^  \[/gm)).toHaveLength(3);
   });
 
-  it("keeps surviving compatibility routes direct and retires assurance redirects", () => {
-    const redirects = routes.match(/export const HUMAN_REDIRECTS:[\s\S]*?\n\}\);/)?.[0] ?? "";
-    expect(redirects).toContain('"/trust/": "/"');
-    expect(redirects).toContain('"/status/": "/evidence/#availability"');
-    expect(redirects).toContain('"/logs/": "/evidence/#logs"');
-    expect(redirects).toContain('"/spend/": "/evidence/#spend"');
-    expect(redirects).not.toMatch(/iso-27001|iso-42001|\/audit"|\/policies"/);
-    expect(redirects).not.toMatch(/:\s*"\/(?:trust|status|logs|spend)\/?"/);
+  it("keeps only the canonical slash redirects and retires compatibility aliases", () => {
+    expect(routes).not.toContain("HUMAN_REDIRECTS");
+    expect(routes).toContain('return path === "/admin" || path.startsWith("/admin/");');
+
+    expect(worker).toContain('if (path === "/play") return movedTo(url, "/play/");');
+    expect(worker).toContain('if (path === "/evidence") return movedTo(url, "/evidence/");');
+    expect(worker).toContain('if (path === "/favicon.ico") return new Response(null, { status: 404');
+    expect(worker).toContain("if (path.startsWith(\"/api/\")) return json({ ok: false, error: \"unknown endpoint\" }, 404);");
+
+    for (const retiredLiteral of [
+      'path === "/api/lobby"',
+      'path === "/inquiry.json"',
+      'path === "/audit.json"',
+      'path === "/audit.jsonl"',
+      'path === "/audit/status.json"',
+      "(?:admin|audit)",
+      "(?:arena|uno|x4|21|game|checkers|battleship|3d|shark-?run)",
+    ]) expect(worker).not.toContain(retiredLiteral);
+
+    expect(worker).toContain('if (path === "/admin/status.json")');
+    expect(worker).toContain('if (path === "/admin/log.json")');
+    expect(worker).toContain('if (path === "/admin/log.jsonl")');
+    expect(worker).toContain("path.match(/^\\/admin\\/game\\/");
+    expect(worker).toContain("path.match(/^\\/admin\\/replay\\/");
   });
 
 });

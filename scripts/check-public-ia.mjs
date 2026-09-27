@@ -2,14 +2,42 @@
 
 const base = (process.argv[2] || "http://127.0.0.1:8787").replace(/\/$/, "");
 const canonical = ["/", "/evidence/", "/play/"];
-const redirects = {
-  "/trust": "/", "/trust/": "/",
-  "/status": "/evidence/#availability", "/status/": "/evidence/#availability",
-  "/incidents": "/evidence/#incidents", "/incidents/": "/evidence/#incidents",
-  "/logs": "/evidence/#logs", "/logs/": "/evidence/#logs",
-  "/spend": "/evidence/#spend", "/spend/": "/evidence/#spend",
-  "/inquiry": "/evidence/#spend", "/inquiry/": "/evidence/#spend",
+const slashRedirects = {
+  "/play": "/play/",
+  "/evidence": "/evidence/",
 };
+const retiredHumanPaths = [
+  "/trust", "/trust/",
+  "/status", "/status/",
+  "/incidents", "/incidents/",
+  "/logs", "/logs/",
+  "/spend", "/spend/",
+  "/inquiry", "/inquiry/",
+];
+const retiredGamePaths = [
+  "/arena", "/uno", "/x4", "/21", "/game", "/checkers", "/battleship", "/3d",
+  "/shark-run", "/sharkrun", "/arena/legacy",
+];
+const retiredOperatorAliases = [
+  "/audit.json",
+  "/audit.jsonl",
+  "/audit/status.json",
+  "/audit/game/room-1",
+  "/audit/game/room-1.json",
+  "/audit/game/room-1.jsonl",
+  "/audit/replay/room-1",
+  "/audit/replay/room-1.json",
+];
+const isRetiredTarget = (path) =>
+  retiredHumanPaths.includes(path) ||
+  retiredGamePaths.includes(path) ||
+  path === "/api/lobby" ||
+  path === "/inquiry.json" ||
+  path === "/audit.json" ||
+  path === "/audit.jsonl" ||
+  path === "/audit/status.json" ||
+  path.startsWith("/audit/game/") ||
+  path.startsWith("/audit/replay/");
 
 const failures = [];
 const fail = (message) => failures.push(message);
@@ -198,7 +226,16 @@ async function main() {
   const unknownApiBody = await unknownApi.json().catch(() => null);
   if (unknownApiBody?.error !== "unknown endpoint") fail("unknown API response body changed");
 
+  const retiredLobbyAlias = await request("/api/lobby");
+  if (retiredLobbyAlias.status !== 404) fail(`/api/lobby expected 404, got ${retiredLobbyAlias.status}`);
+  if (!(retiredLobbyAlias.headers.get("content-type") || "").startsWith("application/json")) fail("/api/lobby must use the normal JSON/API 404");
+  const retiredLobbyBody = await retiredLobbyAlias.json().catch(() => null);
+  if (retiredLobbyBody?.error !== "unknown endpoint") fail("/api/lobby did not use the normal unknown-endpoint body");
+
   for (const retiredPath of [
+    ...retiredHumanPaths,
+    ...retiredGamePaths,
+    "/inquiry.json",
     "/controls", "/controls/",
     "/iso-27001", "/iso-27001/",
     "/iso-42001", "/iso-42001/",
@@ -211,9 +248,11 @@ async function main() {
     const retired = await request(retiredPath);
     if (retired.status !== 404) fail(`${retiredPath} expected retired assurance surface to return 404, got ${retired.status}`);
     if (retired.headers.has("location")) fail(`${retiredPath} must not redirect after retirement`);
+    if (!(retired.headers.get("content-type") || "").startsWith("text/html")) fail(`${retiredPath} must use the normal HTML 404`);
     const retiredBody = await retired.text();
     assertStrictPresentation(retiredPath, retired, retiredBody);
     assertNotGameDocument(retiredPath, retiredBody);
+    if (!retiredBody.includes("<h1>Route not found</h1>")) fail(`${retiredPath} lost the standard not-found presentation`);
   }
 
   for (const retiredPath of ["/roadmap", "/roadmap/", "/roadmap.json"]) {
@@ -282,6 +321,20 @@ async function main() {
   if (!adminHtml.includes("<h1>Admin</h1>")) fail("authenticated /admin/ lost its control-room content");
   if (adminHtml.includes('href="/controls/')) fail("authenticated /admin/ still links to the retired register");
 
+  for (const retiredPath of retiredOperatorAliases) {
+    const retired = await fetch(`${base}${retiredPath}`, {
+      redirect: "manual",
+      headers: { authorization: `Basic ${auth}`, "cache-control": "no-cache" },
+    });
+    if (retired.status !== 404) fail(`authenticated ${retiredPath} expected 404, got ${retired.status}`);
+    if (retired.headers.has("location")) fail(`authenticated ${retiredPath} must not redirect`);
+    if (!(retired.headers.get("content-type") || "").startsWith("text/html")) fail(`authenticated ${retiredPath} must use the normal HTML 404`);
+    const body = await retired.text();
+    assertStrictPresentation(retiredPath, retired, body);
+    assertNotGameDocument(retiredPath, body);
+    if (!body.includes("<h1>Route not found</h1>")) fail(`authenticated ${retiredPath} lost the standard not-found presentation`);
+  }
+
   const retiredSwitch = await fetch(`${base}/admin/switch`, {
     redirect: "manual",
     headers: { authorization: `Basic ${auth}`, "cache-control": "no-cache" },
@@ -317,7 +370,7 @@ async function main() {
         const id = decodeURIComponent(target.hash.slice(1));
         if (!ids(targetPage).includes(id)) fail(`${sourcePath} links to missing ${targetPath}#${id}`);
       }
-      if (redirects[targetPath]) fail(`${sourcePath} links through legacy route ${targetPath}`);
+      if (isRetiredTarget(targetPath)) fail(`${sourcePath} links to retired route ${targetPath}`);
       if (!checkedInternalLinks.has(targetPath)) {
         const direct = await request(targetPath);
         checkedInternalLinks.set(targetPath, direct.status);
@@ -340,19 +393,20 @@ async function main() {
     if (assetCsp.includes("'unsafe-inline'")) fail(`asset ${path} CSP still allows unsafe-inline`);
   }
 
-  for (const [from, to] of Object.entries(redirects)) {
+  for (const [from, to] of Object.entries(slashRedirects)) {
     const response = await request(from);
     if (response.status !== 301) { fail(`${from} expected 301, got ${response.status}`); continue; }
     if (response.headers.get("location") !== to) fail(`${from} expected Location ${to}, got ${response.headers.get("location")}`);
-    const destination = new URL(to, base);
-    const final = await request(destination.pathname);
-    if (final.status >= 300 && final.status < 400) fail(`${from} redirects into another redirect at ${destination.pathname}`);
-    const finalHtml = await final.text();
-    if (destination.hash && !ids(finalHtml).includes(destination.hash.slice(1))) fail(`${from} targets missing fragment ${to}`);
+    const final = await request(to);
+    if (final.status !== 200) fail(`${from} redirect destination ${to} expected 200, got ${final.status}`);
   }
 
-  const queryRedirect = await request("/status/?source=legacy");
-  if (queryRedirect.headers.get("location") !== "/evidence/?source=legacy#availability") fail("legacy redirects do not preserve query strings before fragments");
+  const robots = await request("/robots.txt");
+  if (robots.status !== 200) fail(`robots.txt expected 200, got ${robots.status}`);
+  const robotsBody = await robots.text();
+  const disallowed = [...robotsBody.matchAll(/^Disallow: (.+)$/gm)].map((match) => match[1]);
+  const expectedDisallowed = ["/admin/", "/docs/", "/logs/game/", "/*.json$", "/*.jsonl$"];
+  if (JSON.stringify(disallowed) !== JSON.stringify(expectedDisallowed)) fail(`robots.txt references an unexpected route set: ${JSON.stringify(disallowed)}`);
 
   const sitemap = await (await request("/sitemap.xml")).text();
   const listed = [...sitemap.matchAll(/<loc>https:\/\/sharktank\.wizardgang\.ai([^<]+)<\/loc>/g)].map((match) => match[1]);
@@ -363,7 +417,7 @@ async function main() {
     console.error(`\n${failures.length} public IA check(s) failed.`);
     process.exit(1);
   }
-  console.log(`Verified ${canonical.length} canonical pages, strict no-unsafe-inline CSP/generated-HTML contracts, explicit /play/ Static Assets routing with hashed/lazy Vite assets, application/index/asset misses that cannot fall back to the game document, OpenAPI/admin/404 HTML, health/tank/profile/leaderboard APIs, a live Room Durable Object WebSocket welcome plus 426 non-upgrade behavior, primary navigation, unique IDs, internal anchors, assets, ${Object.keys(redirects).length} one-hop redirects, query preservation, and canonical sitemap.`);
+  console.log(`Verified ${canonical.length} canonical pages, strict no-unsafe-inline CSP/generated-HTML contracts, explicit /play/ Static Assets routing with hashed/lazy Vite assets, application/index/asset misses that cannot fall back to the game document, OpenAPI/admin/404 HTML, health/tank/profile/leaderboard APIs, a live Room Durable Object WebSocket welcome plus 426 non-upgrade behavior, primary navigation, unique IDs, internal anchors, assets, ${Object.keys(slashRedirects).length} canonical slash redirects, retired compatibility/API/operator aliases, surviving robots.txt entries, and canonical sitemap.`);
 }
 
 main().catch((error) => { console.error(error); process.exit(1); });

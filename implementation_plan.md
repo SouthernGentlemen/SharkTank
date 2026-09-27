@@ -7,15 +7,6 @@ MVP target for every task below: SharkTank is the game at `/play/`, a short serv
 Shared validation for every task: pinned `npm ci`, focused tests for the touched modules and scripts, canonical `npm run check`, `npm run audit:dependencies`, committed-range whitespace, exact-head required CI, post-merge CI, history and completed-branch cleanup.
 
 
-### ST-104 — [REFACTOR] Cut compatibility redirects and alias routes
-
-- Dependency: ST-103 has merged.
-- Why: After ST-103 the remaining 301s only keep old evidence citations alive, the `/arena`, `/checkers`, `/uno` and similar redirects predate SharkTank, and several routes are second names for another route.
-- Scope: Remove the remaining `HUMAN_REDIRECTS` (`/trust`, `/status`, `/incidents`, `/logs`, `/spend` and `/inquiry`, with and without a trailing slash) and the legacy game-route redirect. Remove the aliases `/api/lobby` (of `/api/tank`) and `/inquiry.json` (of `/spend.json`) and the operator aliases `/audit.json`, `/audit.jsonl`, `/audit/status.json`, `/audit/game/*` and `/audit/replay/*`; the `/admin/*` names stay. Reduce `isOpsPath`, the maintenance bypass list and `robots.txt` to surviving routes. Keep the `/play` and `/evidence` trailing-slash redirects and the explicit `/favicon.ico` 404. `check-public-ia` and `check:evidence` require retired paths to return the standard 404 and no internal link to target them.
-- Non-goals: No change to any surviving route's response. No release.
-- Acceptance: Every removed path returns the standard HTML 404, or the JSON 404 under `/api/`, including for an authenticated operator; surviving routes answer as before.
-- Authorities: src/worker/routes.ts, src/worker/index.ts, scripts/check-public-ia.mjs, scripts/check-evidence.mjs, tests/accessibility-contract.test.ts.
-
 ### ST-105 — [API] Reduce public and operator endpoints to the MVP set
 
 - Dependency: ST-104 has merged.

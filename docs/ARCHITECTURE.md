@@ -15,7 +15,7 @@ browser ── HTTPS ──> Worker router ──> Lobby Durable Object
 
 ## Public and operator boundaries
 
-The canonical human destinations are `/`, `/evidence/`, and `/play/`. Compatibility human routes redirect directly to their owning canonical section. Machine-readable evidence remains on its stable JSON/text routes, public APIs live under `/api/`, authenticated operations live under `/admin/`, and room WebSockets terminate at `/room/:id/ws`.
+The canonical human destinations are `/`, `/evidence/`, and `/play/`. Only `/play` and `/evidence` redirect to their trailing-slash canonical forms; retired compatibility and alias routes fall through to the normal 404. Machine-readable evidence remains on its surviving JSON/text routes, public APIs live under `/api/`, authenticated operations live under `/admin/`, and room WebSockets terminate at `/room/:id/ws`.
 
 The Lobby Durable Object uses the stable name `global`. Room objects use stable room identifiers. Production Durable Object class names, migration tag `v1`, environment identity, and storage bindings are stateful compatibility boundaries and must not be changed as ordinary refactors.
 
