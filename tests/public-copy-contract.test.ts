@@ -3,11 +3,9 @@ import { describe, expect, it } from "vitest";
 
 const read = (path: string) => readFileSync(new URL(path, import.meta.url), "utf8");
 const worker = read("../src/worker/index.ts");
-const env = read("../src/worker/env.ts");
 const presentation = read("../src/worker/presentation.ts");
 const reactPresentation = read("../src/worker/presentation-react.tsx");
 const conformance = read("../src/worker/conformance.ts");
-const deploy = read("../scripts/deploy-prod.mjs");
 const gameShell = read("../src/client/game-document.tsx");
 const gameMenu = read("../vendor/ModuleReact3Fiber/src/client/ui/MainMenu.tsx");
 
@@ -53,21 +51,5 @@ describe("concise public copy", () => {
     ]) expect(runtime).not.toContain(text);
     expect(reactPresentation).toContain('label="Current release"');
     expect(worker).toContain('env.SHARKTANK_RELEASE ?? "development"');
-  });
-});
-
-describe("deployment metadata", () => {
-  it("keeps deploy-time repository metrics in the deployment path without publishing an implementation ledger", () => {
-    expect(deploy).toContain('run("git", ["rev-list", "--count", "HEAD"]');
-    expect(deploy).toContain('run("git", ["log", "--reverse", "--format=%ct", "HEAD"]');
-    for (const name of [
-      "SHARKTANK_COMMIT_COUNT",
-      "SHARKTANK_COMMIT_WINDOW_HOURS",
-      "SHARKTANK_COMMIT_VELOCITY",
-      "SHARKTANK_DEPLOYED_AT",
-    ]) {
-      expect(deploy).toContain(name);
-      expect(env).toContain(name);
-    }
   });
 });

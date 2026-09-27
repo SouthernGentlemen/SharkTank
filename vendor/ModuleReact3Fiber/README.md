@@ -25,8 +25,3 @@ for local play; designed to port to **Cloudflare Workers / Durable Objects** lat
 
 > Keep the Worker importing only `engine`/`store`/`protocol` — never `client` — so browser
 > libraries never end up in the server bundle.
-
-## Roadmap
-1. **Now:** local play via WizardGangLocal (`npm run local`), HTTP save/load, in-memory store.
-2. **Next:** authoritative Durable Object room + WebSocket sync (protocol shapes already fit).
-3. **Then:** deploy as a Cloudflare Worker; swap `MemoryBlobStore` → R2/KV/D1.

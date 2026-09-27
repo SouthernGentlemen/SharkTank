@@ -6,14 +6,6 @@ MVP target for every task below: SharkTank is the game at `/play/`, a short serv
 
 Shared validation for every task: pinned `npm ci`, focused tests for the touched modules and scripts, canonical `npm run check`, `npm run audit:dependencies`, committed-range whitespace, exact-head required CI, post-merge CI, history and completed-branch cleanup.
 
-### ST-101 — [REFACTOR] Remove unreachable Worker code and roadmap residue
-
-- Dependency: ST-100 plan-only queue publication has merged.
-- Why: `src/worker/index.ts` still has `/status/`, `/logs/`, `/spend/` and `/trust/` handlers that cannot run, because `HUMAN_REDIRECTS` answers those paths first (production returns 301). Their helpers, two internal Lobby routes and 21 page-CSS classes are also never reached. The roadmap route already returns 404, but its deploy-time commit metrics and admin copy remain.
-- Scope: Delete the shadowed handlers and the `/trust` arms of the `/` handler. Delete `shell()` with its private navigation, footer and brand copies, the duplicate `downtimeResponse` path (React `renderDowntimeDocument` is the live one), `securityReportCard`, `canonicalPublicHref`, and exports that only the dead handlers imported. Delete the Lobby `/history` and `/backup/state` routes; no Worker path calls them. Remove the page-CSS classes that no Worker source emits, including `.roadmap-table`, `.mission-card` and `.showcase-chart`. Remove `SHARKTANK_COMMIT_COUNT`, `SHARKTANK_COMMIT_WINDOW_HOURS`, `SHARKTANK_COMMIT_VELOCITY` and `SHARKTANK_DEPLOYED_AT` from `env.ts`, both `wrangler.jsonc` var blocks, `scripts/deploy-prod.mjs` and the copy test that pins them; no code reads them. Correct the admin confirm and footnote copy that says retired Roadmap, API, Docs, Status, Incidents, Inquiry, Logs and Audit routes stay online, and the admin intro that links `/audit/` through a redirect. Delete the obsolete Roadmap section of `vendor/ModuleReact3Fiber/README.md`.
-- Non-goals: No change to any reachable route, response, protocol message, stored state, billing figure or deploy guard. Keep the `/roadmap*` 404 regression checks. `conformance.ts` and `governance.ts` wait for ST-103.
-- Acceptance: The local public-IA and evidence gates pass unchanged; a deploy-prod case pins the deployment var list to `SHARKTANK_RELEASE`; `git grep` finds none of the removed identifiers.
-- Authorities: AGENTS.md, README.md, docs/ARCHITECTURE.md, src/worker/index.ts, src/worker/routes.ts, src/worker/presentation.ts, src/worker/lobby-do.ts, scripts/check-public-ia.mjs, scripts/deploy-prod.mjs and its cases.
 
 ### ST-102 — [REFACTOR] Remove the PHP runtime and TypeScript/PHP switching
 

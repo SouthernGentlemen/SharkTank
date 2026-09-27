@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { deploymentPreconditionFailures } from "./deploy-prod.mjs";
+import { deploymentPreconditionFailures, deploymentVariables } from "./deploy-prod.mjs";
 
 const release = "v1.2.3";
 const validEnv = {
@@ -25,6 +25,10 @@ function real(overrides = {}) {
     releaseIdentityFailures: overrides.releaseIdentityFailures ?? [],
   });
 }
+
+test("deployment passes only the release identity as a Wrangler variable", () => {
+  assert.deepEqual(deploymentVariables(release), [`SHARKTANK_RELEASE:${release}`]);
+});
 
 test("governed release workflow context can reach the real deployment path", () => {
   assert.deepEqual(real(), []);
