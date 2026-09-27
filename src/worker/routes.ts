@@ -14,21 +14,6 @@ export const HUMAN_REDIRECTS: Readonly<Record<string, string>> = Object.freeze({
   "/inquiry": "/evidence/#spend", "/inquiry/": "/evidence/#spend",
 });
 
-export function canonicalPublicHref(href: string): string {
-  if (href === "/trust/" || href === "/trust") return "/";
-  if (href === "/status/#control-history") return "/evidence/#receipts";
-  if (href === "/status/#backup") return "/evidence/#continuity";
-  if (href.startsWith("/status/#incidents")) return href.replace("/status/", "/evidence/");
-  if (href === "/status/" || href === "/status") return "/evidence/#availability";
-  if (href === "/logs/" || href === "/logs") return "/evidence/#logs";
-  if (href === "/spend/" || href === "/spend") return "/evidence/#spend";
-  if (href === "/audit/" || href === "/audit") return "/controls/#registers";
-  if (href === "/policies/" || href === "/policies") return "/controls/#policies";
-  const policy = href.match(/^\/policies\/([a-z0-9-]+)\/?$/);
-  if (policy) return `/controls/#${policy[1]}`;
-  return href;
-}
-
 /** `/room/:id/ws` → the matching Room DO. Returns the room id, or null if not a room path. */
 export function parseRoomPath(path: string): string | null {
   const m = path.match(/^\/room\/([^/]+)\/ws$/);

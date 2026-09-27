@@ -12,7 +12,6 @@ import { findGovernanceDoc, governanceManifest } from "./governance.js";
 
 export { Room } from "./room-do.js";
 export { Lobby } from "./lobby-do.js";
-import type { BackupState } from "./lobby-do.js";
 import type { Env, MaintenanceState } from "./env.js";
 import { assetCsp, SECURITY_HEADERS, html, json, mintNonce, movedTo, ndjson, opsDenied, tlsRequired } from "./responses.js";
 import { CANONICAL_HUMAN_ROUTES, HUMAN_REDIRECTS, isGameShellPath, isOpsPath, isStaticAssetPath, parseRoomPath } from "./routes.js";
@@ -25,24 +24,12 @@ import {
   LOG_FETCH_CAPTURES,
   LOG_FETCH_SERVICE,
   PAGE_CSS_PATH,
-  backupPanelHtml,
-  controlHistoryListHtml,
-  esc,
-  formatCompactDuration,
   gameLogText,
   incidentSummary,
-  incidentTimelineSvg,
-  incidentsSection,
-  metricCard,
   normalizeGameLogEvent,
   normalizeServiceLogEvent,
   pageCssResponse,
-  publicLogsHtml,
-  shell,
-  spendHtml,
-  statusLiveScript,
   tankCopy,
-  timelineLegend,
   type ControlHistoryEntry,
   type ControlHistoryIntegrity,
   type GameLogWireEvent,
@@ -746,12 +733,6 @@ export default {
         const data = (await res.json()) as { billingWindow?: Record<string, unknown> };
         return json({ ok: true, billingWindow: publicBillingWindow(data.billingWindow ?? {}) });
       }
-      if (path === "/spend" || path === "/spend/") {
-        const res = await lobbyStub(env).fetch("https://lobby/status");
-        const data = (await res.json()) as { billingWindow?: Record<string, unknown> };
-        return html(shell("Shark — Spend", spendHtml(publicBillingWindow(data.billingWindow ?? {})), "What this service consumes against each free allowance and against the five dollar hard limit that closes the game rather than billing."));
-      }
-
       const publicGameLog = path.match(/^\/logs\/game\/([^/]+)\.txt$/);
       if (publicGameLog) {
         const roomId = decodeURIComponent(publicGameLog[1]);
@@ -766,16 +747,11 @@ export default {
         const gameTanks = AUDIT_ROOMS.map((room, index) => ({ tankId: room, tank: AUDIT_ROOM_NAMES[room] ?? room, download: `/logs/game/${room}.txt`, records: tanks[index].records }));
         return json({ ok: true, retention: { serviceDays: 90, captureHours: 24, serviceRecords: service.length, capturesPerTankLimit: LOG_FETCH_CAPTURES, truncated: caps }, serviceFormat: ["timestamp", "reasonCode", "action", "subject", "details"], captureFormat: ["timestamp", "reasonCode", "tick", "action", "language", "name", "details"], events: service, gameTanks });
       }
-      if (path === "/logs" || path === "/logs/") {
-        const { serviceEvents, tanks, caps } = await publicLogData(env);
-        return html(shell("Shark — Logs", publicLogsHtml(serviceEvents, tanks, caps)));
-      }
-
       // ── The trust estate's front door ──────────────────────────────────────
       // Six figures, six links. Each one is computed here from the same source the owning
       // page computes it from, so this page cannot state a number the owning page
       // contradicts — there is no second copy to fall out of step.
-      if (path === "/" || path === "/trust" || path === "/trust/") {
+      if (path === "/") {
         const [statusRes, { incidents, historyIntegrity }] = await Promise.all([
           lobbyStub(env).fetch("https://lobby/status"),
           incidentData(env),
@@ -813,65 +789,6 @@ export default {
         const tankAvailability = incidentSummary(incidents), portalAvailability = incidentSummary([]);
         return json({ ...publicData, usage: publicUsage, availability: tankAvailability, tankAvailability, portalAvailability, incidents });
       }
-      // ── Operations. Availability, incidents, receipts and backups ─────────────
-      // Three routes folded into this one. Everything below was already reachable, but
-      // spread across /status/ and /incidents/, with the receipt chain rendered
-      // twice and three headline numbers stated on pages that do not own them.
-      if (path === "/status" || path === "/status/") {
-        const [statusRes, { history: fullHistory, historyIntegrity }] = await Promise.all([
-          lobbyStub(env).fetch("https://lobby/status"),
-          incidentData(env),
-        ]);
-        const data = (await statusRes.json()) as {
-          maintenance: MaintenanceState;
-          usage: { uptimeMs: number; durableObjects: { tank: number; rooms: number; total: number } };
-          rooms: Array<{ name: string; players: number; bots: number; capacity: number; topScore: number; topName: string }>;
-          maintenanceIncidents?: IncidentRecord[];
-          history?: ControlHistoryEntry[];
-          historyIntegrity?: ControlHistoryIntegrity;
-          backup?: BackupState;
-          billingWindow?: Record<string, unknown>;
-        };
-        const players = data.rooms.reduce((n, r) => n + r.players, 0);
-        const incidents = [...INCIDENTS, ...(data.maintenanceIncidents ?? [])], availability = incidentSummary(incidents), portalAvailability = incidentSummary([]);
-        const history = data.history ?? fullHistory;
-        const integrity = data.historyIntegrity ?? historyIntegrity;
-        // The agent count exists — it is `bots` on every row of this same response, and it
-        // is what /api/tank has always returned. It was reachable only from behind the
-        // authenticated dashboard, while DOC-25 stated twice, publicly, that the
-        // availability page publishes it beside human occupancy. One column, and the
-        // sentence is true at a public route instead of false.
-        const roomRows = data.rooms
-          .map((r) => `<tr><td><strong>${esc(r.name)}</strong></td><td>${r.players}</td><td>${r.bots}</td><td>${r.topScore}</td><td>${esc(r.topName)}</td></tr>`)
-          .join("");
-        return html(
-          shell(
-            "Shark — Operations",
-            `<section class="page-intro"><div class="eyebrow">Trust · operations</div><h1>Operations</h1><p class="sub">Live availability for the server and for the tanks, every incident since the project started, the append-only receipt chain behind the controls that caused them, and the state copies and restore drills. <a href="/trust/">Trust overview →</a></p><p class="action-links"><a class="action-link" href="/status.json">Raw status JSON →</a> <a class="action-link" href="/incidents.json">Incident JSON →</a></p></section>
-             <div class="live-controls">
-               <button type="button" id="status-autoupdate" class="secondary">Pause auto-update</button>
-               <p class="sub">Live figures refresh every 15 seconds in place. Last updated <time id="status-updated-at">just now</time>.</p>
-             </div>
-             <p class="sr-only" id="status-live" role="status" aria-live="polite"></p>
-             <div class="metric-grid status-metrics">
-               ${metricCard(`${portalAvailability.availabilityPercent}%`, "Server availability", `${portalAvailability.unscheduledDowntimePercent}% unscheduled downtime`, "availability", "tone-green", "status-portal-availability")}
-               ${metricCard(`${availability.availabilityPercent}%`, "Tank availability", `${availability.unscheduledDowntimePercent}% unscheduled downtime`, "availability", "tone-green", "status-tank-availability")}
-               ${metricCard(formatCompactDuration(availability.scheduledDowntimeMs), "Scheduled downtime", "excluded from availability", "uptime", "tone-violet", "status-scheduled-downtime")}
-               ${metricCard(data.maintenance.enabled ? "CLOSED" : "OPEN", "Tank access", data.maintenance.enabled ? "scheduled gate active" : `${players} active players`, "traffic", data.maintenance.enabled ? "tone-violet" : "tone-green", "status-tank-access")}
-             </div>
-             <div class="card hero-card"><h2 class="u-card-heading">Availability since project start</h2>${incidentTimelineSvg(incidents, Date.now(), history)}${timelineLegend(incidents, history)}</div>
-             <div class="card"><h2 class="u-card-heading">Tank activity</h2>
-               <div class="table-scroll" role="region" aria-label="Tank activity" tabindex="0"><table class="capacity-table"><caption class="sr-only">Tank activity: human players and computer-controlled agents per tank</caption><thead><tr><th scope="col">Tank</th><th scope="col">Active players</th><th scope="col">Agents</th><th scope="col">Top score</th><th scope="col">Leader</th></tr></thead><tbody id="status-tank-rows">${roomRows}</tbody></table></div>
-             </div>
-             ${backupPanelHtml(data.backup)}
-             ${incidentsSection(incidents, history)}
-             ${controlHistoryListHtml(history, integrity)}
-             ${statusLiveScript()}`,
-            "Live availability, the full incident record, the append-only control receipt chain, state copies and restore drills, and the delivery record for sharktank.wizardgang.ai.",
-          ),
-        );
-      }
-
       // Full state export. Behind operations authentication because it is every profile
       // and every receipt in one body; the public evidence for backups is the shape and
       // timing panel on /status/, not the contents.

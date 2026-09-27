@@ -2,82 +2,8 @@ import { conformanceHtml, summarise, ALL_CONTROLS } from "./conformance.js";
 import { governanceControlsHtml } from "./governance.js";
 import type { BackupState } from "./lobby-do.js";
 import type { MaintenanceState } from "./env.js";
-import { SECURITY_HEADERS, html } from "./responses.js";
+import { SECURITY_HEADERS } from "./responses.js";
 import { numberValue, publicBillingWindow, recordValue } from "./presentation-data.js";
-
-const DOWNTIME_HEADLINES = [
-  "Pool's Closed.",
-  "The emergency shutoff valve held.",
-  "The leak is plugged.",
-  "Spend stopped at the gate.",
-  "This outage is doing its job.",
-  "Radar caught it.",
-  "Spend stopped. Access did not.",
-  "Shark sighted; risk stopped.",
-] as const;
-// Setup, then the turn. Each one runs a different joke engine — catchphrase, valuation,
-// reversal, recursion, understatement, escalation, mirror, bureaucracy, euphemism — so a
-// reader who sees several in a row never hears the same rhythm twice.
-const DOWNTIME_QUIPS = [
-  "The sharks pitched infinite scale. For that reason, the five-dollar limit is out.",
-  "A shark valued the reef at forty million dollars. Billing valued it at four dollars and eighty cents.",
-  "A hammerhead started the free trial. The free trial started on the hammerhead.",
-  "The reef hired a consultant to explain the invoice. The consultant is now on the invoice.",
-  "A mako called the overage a rounding error. It was the budget, rounded.",
-  "The sharks asked for a bigger instance. Turns out we needed a bigger budget.",
-  "The sharks called it growth. Finance called it Tuesday.",
-  "The reef forecast hockey-stick growth. The meter brought a ruler.",
-  "A tiger shark opened a tab. The control plane closed the bar.",
-  "The reef found the upgrade button. Audit found the reef.",
-  "The sharks formed a procurement committee. Nine meetings later, they approved a stapler.",
-  "A great white filed a jet ski under transportation. Audit filed it under no.",
-  "The sharks ordered premium chum for the table. Finance approved tap water.",
-] as const;
-
-function downtimeResponse(state: MaintenanceState): Response {
-  const tick = nextDowntimeTick(), headline = tickPick(DOWNTIME_HEADLINES, tick, 0), quip = tickPick(DOWNTIME_QUIPS, tick, 7);
-  const trigger = state.reason || "Safety control active";
-  const response = html(`<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Game offline — Wizard Gang</title><link rel="icon" href="${WIZARDGANG_FAVICON}"><link rel="stylesheet" href="${PAGE_CSS_PATH}"></head><body class="downtime-page"><main class="downtime"><div class="card hero-card"><div class="downtime-mark">${SHARK_MARK_SVG}</div><div class="eyebrow">Controlled outage · ${esc(headline)}</div><h1>The game is offline right now</h1><p class="downtime-quip">${esc(quip)}</p><div class="downtime-trigger"><span>Current trigger</span><strong>${esc(trigger)}</strong></div><p><a class="action-link" href="/evidence/#availability">Check live status and incident history →</a></p></div></main></body></html>`, 503);
-  response.headers.set("retry-after", "60");
-  response.headers.set("cache-control", "no-store");
-  return response;
-}
-
-function mix(value: number): number {
-  let h = value >>> 0;
-  h = Math.imul(h ^ (h >>> 16), 2246822507) >>> 0;
-  h = Math.imul(h ^ (h >>> 13), 3266489909) >>> 0;
-  return (h ^ (h >>> 16)) >>> 0;
-}
-function gcd(a: number, b: number): number { while (b) { const t = a % b; a = b; b = t; } return a; }
-/**
- * Per-isolate request tick. A wall-clock tick is the wrong source here: several loads
- * inside the same second would all land on the same line, which is what makes a rotation
- * read as broken. Advancing once per rendered page guarantees movement on every refresh.
- * Seeded from CSPRNG on first use so separate isolates do not start in lockstep.
- */
-let downtimeTick: number | null = null;
-function nextDowntimeTick(): number {
-  if (downtimeTick === null) downtimeTick = crypto.getRandomValues(new Uint32Array(1))[0] >>> 0;
-  downtimeTick = (downtimeTick + 1) >>> 0;
-  return downtimeTick;
-}
-/**
- * Walks an affine permutation of the list: every entry appears exactly once per cycle and
- * the order is reshuffled each cycle, so a reader never sees a repeat until they have seen
- * them all. Independent random draws clump instead — that is what looked non-random.
- */
-function tickPick<T>(items: readonly T[], tick: number, salt: number): T {
-  const n = items.length;
-  if (n < 2) return items[0];
-  const t = (tick + salt) >>> 0;
-  const cycle = Math.floor(t / n), position = t % n;
-  // `step` must be coprime with n for the walk to cover every entry; 1 always is.
-  let step = 1 + (mix(cycle + salt) % (n - 1));
-  for (let i = 0; i < n && gcd(step, n) !== 1; i += 1) step = (step % (n - 1)) + 1;
-  const offset = mix(cycle * 3 + salt + 1) % n;
-  return items[(position * step + offset) % n];
-}
 
 function formatCompactDuration(ms: number): string { const seconds = Math.round(ms / 1000); return seconds < 60 ? `${seconds}s` : seconds < 3600 ? `${Math.round(seconds / 60)}m` : `${(seconds / 3600).toFixed(1)}h`; }
 /**
@@ -209,7 +135,7 @@ const PAGE_CSS = `
   .metric-value{max-width:100%;margin-top:10px;overflow:hidden;font-size:clamp(1.25rem,2.6vw,2rem);font-weight:900;line-height:1.08;font-variant-numeric:tabular-nums;text-overflow:ellipsis;white-space:nowrap}.metric-label,.metric-detail{display:-webkit-box;max-width:100%;overflow:hidden;-webkit-box-orient:vertical}.metric-label{min-height:2.3em;margin-top:7px;color:#d8d4ef;font-size:.72rem;font-weight:800;line-height:1.15;letter-spacing:.07em;text-transform:uppercase;-webkit-line-clamp:2}.metric-detail{color:#8f89ae;font-size:.7rem;line-height:1.25;-webkit-line-clamp:2;overflow-wrap:anywhere}
   .tone-green{color:#4ade80}.tone-yellow{color:#f6c445}.tone-red{color:#ff5f66}.tone-cyan{color:#22e6ff}.tone-violet{color:#a78bff}
   .gauge-card{padding:18px 20px}.gauge-layout{display:grid;grid-template-columns:minmax(260px,1.1fr) minmax(220px,.9fr);gap:24px;align-items:center}.gauge-svg{display:block;width:100%;max-width:430px;margin:auto}.gauge-needle{transition:transform .45s cubic-bezier(.2,.8,.2,1)}.gauge-readout{text-align:center}.gauge-readout strong{display:block;font-size:2.1rem;line-height:1;font-variant-numeric:tabular-nums}.gauge-readout span{display:block;color:#b9b4d6;font-size:.78rem}.meter-pill{display:inline-flex!important;width:max-content;margin:8px auto 0;padding:3px 9px;border:1px solid currentColor;border-radius:999px;font-weight:900;letter-spacing:.08em}
-  .seat-bar{width:100%;height:8px;margin-top:5px;overflow:hidden;border-radius:999px;background:#292544}.seat-bar span{display:block;height:100%;border-radius:inherit;background:linear-gradient(90deg,#22e6ff,#a78bff)}
+
   button{min-height:44px;font:inherit;font-weight:900;border:0;border-radius:10px;padding:10px 16px;cursor:pointer;box-shadow:0 5px 0 rgba(0,0,0,.22)}
   button:active{transform:translateY(2px);box-shadow:0 3px 0 rgba(0,0,0,.22)}
   button.danger{background:#ff6b6b;color:#1a0606}button.restore{background:#4ade80;color:#07130b}button.secondary{background:#8f7bff;color:#0b0a14}button:disabled{cursor:wait;opacity:.65}
@@ -218,7 +144,7 @@ const PAGE_CSS = `
   .live-controls .sub{margin:0}
   .server-controls{display:flex;align-items:stretch;gap:10px;flex-wrap:wrap}.server-controls>*{flex:1 1 240px}.security-report-button{background:linear-gradient(100deg,#ff8a1f,#ffd54a);color:#170d02}.security-receipt{margin-top:12px;white-space:pre-wrap;overflow-wrap:anywhere}.alert-test{display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-top:14px}.alert-code{width:8rem;min-height:44px;border:1px solid var(--strong);border-radius:10px;background:var(--surface-1);color:var(--text);font:900 1rem ui-monospace,monospace;letter-spacing:.18em;text-transform:uppercase;padding:8px 12px}
   @media(prefers-reduced-motion:reduce){*,*::before,*::after{animation-duration:.01ms!important;animation-iteration-count:1!important;transition-duration:.01ms!important;scroll-behavior:auto!important}}
-  .gov-doc{margin:0 0 14px}.gov-head h2{margin:2px 0 0;font-size:1.2rem}.gov-purpose{margin:8px 0 12px}.gov-satisfies{display:flex;gap:10px;align-items:baseline;flex-wrap:wrap;margin:0 0 16px;padding:10px 12px;border:1px solid var(--border);border-radius:10px;background:rgba(11,10,20,.48)}.gov-satisfies-label{color:var(--faint);font:900 .66rem/1 ui-monospace,monospace;letter-spacing:.08em;text-transform:uppercase}.gov-satisfies ul{display:flex;gap:6px;flex-wrap:wrap;margin:0;padding:0;list-style:none}.gov-satisfies code{font-size:.72rem}.gov-section{margin:0 0 14px}.gov-section h3{margin:0 0 6px;font-size:.98rem}.gov-section p{margin:0 0 8px;color:var(--muted)}.gov-review{margin:14px 0 0;padding:10px 12px;border-left:2px solid var(--cyan);color:var(--muted);font-size:.86rem}.gov-index{display:block}.gov-index ul{margin:0;padding:0 0 0 2px;list-style:none;display:grid;grid-template-columns:repeat(auto-fill,minmax(min(100%,280px),1fr));gap:7px 14px}.gov-index a{color:var(--text)}.gov-index a>code{flex:0 0 auto;white-space:nowrap}.skip-link{position:absolute;left:-9999px;top:0;z-index:100;padding:10px 16px;border-radius:0 0 10px 0;background:var(--cyan);color:#07131a;font-weight:800;text-decoration:none}.skip-link:focus{left:0}main:focus{outline:none}table caption{caption-side:top;padding:0 0 8px;color:var(--muted);font-size:.78rem;text-align:left}[hidden]{display:none!important}.history-list{display:grid;gap:10px;margin-top:14px}.history-item{display:grid;grid-template-columns:7.2rem 1fr auto;gap:14px;align-items:start;padding:14px;border:1px solid var(--border);border-radius:12px;background:rgba(11,10,20,.48)}.history-sequence{color:var(--cyan);font:800 .76rem/1.4 ui-monospace,monospace}.history-copy strong{display:block}.history-copy p{margin:3px 0;color:var(--muted)}.history-meta{color:var(--faint);font-size:.75rem}.history-receipt{max-width:11rem;overflow:hidden;color:var(--faint);font:700 .72rem/1.4 ui-monospace,monospace;text-overflow:ellipsis;white-space:nowrap}.history-item--focus{border-color:var(--cyan);box-shadow:0 0 0 2px rgba(34,230,255,.28)}.history-pager{display:flex;gap:12px;align-items:center;justify-content:center;margin:16px 0 0;color:var(--muted);font-size:.8rem}.pager-btn{padding:7px 14px;border:1px solid var(--strong);border-radius:999px;background:rgba(11,10,20,.52);color:var(--text);font:inherit;font-weight:700;cursor:pointer}.pager-btn:disabled{opacity:.4;cursor:default}.pager-btn[aria-disabled="true"]{background:none;color:var(--faint);cursor:default}.integrity-line{display:flex;gap:8px;align-items:center;flex-wrap:wrap;color:var(--muted)}.status-incident-list{display:grid;gap:8px}.status-incident{display:grid;grid-template-columns:auto auto 1fr auto;gap:10px;align-items:center;padding:10px 12px;border:1px solid var(--border);border-radius:10px;background:rgba(11,10,20,.48);color:var(--text);text-decoration:none}.status-incident:hover,.status-incident:focus-visible{border-color:var(--cyan)}.status-incident--active{border-color:#ff8a1f}.status-incident-state{color:var(--faint);font:900 .66rem/1 ui-monospace,monospace;letter-spacing:.08em}.status-incident-title{min-width:0;font-weight:700;overflow-wrap:anywhere}.status-incident-cause{color:var(--muted);font-size:.74rem;white-space:nowrap}@media(max-width:560px){.status-incident{grid-template-columns:auto auto 1fr}.status-incident-cause{grid-column:2/-1}}.incident-card{margin:0 0 12px}.incident-card--active{border-color:#ff8a1f}.incident-dot{display:inline-block;width:9px;height:9px;margin-right:7px;border-radius:3px;vertical-align:middle}.integrity-line code{overflow-wrap:anywhere}.integrity-badge{display:inline-flex;padding:3px 8px;border:1px solid #4ade80;border-radius:999px;color:#4ade80;font-size:.7rem;font-weight:900;letter-spacing:.07em;text-transform:uppercase}.integrity-badge.verdict-pass{border-color:#4ade80;color:#4ade80}.integrity-badge.verdict-fail{border-color:#ff6b6b;color:#ff6b6b}.integrity-badge.verdict-idle{border-color:var(--strong);color:var(--muted)}
+  .gov-doc{margin:0 0 14px}.gov-satisfies{display:flex;gap:10px;align-items:baseline;flex-wrap:wrap;margin:0 0 16px;padding:10px 12px;border:1px solid var(--border);border-radius:10px;background:rgba(11,10,20,.48)}.gov-satisfies-label{color:var(--faint);font:900 .66rem/1 ui-monospace,monospace;letter-spacing:.08em;text-transform:uppercase}.gov-satisfies ul{display:flex;gap:6px;flex-wrap:wrap;margin:0;padding:0;list-style:none}.gov-satisfies code{font-size:.72rem}.gov-section{margin:0 0 14px}.gov-section h3{margin:0 0 6px;font-size:.98rem}.gov-section p{margin:0 0 8px;color:var(--muted)}.gov-review{margin:14px 0 0;padding:10px 12px;border-left:2px solid var(--cyan);color:var(--muted);font-size:.86rem}.gov-index{display:block}.gov-index ul{margin:0;padding:0 0 0 2px;list-style:none;display:grid;grid-template-columns:repeat(auto-fill,minmax(min(100%,280px),1fr));gap:7px 14px}.gov-index a{color:var(--text)}.gov-index a>code{flex:0 0 auto;white-space:nowrap}.skip-link{position:absolute;left:-9999px;top:0;z-index:100;padding:10px 16px;border-radius:0 0 10px 0;background:var(--cyan);color:#07131a;font-weight:800;text-decoration:none}.skip-link:focus{left:0}main:focus{outline:none}table caption{caption-side:top;padding:0 0 8px;color:var(--muted);font-size:.78rem;text-align:left}[hidden]{display:none!important}.history-list{display:grid;gap:10px;margin-top:14px}.history-item{display:grid;grid-template-columns:7.2rem 1fr auto;gap:14px;align-items:start;padding:14px;border:1px solid var(--border);border-radius:12px;background:rgba(11,10,20,.48)}.history-sequence{color:var(--cyan);font:800 .76rem/1.4 ui-monospace,monospace}.history-copy strong{display:block}.history-copy p{margin:3px 0;color:var(--muted)}.history-meta{color:var(--faint);font-size:.75rem}.history-receipt{max-width:11rem;overflow:hidden;color:var(--faint);font:700 .72rem/1.4 ui-monospace,monospace;text-overflow:ellipsis;white-space:nowrap}.history-item--focus{border-color:var(--cyan);box-shadow:0 0 0 2px rgba(34,230,255,.28)}.history-pager{display:flex;gap:12px;align-items:center;justify-content:center;margin:16px 0 0;color:var(--muted);font-size:.8rem}.pager-btn{padding:7px 14px;border:1px solid var(--strong);border-radius:999px;background:rgba(11,10,20,.52);color:var(--text);font:inherit;font-weight:700;cursor:pointer}.pager-btn:disabled{opacity:.4;cursor:default}.pager-btn[aria-disabled="true"]{background:none;color:var(--faint);cursor:default}.integrity-line{display:flex;gap:8px;align-items:center;flex-wrap:wrap;color:var(--muted)}.incident-card{margin:0 0 12px}.incident-card--active{border-color:#ff8a1f}.incident-dot{display:inline-block;width:9px;height:9px;margin-right:7px;border-radius:3px;vertical-align:middle}.integrity-line code{overflow-wrap:anywhere}.integrity-badge{display:inline-flex;padding:3px 8px;border:1px solid #4ade80;border-radius:999px;color:#4ade80;font-size:.7rem;font-weight:900;letter-spacing:.07em;text-transform:uppercase}.integrity-badge.verdict-pass{border-color:#4ade80;color:#4ade80}.integrity-badge.verdict-fail{border-color:#ff6b6b;color:#ff6b6b}.integrity-badge.verdict-idle{border-color:var(--strong);color:var(--muted)}
   /* ── Spend ── */
   .spend-hero{display:grid;grid-template-columns:minmax(0,320px) minmax(0,1fr);gap:14px;margin:0 0 14px}
   .spend-hero>.card{margin:0;min-width:0}
@@ -262,9 +188,9 @@ const PAGE_CSS = `
   .meter-legend span{display:inline-flex;gap:6px;align-items:center}
   .meter-legend i{display:inline-block;width:22px;height:9px;border-radius:999px;background:#4ade80}
   .meter-legend b{display:inline-block;width:2px;height:13px;border-radius:1px;background:#e9e6ff}
-  .meter-none,.meter-note{color:var(--faint);font-style:italic}
+  .meter-note{color:var(--faint);font-style:italic}
   @media(max-width:860px){.spend-hero{grid-template-columns:1fr}}
-  .mission-card{border-color:#5d54a0}.mission-card h2{max-width:30ch;font-size:clamp(1.5rem,3vw,2.25rem);margin:6px 0}.mission-card p{max-width:72ch;margin:0;color:var(--muted);font-size:1.02rem}.timeline-scroll{width:100%;max-width:100%;overflow-x:auto;overscroll-behavior-inline:contain;scrollbar-width:thin;-webkit-overflow-scrolling:touch}.timeline-scroll:focus-visible{outline:3px solid var(--focus);outline-offset:3px}.timeline-scroll svg{display:block;min-width:520px;width:100%;height:112px}.incident-chart svg{min-width:768px}.availability-chart svg{min-width:768px}.timeline-key{display:grid;gap:8px;margin:10px 0 0;color:var(--muted);font-size:.76rem}.timeline-key__group{display:flex;gap:8px;align-items:center;flex-wrap:wrap}.timeline-key__label{min-width:9.5rem;color:var(--faint);font-size:.68rem;font-weight:900;letter-spacing:.1em;text-transform:uppercase}.timeline-key :is(span,a){display:inline-flex;align-items:center;gap:6px}.timeline-key :is(span,a)>b{color:var(--text);font-variant-numeric:tabular-nums}.timeline-key a{padding:2px 8px;border:1px solid var(--border);border-radius:999px;color:inherit;text-decoration:none}.timeline-key a:hover,.timeline-key a:focus-visible{border-color:var(--cyan);color:var(--text)}.timeline-key i{width:10px;height:10px;border-radius:3px;flex:none}.timeline-key-note{grid-column:1/-1;margin:2px 0 0;color:var(--faint);font-size:.72rem;font-style:italic}svg a{cursor:pointer}svg a:focus-visible{outline:2px solid var(--focus)}@media(max-width:560px){.timeline-key__label{min-width:100%}}.showcase-chart svg a:focus-visible :is(rect,path,circle){stroke:var(--focus);stroke-width:2.5;paint-order:stroke}.key-green{background:#4ade80}.key-violet{background:#8f7bff}.key-red{background:#ff6b6b}.key-indigo{background:#6d8bff}.key-amber{background:#ff8a1f}.key-crimson{background:#e5484d}.key-yellow{background:#ffe14d}.roadmap-table :is(th,td){vertical-align:top}.roadmap-table :is(th,td):nth-child(1){width:6.5rem}.roadmap-table :is(th,td):nth-child(2){width:8rem}.roadmap-table :is(th,td):nth-child(4){width:6.5rem}.roadmap-table :is(th,td):nth-child(5){width:7.5rem}
+  .timeline-scroll{width:100%;max-width:100%;overflow-x:auto;overscroll-behavior-inline:contain;scrollbar-width:thin;-webkit-overflow-scrolling:touch}.timeline-scroll:focus-visible{outline:3px solid var(--focus);outline-offset:3px}.timeline-scroll svg{display:block;min-width:520px;width:100%;height:112px}.incident-chart svg{min-width:768px}.availability-chart svg{min-width:768px}.timeline-key{display:grid;gap:8px;margin:10px 0 0;color:var(--muted);font-size:.76rem}.timeline-key__group{display:flex;gap:8px;align-items:center;flex-wrap:wrap}.timeline-key__label{min-width:9.5rem;color:var(--faint);font-size:.68rem;font-weight:900;letter-spacing:.1em;text-transform:uppercase}.timeline-key :is(span,a){display:inline-flex;align-items:center;gap:6px}.timeline-key :is(span,a)>b{color:var(--text);font-variant-numeric:tabular-nums}.timeline-key a{padding:2px 8px;border:1px solid var(--border);border-radius:999px;color:inherit;text-decoration:none}.timeline-key a:hover,.timeline-key a:focus-visible{border-color:var(--cyan);color:var(--text)}.timeline-key i{width:10px;height:10px;border-radius:3px;flex:none}.timeline-key-note{grid-column:1/-1;margin:2px 0 0;color:var(--faint);font-size:.72rem;font-style:italic}svg a{cursor:pointer}svg a:focus-visible{outline:2px solid var(--focus)}@media(max-width:560px){.timeline-key__label{min-width:100%}}.key-green{background:#4ade80}.key-violet{background:#8f7bff}.key-red{background:#ff6b6b}.key-indigo{background:#6d8bff}.key-amber{background:#ff8a1f}.key-crimson{background:#e5484d}.key-yellow{background:#ffe14d}
   .log-room{padding:0;overflow:hidden}.log-room>summary{display:flex;align-items:center;justify-content:space-between;gap:12px;min-height:64px;padding:14px 18px;cursor:pointer;list-style:none}.log-room>summary::-webkit-details-marker{display:none}.log-room>summary:after{content:"+";color:var(--cyan);font-size:1.35rem;font-weight:900}.log-room[open]>summary{border-bottom:1px solid var(--border)}.log-room[open]>summary:after{content:"−"}.log-summary{display:flex;align-items:center;gap:10px;min-width:0;flex-wrap:wrap}.log-count{padding:2px 8px;border:1px solid var(--border);border-radius:999px;color:var(--muted);font-size:.72rem;font-weight:800}.log-room-body{padding:16px 18px 4px}.log-actions{display:flex;justify-content:flex-end;margin-bottom:10px}.log-toolbar{display:grid;grid-template-columns:minmax(220px,1fr) minmax(150px,.42fr) auto;gap:10px;align-items:end;margin:0 0 14px}.log-toolbar label{display:grid;gap:4px;color:var(--muted);font-size:.7rem;font-weight:850;letter-spacing:.06em;text-transform:uppercase}.log-toolbar :is(input,select){width:100%;min-height:42px;border:1px solid var(--strong);border-radius:9px;background:var(--surface-1);color:var(--text);padding:8px 10px;font:inherit}.log-visible-count{padding:10px 0;color:var(--faint);font-size:.74rem;white-space:nowrap}.table-sort{min-height:0;padding:0;border-radius:0;background:none;color:inherit;font:inherit;letter-spacing:inherit;text-transform:inherit;box-shadow:none}.table-sort:active{transform:none;box-shadow:none}.table-sort:after{content:" ↕";color:var(--faint)}.table-sort[data-direction="asc"]:after{content:" ↑";color:var(--cyan)}.table-sort[data-direction="desc"]:after{content:" ↓";color:var(--cyan)}
   pre{background:var(--surface-1);border:1px solid var(--border);border-radius:10px;padding:14px;overflow:auto}
   /* ── Conformance register (/audit/) ──────────────────────────────────────────
@@ -275,14 +201,14 @@ const PAGE_CSS = `
   .iso-pill{display:inline-block;padding:3px 10px;border:1px solid currentColor;border-radius:999px;font-size:.7rem;font-weight:900;letter-spacing:.06em;text-transform:uppercase;white-space:nowrap}
   .iso-pill.is-met{color:#4ade80}.iso-pill.is-partial{color:#f6c445}.iso-pill.is-gap{color:#ff8080}.iso-pill.is-supplier{color:#b6a9ff}.iso-pill.is-excluded{color:#a49dc4}
   .iso-section{margin:36px 0 10px;font-size:clamp(1.25rem,3vw,1.7rem);scroll-margin-top:18px}
-  .iso-readiness-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:16px}
-  .iso-readiness{display:grid;gap:6px;min-width:0}
-  .iso-readiness__head{display:flex;justify-content:space-between;align-items:baseline;gap:10px}
-  .iso-readiness__head a{font-size:.82rem;font-weight:800;text-decoration:none;overflow-wrap:anywhere}
-  .iso-readiness__head strong{color:var(--text);font-variant-numeric:tabular-nums}
-  .iso-track{display:flex;height:10px;border-radius:999px;background:#292544;overflow:hidden}
-  .iso-track>i{display:block;height:100%}.iso-track>i.is-met{background:#4ade80}.iso-track>i.is-partial{background:#f6c445}
-  .iso-readiness__foot{margin:0;color:var(--faint);font-size:.72rem}
+
+
+
+
+
+
+
+
   .iso-key-table{--table-min:520px}
   .iso-key-table :is(th,td):nth-child(1){width:9rem}
   .iso-lock{display:inline-block;padding:1px 6px;border:1px solid var(--strong);border-radius:999px;color:var(--muted);font-size:.62rem;font-weight:900;letter-spacing:.08em;text-transform:uppercase;vertical-align:1px}
@@ -331,7 +257,7 @@ const PAGE_CSS = `
   .iso-records{margin:0;padding-left:1.2em;display:grid;gap:4px;color:var(--muted);font-size:.85rem}
   .iso-path{margin:0;padding-left:1.2em;display:grid;gap:10px;color:var(--muted);max-width:92ch}
   .iso-path strong{color:var(--text)}
-  @media(max-width:900px){.iso-readiness-grid{grid-template-columns:1fr}.iso-process__grid{grid-template-columns:1fr;gap:10px}}
+  @media(max-width:900px){.iso-process__grid{grid-template-columns:1fr;gap:10px}}
   @media(max-width:760px){.iso-toolbar{grid-template-columns:1fr 1fr}.iso-toolbar button{grid-column:1/-1}}
   @media(max-width:420px){.iso-toolbar{grid-template-columns:1fr}}
   @media(max-width:900px){}
@@ -347,8 +273,8 @@ const PAGE_CSS = `
   .trust-tile__detail{color:var(--muted);font-size:.82rem}
   .trust-tile__go{position:absolute;right:14px;bottom:12px;color:var(--faint);font-weight:900}
   .trust-tile.tone-green .trust-tile__value{color:#4ade80}.trust-tile.tone-cyan .trust-tile__value{color:#22e6ff}.trust-tile.tone-violet .trust-tile__value{color:#c4b5fd}.trust-tile.tone-red .trust-tile__value{color:#ff8c92}
-  .trust-what{display:grid;grid-template-columns:minmax(0,10rem) minmax(0,1fr);gap:8px 18px;margin:0}
-  .trust-what dt{font-weight:800}.trust-what dd{margin:0;color:var(--muted)}
+
+
   .page-intro dfn{font-style:normal;font-weight:800;color:var(--text);border-bottom:1px dotted var(--strong)}
   .action-links{display:flex;flex-wrap:wrap;gap:14px;margin:0}
   /* ── Governance case-study IA ── */
@@ -400,13 +326,13 @@ const PAGE_CSS = `
   .ai-definition article{min-height:250px;padding:24px;border:1px solid var(--border);border-radius:14px;background:var(--surface-1)}
   .ai-definition h2{margin:54px 0 10px;font-size:1.35rem;line-height:1.05}
   .ai-definition p{margin:0;color:var(--muted);font-size:.88rem}
-  .evidence-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:12px;margin:0 0 clamp(50px,9vw,94px)}
-  .evidence-grid>a{display:flex;min-height:290px;padding:24px;border:1px solid var(--border);border-radius:14px;background:var(--surface-1);color:var(--text);text-decoration:none;flex-direction:column}
-  .evidence-grid>a>span{color:var(--cyan);font-size:.68rem;font-weight:900;letter-spacing:.1em;text-transform:uppercase}
-  .evidence-grid h2{margin:auto 0 10px;font-size:1.7rem;line-height:1}
-  .evidence-grid p{margin:0 0 20px;color:var(--muted);font-size:.88rem}
-  @media(max-width:900px){.governance-flow{grid-template-columns:1fr}.governance-flow>i{justify-self:center;transform:none}.standard-pair,.ai-definition,.evidence-grid{grid-template-columns:1fr 1fr}.ai-definition article:last-child{grid-column:1/-1}}
-  @media(max-width:700px){.standard-pair,.case-principle,.register-cta,.workload-card,.governance-topics,.control-example,.ai-definition,.evidence-grid{grid-template-columns:1fr}.standard-card{min-height:300px}.control-example dl{grid-template-columns:1fr;gap:4px}.control-example dd{margin-bottom:14px}.ai-definition article:last-child{grid-column:auto}.section-head{align-items:flex-start;flex-direction:column}}
+
+
+
+
+
+  @media(max-width:900px){.governance-flow{grid-template-columns:1fr}.governance-flow>i{justify-self:center;transform:none}.standard-pair,.ai-definition{grid-template-columns:1fr 1fr}.ai-definition article:last-child{grid-column:1/-1}}
+  @media(max-width:700px){.standard-pair,.case-principle,.register-cta,.workload-card,.governance-topics,.control-example,.ai-definition{grid-template-columns:1fr}.standard-card{min-height:300px}.control-example dl{grid-template-columns:1fr;gap:4px}.control-example dd{margin-bottom:14px}.ai-definition article:last-child{grid-column:auto}.section-head{align-items:flex-start;flex-direction:column}}
 
   /* ── Consolidated controls and evidence ── */
   .controls-intro{padding:clamp(48px,9vw,96px) 0 38px}
@@ -477,8 +403,8 @@ const PAGE_CSS = `
     .iso-table.iso-table .cell-key{font-size:1rem;white-space:normal}
     .table-scroll:has(.iso-table){overflow-x:visible}
     .trust-grid{grid-template-columns:repeat(2,minmax(0,1fr))}
-    .trust-what{grid-template-columns:1fr;gap:2px 0}
-    .trust-what dd{margin:0 0 10px}
+
+
   }
   @media(max-width:420px){.trust-grid{grid-template-columns:1fr}}
 
@@ -496,7 +422,7 @@ const PAGE_CSS = `
   }
   @media(forced-colors:active){
     .metric-card,.card,.trust-tile,.gov-card,.iso-table tr{border:1px solid CanvasText}
-    .iso-pill,.meter-pill,.integrity-badge,.status-pill{border:1px solid CanvasText;forced-color-adjust:none;background:Canvas;color:CanvasText}
+    .iso-pill,.meter-pill,.integrity-badge{border:1px solid CanvasText;forced-color-adjust:none;background:Canvas;color:CanvasText}
     :where(a,button,input,select,textarea,summary,[tabindex]):focus-visible{outline:3px solid Highlight;outline-offset:2px}
     .key-dot,.incident-dot,.meter-fill{forced-color-adjust:none}
     svg a:focus-visible{outline:3px solid Highlight}
@@ -560,79 +486,6 @@ function pageCssResponse(): Response {
       ...SECURITY_HEADERS,
     },
   });
-}
-
-const SHARK_MARK_SVG = `<svg viewBox="0 0 180 110" role="img" aria-label="Goofy Shark Tank mascot"><path d="M35 55 4 26l8 30-8 29 31-25c12 26 67 35 112 4 12-8 20-8 29-9-9-2-17-4-29-12C102 13 47 27 35 55Z" fill="#22e6ff" stroke="#070b14" stroke-width="5" stroke-linejoin="round"/><path d="M76 29 91 5l19 28M76 75 90 102l14-29" fill="#0891b2" stroke="#070b14" stroke-width="5" stroke-linejoin="round"/><path d="M41 48c24-15 62-22 106-5-43-8-79 1-105 19Z" fill="#fff" opacity=".18"/><circle cx="137" cy="40" r="13" fill="#fff" stroke="#070b14" stroke-width="4"/><circle cx="142" cy="43" r="5" fill="#070b14"/><path d="M119 66q21 16 42-2-21 31-42 2Z" fill="#47142a" stroke="#070b14" stroke-width="4" stroke-linejoin="round"/><path d="m126 69 5 10 6-8 6 8 5-11" fill="#fff" stroke="#070b14" stroke-width="2" stroke-linejoin="round"/><circle cx="158" cy="48" r="3" fill="#070b14"/></svg>`;
-const WIZARDGANG_FAVICON = `data:image/svg+xml,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20viewBox%3D%220%200%2032%2032%22%3E%3Crect%20width%3D%2232%22%20height%3D%2232%22%20fill%3D%22%2308080b%22%2F%3E%3Crect%20x%3D%225%22%20y%3D%2215%22%20width%3D%2212%22%20height%3D%2212%22%20fill%3D%22%23d9ff43%22%2F%3E%3Crect%20x%3D%2215%22%20y%3D%225%22%20width%3D%2212%22%20height%3D%2212%22%20fill%3D%22%23a489ff%22%2F%3E%3C%2Fsvg%3E`;
-const WIZARDGANG_BRAND = `<span class="brand-mark" aria-hidden="true"></span><span class="brand-copy"><strong>WIZARDGANG</strong><small>SharkTank</small></span>`;
-
-/**
- * Two products, two audiences, two navigations.
- *
- * One flat ten-item bar used to sit on every page, so a player looking for the game was
- * shown nine governance routes and an assessor looking for evidence was shown the game.
- * Neither audience was served, and roughly half the outstanding usability findings were
- * downstream of that one bar. The game keeps a single way out — one link — and the trust
- * estate keeps its own five-item table of contents.
- */
-const TRUST_NAV: ReadonlyArray<readonly [string, string]> = [
-  ["/", "Overview"],
-  ["/controls/", "Controls"],
-  ["/evidence/", "Evidence"],
-  ["/play/", "Play"],
-];
-/**
- * The game's single link out is not emitted here — the game is not served by this
- * template. It is one link in the menu the React client renders, and one link in the
- * document the client hydrates into. This is only ever the trust side's own contents.
- * The brand mark returns to the WizardGang portfolio; the estate footer carries the
- * explicit route back to the live game.
- */
-/**
- * The whole estate, in the footer of every page the trust shell renders.
- *
- * The split left /spend/ and /docs/ in neither the nav nor the brand link. Measured across
- * the estate afterwards, /policies/, each of the twenty policy documents, /logs/, /docs/
- * and /spend/ itself carried no link to either page -- five of the seven trust surfaces
- * with no route at all to two of the estate's own pages. /spend/ is the cited evidence for
- * A.8.6, 7.1, A.5.9, A.5.23, 9.1 and 6.2, so an assessor following any of those rows landed
- * somewhere with no way onward except the brand mark back to the public root.
- *
- * A footer rather than two more nav items: the nav is the common path and the split existed
- * to make it short, so widening it to eight would undo the thing it was for. This is emitted
- * from shell(), which every trust page and all twenty policy documents render through, so
- * the index cannot be complete on some pages and missing on others.
- */
-const ESTATE_FOOTER: ReadonlyArray<readonly [string, ReadonlyArray<readonly [string, string]>]> = [
-  ["Public", [["/", "Overview"], ["/controls/", "Controls"], ["/evidence/", "Evidence"], ["/play/", "Play"]]],
-  ["Machine evidence", [["/status.json", "Status JSON"], ["/incidents.json", "Incidents JSON"], ["/spend.json", "Spend JSON"], ["/logs.json", "Logs JSON"], ["/policies.json", "Policies JSON"], ["/audit/manifest.json", "Register JSON"]]],
-  ["Technical", [["/docs/", "Developer API"], ["/openapi.json", "OpenAPI JSON"], ["https://github.com/Wizard-Gang/SharkTank", "GitHub source"]]],
-];
-
-function footerHtml(): string {
-  return `<footer class="site-footer"><div class="site-footer-inner"><nav aria-label="All pages on this service">${
-    ESTATE_FOOTER.map(([head, links]) => `<div class="footer-col"><span class="footer-head">${head}</span><ul>${
-      links.map(([href, label]) => `<li><a href="${href}">${label}</a></li>`).join("")
-    }</ul></div>`).join("")
-  }</nav><p class="footer-note">The game is the workload. The management system around it is the case study. Every control position links to inspectable implementation or evidence.</p></div></footer>`;
-}
-
-function navHtml(): string {
-  return `<nav aria-label="Primary">${
-    TRUST_NAV.map(([href, label]) => `<a href="${href}">${label}</a>`).join("")
-  }</nav>`;
-}
-
-/**
- * `description` is emitted whenever a page supplies one. It is not decoration: these pages
- * are the evidence an assessor is pointed at, and a result with no description is a result
- * that has to be opened to be identified.
- */
-function shell(title: string, inner: string, description = "", canonicalPath = ""): string {
-  const meta = description ? `<meta name="description" content="${esc(description)}">` : "";
-  const canonical = canonicalPath ? `https://sharktank.wizardgang.ai${canonicalPath}` : "";
-  const social = canonical ? `<link rel="canonical" href="${canonical}"><meta property="og:title" content="${esc(title)}"><meta property="og:description" content="${esc(description)}"><meta property="og:url" content="${canonical}"><meta property="og:type" content="website"><meta property="og:image" content="https://sharktank.wizardgang.ai/sharktank-art.jpg"><meta name="twitter:card" content="summary_large_image">` : "";
-  return `<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="theme-color" content="#0b0a14"><title>${title}</title>${meta}${social}<link rel="icon" href="${WIZARDGANG_FAVICON}"><link rel="stylesheet" href="${PAGE_CSS_PATH}"></head><body><a class="skip-link" href="#main">Skip to main content</a><header class="site-header"><a class="brand" href="/" aria-label="WizardGang SharkTank home">${WIZARDGANG_BRAND}</a>${navHtml()}</header><main id="main" tabindex="-1">${inner}</main>${footerHtml()}<script nonce="__WG_CSP_NONCE__">(function(){function land(){var id=location.hash.slice(1);if(!id)return;var el=document.getElementById(id);if(!el)return;var disclosure=el.matches("details")?el:el.closest("details");if(disclosure&&!disclosure.open)disclosure.open=true;if(!el.hasAttribute("tabindex"))el.setAttribute("tabindex","-1");el.focus({preventScroll:true});el.scrollIntoView({block:"start"});}if(location.hash)land();window.addEventListener("hashchange",land);}());</script></body></html>`;
 }
 
 function esc(s: string): string {
@@ -973,9 +826,6 @@ function spendHtml(billing: Record<string, unknown>, embedded = false): string {
 }
 
 
-function securityReportCard(id: string): string {
-  return `<div class="card"><div class="eyebrow">Independent white-hat report target</div><h2>Report a security issue</h2><p class="sub">Creates one report, retained audit event, and append-only control-history receipt with limited server metadata, and raises it to operations. It does not change service state: taking the game down is a separate authenticated operator decision. It does not expose secrets or confirm a compromise.</p>${securityReportControl(id)}</div>`;
-}
 
 function securityReportControl(id: string): string { return `<button type="button" class="security-report-button" id="${id}">🚀 FILE A SECURITY REPORT AND TAKE THE GAME DOWN 🚀</button><pre class="security-receipt" id="${id}-output" role="status" aria-live="polite" aria-atomic="true" hidden></pre>`; }
 
@@ -1663,12 +1513,12 @@ function adminViewerHtml(): string {
     "var m=sd.maintenance||{};var mb=document.getElementById('maintenance-toggle');mb.dataset.enabled=m.enabled?'1':'0';mb.textContent=m.enabled?'Bring server online':'Take server down';mb.className=m.enabled?'restore':'danger';",
     "document.getElementById('maintenance-state').textContent=m.enabled?'OFFLINE':'ONLINE';document.getElementById('maintenance-state').className='m '+(m.enabled?'o':'g');",
     "}catch(err){}}",
-    "document.getElementById('maintenance-toggle').addEventListener('click',async function(){var b=this,o=document.getElementById('maintenance-output'),enabling=b.dataset.enabled!=='1';if(enabling&&!confirm('Take the game offline and disconnect every active player? Roadmap, API, Docs, Status, Incidents, Inquiry, Logs, Audit, and Admin will remain available.'))return;b.disabled=true;try{var r=await fetch('/admin/maintenance',{method:'POST',headers:{'content-type':'application/json','x-wg-ops-action':'maintenance'},body:JSON.stringify({enabled:enabling,reason:enabling?'Scheduled maintenance':''})}),d=await r.json();if(!r.ok)throw new Error(d.error||'request failed');o.hidden=false;o.textContent=d.message||'Maintenance state updated.';await tick();}catch(e){o.hidden=false;o.textContent='Unable to change maintenance mode.';}finally{b.disabled=false;}});",
+    "document.getElementById('maintenance-toggle').addEventListener('click',async function(){var b=this,o=document.getElementById('maintenance-output'),enabling=b.dataset.enabled!=='1';if(enabling&&!confirm('Take the game offline and disconnect every active player? Public evidence, read-only API routes, and Admin will remain available.'))return;b.disabled=true;try{var r=await fetch('/admin/maintenance',{method:'POST',headers:{'content-type':'application/json','x-wg-ops-action':'maintenance'},body:JSON.stringify({enabled:enabling,reason:enabling?'Scheduled maintenance':''})}),d=await r.json();if(!r.ok)throw new Error(d.error||'request failed');o.hidden=false;o.textContent=d.message||'Maintenance state updated.';await tick();}catch(e){o.hidden=false;o.textContent='Unable to change maintenance mode.';}finally{b.disabled=false;}});",
     "document.getElementById('billing-reset').addEventListener('click',async function(){var b=this;if(!confirm('Reset the billing measurement window to zero? Uptime and status history will be preserved.'))return;b.disabled=true;try{var r=await fetch('/admin/billing-reset',{method:'POST',headers:{'x-wg-ops-action':'billing-reset'}});if(!r.ok)throw new Error('request failed');await tick();}catch(e){alert('Unable to reset the billing counter.');}finally{b.disabled=false;}});",
     "tick();setInterval(tick,1500);",
   ].join("");
   return `<section class="page-intro"><div class="eyebrow">Control room · sharp teeth</div><h1>Admin</h1>
-    <p class="sub">Authenticated traffic controls, incident receipts, billing thresholds, and live runtime KPIs. The conformance register these controls produce evidence for is public at <a href="/audit/">Audit</a>.</p></section>
+    <p class="sub">Authenticated traffic controls, incident receipts, billing thresholds, and live runtime KPIs. The conformance register these controls produce evidence for is public in <a href="/controls/#registers">Controls</a>.</p></section>
     <h2 class="u-ops-pulse-heading">Operations pulse</h2>
     <div class="metric-grid stat-grid">
       ${metricCard("—", "Active players", "live human sessions", "players", "tone-cyan", "kpi-active-players")}
@@ -1683,7 +1533,7 @@ function adminViewerHtml(): string {
       <div class="server-controls"><button type="button" id="maintenance-toggle" class="danger" data-enabled="0">Take server down</button>${securityReportControl("admin-security-report")}</div>
       <pre class="security-receipt" id="maintenance-output" role="status" aria-live="polite" aria-atomic="true" hidden></pre>
       <form class="alert-test" id="test-alert-form"><label for="test-alert-code"><strong>Test alert code</strong></label><input class="alert-code" id="test-alert-code" name="code" maxlength="4" minlength="4" pattern="[A-Za-z][0-9]{3}" placeholder="A000" autocomplete="off" required><button type="submit" class="secondary">Send test alert</button></form><pre class="security-receipt" id="test-alert-output" role="status" aria-live="polite" aria-atomic="true" hidden></pre>
-      <p class="sub u-m-10-0-0">Filing a security report here also takes the game down; the unauthenticated public intake at <code>/api/security-report</code> only records a report. Taking the game down disconnects active tanks and gates the game shell, assets, and tank WebSockets. Roadmap, API, Docs, Status, Incidents, Inquiry, Logs, Audit, and Admin stay online. Alert codes are exactly one letter followed by three digits.</p>
+      <p class="sub u-m-10-0-0">Filing a security report here also takes the game down; the unauthenticated public intake at <code>/api/security-report</code> only records a report. Taking the game down disconnects active tanks and gates the game shell, assets, and tank WebSockets. Public evidence, read-only API routes, and Admin stay online. Alert codes are exactly one letter followed by three digits.</p>
     </div>
     <div class="card"><div class="eyebrow">Control receipts</div><h2 class="u-panel-heading-tight">Append-only control history</h2><p class="sub" id="history-integrity">Loading receipt chain…</p><div class="table-scroll" role="region" aria-label="Append-only control history" tabindex="0"><table class="history-table"><caption class="sr-only">Append-only control history</caption><thead><tr><th scope="col">Seq</th><th scope="col">Code</th><th scope="col">Decision</th><th scope="col">Outcome</th><th scope="col">Time</th><th scope="col">Reference</th><th scope="col">Receipt</th></tr></thead><tbody id="history-rows"></tbody></table></div><p class="sub u-m-0">SHA-256 receipts link each control decision to the previous entry. These rows are not subject to the 90-day user-action retention policy.</p></div>
     <div class="card gauge-card"><h2 class="u-panel-heading">Billing fuel gauge</h2>
@@ -1721,29 +1571,16 @@ catch(err){show('Unable to send test alert.',true);}finally{b.disabled=false;}})
 }
 
 export {
-  downtimeResponse,
-  formatCompactDuration,
-  statusLiveScript,
   PAGE_CSS_PATH,
   pageCssResponse,
-  shell,
-  esc,
   tankCopy,
-  metricCard,
-  spendHtml,
   AUDIT_ROOMS,
   AUDIT_ROOM_NAMES,
   incidentSummary,
   INCIDENTS,
-  incidentTimelineSvg,
-  timelineLegend,
-  backupPanelHtml,
-  incidentsSection,
-  controlHistoryListHtml,
   controlsHtml,
   normalizeServiceLogEvent,
   normalizeGameLogEvent,
-  publicLogsHtml,
   CAPTURE_WINDOW_MS,
   LOG_FETCH_SERVICE,
   LOG_FETCH_CAPTURES,

@@ -1112,14 +1112,6 @@ export class Lobby implements DurableObject {
       this.usage.storageRowsWritten += cursor.rowsWritten;
       return json({ ok: true, events, retentionDays: 90 });
     }
-    if (path.endsWith("/history")) {
-      const limit = clampInt(
-        Number(url.searchParams.get("limit") ?? 100),
-        1,
-        500,
-      );
-      return json({ ok: true, ...(await this.controlHistory(limit)) });
-    }
     if (path.endsWith("/incidents"))
       return json({
         ok: true,
@@ -1130,10 +1122,6 @@ export class Lobby implements DurableObject {
     // every profile and every receipt in one body and must never answer a public request.
     if (path.endsWith("/backup") && request.method === "GET")
       return json({ ok: true, export: await this.exportState() });
-    // What the public status panel reads: when the last copy was taken and whether the
-    // last restore drill passed. Shape and timing only — no exported content.
-    if (path.endsWith("/backup/state"))
-      return json({ ok: true, backup: await this.loadBackupState() });
     // Record the outcome of a copy the Worker has just written to object storage.
     if (path.endsWith("/backup/record") && request.method === "POST") {
       const body = await safeJson<Partial<BackupState> & { ok?: boolean }>(request);

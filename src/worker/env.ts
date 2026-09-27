@@ -4,10 +4,6 @@ export interface Env {
   LOBBY: DurableObjectNamespace;
   ENVIRONMENT?: string;
   SHARKTANK_RELEASE?: string;
-  SHARKTANK_COMMIT_COUNT?: string;
-  SHARKTANK_COMMIT_WINDOW_HOURS?: string;
-  SHARKTANK_COMMIT_VELOCITY?: string;
-  SHARKTANK_DEPLOYED_AT?: string;
   OPS_USERNAME?: string;
   OPS_TOKEN?: string;
   AUDIT_GENERATION?: string;

@@ -36,6 +36,10 @@ function loadDotEnv() {
   }
 }
 
+export function deploymentVariables(release) {
+  return [`SHARKTANK_RELEASE:${release}`];
+}
+
 export function deploymentPreconditionFailures({
   dryRun,
   env,
@@ -104,23 +108,7 @@ function main() {
     process.exit(1);
   }
 
-  const commitCount = Number(run("git", ["rev-list", "--count", "HEAD"], true).trim());
-  const commitTimes = run("git", ["log", "--reverse", "--format=%ct", "HEAD"], true).trim().split(/\s+/).filter(Boolean);
-  const firstCommitSeconds = Number(commitTimes[0]);
-  if (!Number.isFinite(commitCount) || commitCount < 1 || !Number.isFinite(firstCommitSeconds)) {
-    console.error("Refusing production deploy: unable to calculate repository commit metrics.");
-    process.exit(1);
-  }
-  const deployedAt = new Date().toISOString();
-  const windowHours = Math.max(1, (Date.now() / 1000 - firstCommitSeconds) / 3600);
-  const commitVelocity = commitCount / (windowHours / 24);
-  const deploymentVars = [
-    `SHARKTANK_RELEASE:${release}`,
-    `SHARKTANK_COMMIT_COUNT:${commitCount}`,
-    `SHARKTANK_COMMIT_WINDOW_HOURS:${windowHours.toFixed(3)}`,
-    `SHARKTANK_COMMIT_VELOCITY:${commitVelocity.toFixed(6)}`,
-    `SHARKTANK_DEPLOYED_AT:${deployedAt}`,
-  ];
+  const deploymentVars = deploymentVariables(release);
 
   run("npm", ["run", "build"]);
   if (!dryRun) {
