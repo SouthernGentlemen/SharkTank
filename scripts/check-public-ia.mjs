@@ -1,20 +1,14 @@
 #!/usr/bin/env node
 
 const base = (process.argv[2] || "http://127.0.0.1:8787").replace(/\/$/, "");
-const canonical = ["/", "/controls/", "/evidence/", "/play/"];
+const canonical = ["/", "/evidence/", "/play/"];
 const redirects = {
   "/trust": "/", "/trust/": "/",
-  "/iso-27001": "/controls/#iso-27001", "/iso-27001/": "/controls/#iso-27001",
-  "/iso-42001": "/controls/#iso-42001", "/iso-42001/": "/controls/#iso-42001",
-  "/audit": "/controls/#registers", "/audit/": "/controls/#registers",
-  "/policies": "/controls/#policies", "/policies/": "/controls/#policies",
   "/status": "/evidence/#availability", "/status/": "/evidence/#availability",
   "/incidents": "/evidence/#incidents", "/incidents/": "/evidence/#incidents",
   "/logs": "/evidence/#logs", "/logs/": "/evidence/#logs",
   "/spend": "/evidence/#spend", "/spend/": "/evidence/#spend",
   "/inquiry": "/evidence/#spend", "/inquiry/": "/evidence/#spend",
-  "/policies/context/": "/controls/#context",
-  "/policies/ai-policy/": "/controls/#ai-policy",
 };
 
 const failures = [];
@@ -121,6 +115,10 @@ async function main() {
     if (!csp.includes("default-src 'self'")) fail(`${path} is missing the expected CSP default-src`);
     const html = await response.text();
     assertStrictPresentation(path, response, html);
+    for (const retiredClaim of ["ISO/IEC 27001", "ISO/IEC 42001", "Annex A", "certification readiness"]) {
+      if (html.includes(retiredClaim)) fail(`${path} still publishes retired assurance copy: ${retiredClaim}`);
+    }
+    if (/governance/i.test(html)) fail(`${path} still publishes retired governance wording`);
     pages.set(path, html);
     const canonicalHref = `https://sharktank.wizardgang.ai${path}`;
     if (!html.includes(`<link rel="canonical" href="${canonicalHref}"`)) fail(`${path} is missing canonical link ${canonicalHref}`);
@@ -138,7 +136,7 @@ async function main() {
       if (!html.includes('<main id="boot">')) fail("/play/ lost the pre-mount loading document");
       if (!html.includes("<h1>Wizard Gang Shark Tank</h1>")) fail("/play/ lost the game identity before mount");
       if (!html.includes("The game is loading.")) fail("/play/ lost its loading context");
-      if (!html.includes('href="/evidence/"')) fail("/play/ lost its route to governance evidence");
+      if (!html.includes('href="/evidence/"')) fail("/play/ lost its route to live evidence");
 
       const scriptPaths = [...html.matchAll(/<script\b[^>]*\bsrc="([^"]+\.js)"[^>]*>/g)].map((match) => match[1]);
       const gameEntry = scriptPaths.find((assetPath) => /^\/assets\/index-[A-Za-z0-9_-]+\.js$/.test(assetPath));
@@ -199,6 +197,24 @@ async function main() {
   if (!(unknownApi.headers.get("content-type") || "").startsWith("application/json")) fail("unknown API must remain JSON rather than human HTML");
   const unknownApiBody = await unknownApi.json().catch(() => null);
   if (unknownApiBody?.error !== "unknown endpoint") fail("unknown API response body changed");
+
+  for (const retiredPath of [
+    "/controls", "/controls/",
+    "/iso-27001", "/iso-27001/",
+    "/iso-42001", "/iso-42001/",
+    "/audit", "/audit/",
+    "/policies", "/policies/",
+    "/policies/context", "/policies/context/",
+    "/policies/ai-policy", "/policies/ai-policy/",
+    "/policies.json", "/audit/manifest.json",
+  ]) {
+    const retired = await request(retiredPath);
+    if (retired.status !== 404) fail(`${retiredPath} expected retired assurance surface to return 404, got ${retired.status}`);
+    if (retired.headers.has("location")) fail(`${retiredPath} must not redirect after retirement`);
+    const retiredBody = await retired.text();
+    assertStrictPresentation(retiredPath, retired, retiredBody);
+    assertNotGameDocument(retiredPath, retiredBody);
+  }
 
   for (const retiredPath of ["/roadmap", "/roadmap/", "/roadmap.json"]) {
     const retired = await request(retiredPath);
@@ -264,6 +280,7 @@ async function main() {
   const adminHtml = await admin.text();
   assertStrictPresentation("/admin/", admin, adminHtml);
   if (!adminHtml.includes("<h1>Admin</h1>")) fail("authenticated /admin/ lost its control-room content");
+  if (adminHtml.includes('href="/controls/')) fail("authenticated /admin/ still links to the retired register");
 
   const retiredSwitch = await fetch(`${base}/admin/switch`, {
     redirect: "manual",
@@ -284,8 +301,9 @@ async function main() {
     const home = pages.get("/") || "";
   const headerNav = home.match(/<header[\s\S]*?<nav aria-label="Primary">([\s\S]*?)<\/nav>/)?.[1] || "";
   const primaryLinks = [...headerNav.matchAll(/<a href="([^"]+)">([^<]+)<\/a>/g)].map((match) => [match[1], match[2]]);
-  if (JSON.stringify(primaryLinks) !== JSON.stringify([["/", "Overview"], ["/controls/", "Controls"], ["/evidence/", "Evidence"], ["/play/", "Play"]])) fail(`primary navigation is not the four-route contract: ${JSON.stringify(primaryLinks)}`);
+  if (JSON.stringify(primaryLinks) !== JSON.stringify([["/", "Overview"], ["/evidence/", "Evidence"], ["/play/", "Play"]])) fail(`primary navigation is not the three-route contract: ${JSON.stringify(primaryLinks)}`);
 
+  const checkedInternalLinks = new Map();
   for (const [sourcePath, html] of pages) {
     if (sourcePath === "/play/") continue;
     const sourceUrl = new URL(sourcePath, base);
@@ -300,6 +318,13 @@ async function main() {
         if (!ids(targetPage).includes(id)) fail(`${sourcePath} links to missing ${targetPath}#${id}`);
       }
       if (redirects[targetPath]) fail(`${sourcePath} links through legacy route ${targetPath}`);
+      if (!checkedInternalLinks.has(targetPath)) {
+        const direct = await request(targetPath);
+        checkedInternalLinks.set(targetPath, direct.status);
+      }
+      const status = checkedInternalLinks.get(targetPath);
+      if (status >= 300 && status < 400) fail(`${sourcePath} links through redirecting internal route ${targetPath} (${status})`);
+      if (status >= 400) fail(`${sourcePath} links to missing internal route ${targetPath} (${status})`);
     }
   }
 

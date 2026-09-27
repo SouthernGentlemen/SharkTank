@@ -24,11 +24,7 @@ describe("public accessibility contract", () => {
     expect(humanDocs).toContain("target.focus({ preventScroll: true })");
   });
 
-  it("keeps the validated WCAG claim without the removed explanatory block", () => {
-    expect(reactPresentation).toContain("WCAG 2.0 AA");
-    expect(worker + presentation + reactPresentation).not.toContain("The public evidence estate and the game’s menus");
-    expect(worker + presentation + reactPresentation).not.toContain("The claim is deliberately scoped");
-  });
+
 
   it("keeps the game operable by keyboard with managed focus and reduced motion", () => {
     expect(app).toContain('className="skip-link" href="#main"');
@@ -46,23 +42,23 @@ describe("public accessibility contract", () => {
 });
 
 describe("canonical public information architecture", () => {
-  it("keeps exactly four primary navigation destinations", () => {
+  it("keeps exactly three primary navigation destinations", () => {
     const nav = reactPresentation.match(/const PRIMARY_NAV = \[[\s\S]*?\n\] as const;/)?.[0] ?? "";
     expect(nav).toContain('["/", "Overview"]');
-    expect(nav).toContain('["/controls/", "Controls"]');
     expect(nav).toContain('["/evidence/", "Evidence"]');
     expect(nav).toContain('["/play/", "Play"]');
-    expect(nav.match(/^  \[/gm)).toHaveLength(4);
+    expect(nav).not.toContain("/controls/");
+    expect(nav.match(/^  \[/gm)).toHaveLength(3);
   });
 
-  it("redirects former human routes directly to canonical destinations", () => {
+  it("keeps surviving compatibility routes direct and retires assurance redirects", () => {
     const redirects = routes.match(/export const HUMAN_REDIRECTS:[\s\S]*?\n\}\);/)?.[0] ?? "";
     expect(redirects).toContain('"/trust/": "/"');
-    expect(redirects).toContain('"/audit/": "/controls/#registers"');
-    expect(redirects).toContain('"/policies/": "/controls/#policies"');
     expect(redirects).toContain('"/status/": "/evidence/#availability"');
     expect(redirects).toContain('"/logs/": "/evidence/#logs"');
     expect(redirects).toContain('"/spend/": "/evidence/#spend"');
-    expect(redirects).not.toMatch(/:\s*"\/(?:trust|audit|policies|status|logs|spend)\/?"/);
+    expect(redirects).not.toMatch(/iso-27001|iso-42001|\/audit"|\/policies"/);
+    expect(redirects).not.toMatch(/:\s*"\/(?:trust|status|logs|spend)\/?"/);
   });
+
 });

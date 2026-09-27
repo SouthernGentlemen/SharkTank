@@ -7,8 +7,6 @@
 
 import { API } from "module-react3fiber/protocol";
 import { OPENAPI, openApiToHtml } from "./openapi.js";
-import { conformanceManifest, summarise, ALL_CONTROLS } from "./conformance.js";
-import { findGovernanceDoc, governanceManifest } from "./governance.js";
 
 export { Room } from "./room-do.js";
 export { Lobby } from "./lobby-do.js";
@@ -39,13 +37,11 @@ import {
 } from "./presentation.js";
 import {
   renderAdminDocument,
-  renderControlsDocument,
   renderDowntimeDocument,
   renderEvidenceDocument,
   renderNotFoundDocument,
   renderOpenApiDocument,
   renderOverviewDocument,
-  renderPolicyNotFoundDocument,
 } from "./presentation-react.js";
 
 export { HUMAN_REDIRECTS } from "./routes.js";
@@ -230,13 +226,9 @@ function maintenanceBypass(path: string, method: string): boolean {
     path === "/inquiry" || path.startsWith("/inquiry/") || path === "/inquiry.json" ||
     path === "/spend" || path.startsWith("/spend/") || path === "/spend.json" ||
     path === "/trust" || path.startsWith("/trust/") ||
-    path === "/controls" || path.startsWith("/controls/") ||
-    path === "/iso-27001" || path.startsWith("/iso-27001/") ||
-    path === "/iso-42001" || path.startsWith("/iso-42001/") ||
     path === "/evidence" || path.startsWith("/evidence/") ||
-    path === "/policies" || path.startsWith("/policies/") || path === "/policies.json" ||
     path === "/logs" || path.startsWith("/logs/") || path === "/logs.json" ||
-    path === "/audit" || path.startsWith("/audit/") || path === "/audit.json" || path === "/audit.jsonl" ||
+    path === "/audit.json" || path === "/audit.jsonl" || path === "/audit/status.json" || path.startsWith("/audit/game/") || path.startsWith("/audit/replay/") ||
     path === "/admin" || path.startsWith("/admin/");
 }
 
@@ -325,7 +317,7 @@ async function publicLogData(env: Env) {
 }
 
 
-/* ── State backup (A.8.13) ────────────────────────────────────────────────────
+/* ── State backup ────────────────────────────────────────────────────
    The tank Durable Object holds the receipt chain, the 90-day action log, player
    profiles and spend history, and until now none of it was copied anywhere. A copy
    is written to the bound object storage on a schedule, older copies are pruned to a
@@ -353,7 +345,7 @@ async function fetchStateExport(env: Env): Promise<StateExportShape | null> {
 /**
  * Take one copy and record the outcome. Returns a report rather than throwing, because a
  * failed backup must still leave a receipt saying so — a backup path that fails silently
- * is worse than none, since the register would go on claiming it.
+ * is worse than none, since recovery evidence would otherwise look healthy.
  */
 async function runBackup(env: Env): Promise<Record<string, unknown>> {
   if (!env.R2_ASSETS) {
@@ -512,12 +504,8 @@ export default {
 
       const compatibilityTarget = HUMAN_REDIRECTS[path];
       if (compatibilityTarget) return movedTo(url, compatibilityTarget);
-      const legacyPolicy = path.match(/^\/policies\/([a-z0-9-]+)\/?$/);
-      if (legacyPolicy) {
-        const doc = findGovernanceDoc(legacyPolicy[1]);
-        if (doc) return movedTo(url, `/controls/#${doc.id}`);
-        return html(renderPolicyNotFoundDocument(legacyPolicy[1]), 404);
-      }
+
+
 
       // ── WebSocket → Room DO ────────────────────────────────────────────────
       const roomId = parseRoomPath(path);
@@ -681,10 +669,8 @@ export default {
         return response;
       }
 
-      if (path === "/controls") return movedTo(url, "/controls/");
-      if (path === "/controls/") {
-        return html(renderControlsDocument());
-      }
+
+
       if (path === "/evidence") return movedTo(url, "/evidence/");
       if (path === "/evidence/") {
         const [statusRes, incidentRecord, logs] = await Promise.all([
@@ -720,33 +706,33 @@ export default {
         const gameTanks = AUDIT_ROOMS.map((room, index) => ({ tankId: room, tank: AUDIT_ROOM_NAMES[room] ?? room, download: `/logs/game/${room}.txt`, records: tanks[index].records }));
         return json({ ok: true, retention: { serviceDays: 90, captureHours: 24, serviceRecords: service.length, capturesPerTankLimit: LOG_FETCH_CAPTURES, truncated: caps }, serviceFormat: ["timestamp", "reasonCode", "action", "subject", "details"], captureFormat: ["timestamp", "reasonCode", "tick", "action", "name", "details"], events: service, gameTanks });
       }
-      // ── The trust estate's front door ──────────────────────────────────────
-      // Six figures, six links. Each one is computed here from the same source the owning
-      // page computes it from, so this page cannot state a number the owning page
-      // contradicts — there is no second copy to fall out of step.
+      // ── MVP overview ─────────────────────────────────────────────────────────
+      // One Lobby status read supplies incident-derived availability, billing,
+      // receipt-chain integrity and the current release identity.
       if (path === "/") {
-        const [statusRes, { incidents, historyIntegrity }] = await Promise.all([
-          lobbyStub(env).fetch("https://lobby/status"),
-          incidentData(env),
-        ]);
-        const data = (await statusRes.json()) as { billingWindow?: Record<string, unknown> };
+        const statusRes = await lobbyStub(env).fetch("https://lobby/status");
+        const data = (await statusRes.json()) as PublicEvidenceStatus;
+        const incidents = [...INCIDENTS, ...(data.maintenanceIncidents ?? [])].map((incident) => ({
+          ...incident,
+          title: tankCopy(incident.title),
+          summary: tankCopy(incident.summary),
+        }));
         const billing = publicBillingWindow(data.billingWindow ?? {});
-        const summary = summarise(ALL_CONTROLS);
+        const integrity = data.historyIntegrity ?? {
+          mode: "append-only tamper-evident hash chain",
+          algorithm: "SHA-256",
+          entryCount: 0,
+          headHash: null,
+        };
         return html(renderOverviewDocument({
-          portal: incidentSummary([]),
           tank: incidentSummary(incidents),
-          incidents,
-          integrity: historyIntegrity,
+          integrity,
           spendUsd: numberValue(recordValue(billing.allTime).estimatedVariableUsd),
           hardLimitUsd: numberValue(billing.hardLimitUsd) || 5,
-          readiness: { percent: summary.readiness, met: summary.byStatus.met, partial: summary.byStatus.partial, total: summary.applicable },
           release: env.SHARKTANK_RELEASE ?? "development",
           environment: env.ENVIRONMENT ?? "unknown",
         }));
       }
-
-      if (path === "/policies.json") return json(governanceManifest());
-      if (path === "/audit/manifest.json") return json(conformanceManifest());
 
       if (path === "/admin/status.json" || path === "/audit/status.json") {
         const res = await lobbyStub(env).fetch("https://lobby/status");
@@ -810,7 +796,7 @@ export default {
       }
 
       // Authenticated control room (HTML). Everything above this line under /admin/ is its
-      // data; everything it does lands in the public record the conformance register cites.
+      // data; its actions remain visible in the operational receipt history.
       if (path === "/admin" || path === "/admin/") {
         return html(renderAdminDocument());
       }

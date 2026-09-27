@@ -13,13 +13,10 @@ const source = readFileSync(new URL("../src/worker/presentation-react.tsx", impo
 describe("React Worker presentation", () => {
   it("renders complete static documents without a hydration boundary", () => {
     const html = renderOverviewDocument({
-      portal: { availabilityPercent: 100, windowLabel: "1 day" },
-      tank: null,
-      incidents: [],
+      tank: { availabilityPercent: 99.5, windowLabel: "1 day" },
       integrity: { chainStatus: "verified", entryCount: 2, algorithm: "SHA-256" },
       spendUsd: 0.0123,
       hardLimitUsd: 5,
-      readiness: { percent: 100, met: 1, partial: 0, total: 1 },
       release: "v1.3.7",
       environment: "production",
     });
@@ -27,13 +24,14 @@ describe("React Worker presentation", () => {
     expect(html).toMatch(/^<!doctype html><html lang="en">/);
     expect(html).toContain('<a class="skip-link" href="#main">Skip to main content</a>');
     expect(html).toContain('<main id="main" tabindex="-1">');
-    expect(html).toContain("<h1>Governance you can inspect.</h1>");
+    expect(html).toContain("<h1>Play SharkTank.</h1>");
     expect(html).toContain('<nav aria-label="Primary">');
     expect(html).toContain("Current release");
     expect(html).toContain("v1.3.7");
-    expect(html).toContain('href="/controls/"');
     expect(html).toContain('href="/evidence/"');
     expect(html).toContain('href="/play/"');
+    expect(html).toContain('href="https://demo.wizardgang.ai/assurance"');
+    expect(html).not.toMatch(/ISO\/IEC|Annex A|governance/i);
     expect(html).toContain('rel="canonical" href="https://sharktank.wizardgang.ai/"');
     expect(html).toContain('src="/assets/human-docs.js"');
     expect(html).toContain('nonce="__WG_CSP_NONCE__"');
@@ -58,7 +56,7 @@ describe("React Worker presentation", () => {
 
   it("keeps raw HTML confined to one audited generated-artifact boundary", () => {
     expect(source.match(/dangerouslySetInnerHTML/g)).toHaveLength(1);
-    expect(source).toContain('type AuditedRawArtifactKind = "openapi" | "controls" | "evidence" | "admin"');
+    expect(source).toContain('type AuditedRawArtifactKind = "openapi" | "evidence" | "admin"');
     const html = renderOpenApiDocument('<section id="generated"><h1>API reference</h1></section>');
     expect(html).toContain('data-raw-artifact="openapi"');
     expect(html).toContain('<section id="generated"><h1>API reference</h1></section>');

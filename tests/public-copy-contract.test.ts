@@ -5,7 +5,6 @@ const read = (path: string) => readFileSync(new URL(path, import.meta.url), "utf
 const worker = read("../src/worker/index.ts");
 const presentation = read("../src/worker/presentation.ts");
 const reactPresentation = read("../src/worker/presentation-react.tsx");
-const conformance = read("../src/worker/conformance.ts");
 const gameShell = read("../src/client/game-document.tsx");
 const gameMenu = read("../vendor/ModuleReact3Fiber/src/client/ui/MainMenu.tsx");
 
@@ -21,22 +20,20 @@ describe("concise public copy", () => {
     expect(gameShell).toContain("%23a489ff");
   });
 
-  it("removes the retired explanatory blocks and game case-study link", () => {
+  it("retires SharkTank-specific assurance and register copy from the runtime surface", () => {
+    const runtime = worker + presentation + reactPresentation + gameShell;
     for (const text of [
-      "Engineering case study",
-      "Server availability is derived from the project-start window",
-      "Scheduled tank downtime is tracked separately",
-      "Records older than 24 hours are purged at the source",
-      "The public evidence estate and the game’s menus",
-    ]) expect(worker + presentation + reactPresentation + gameShell + gameMenu).not.toContain(text);
-
-    for (const text of [
-      "The implementation starts with the governed system",
-      "The AI-system definition comes before the control mapping",
-      "This is a readiness register, not a certificate",
-      "Readiness counts only the controls this organisation has to close",
-      "ISO/IEC 27001 asks for change control in four separate places",
-    ]) expect(worker + presentation + conformance).not.toContain(text);
+      "ISO/IEC 27001",
+      "ISO/IEC 42001",
+      "Annex A",
+      "certification readiness",
+      'href="/controls/"',
+      'href="/policies.json"',
+      'href="/audit/manifest.json"',
+    ]) expect(runtime).not.toContain(text);
+    expect(runtime).not.toMatch(/governance/i);
+    expect(reactPresentation).toContain("https://demo.wizardgang.ai/assurance");
+    expect(gameMenu).not.toContain("Engineering case study");
   });
 
   it("keeps implementation history out of the runtime product surface", () => {

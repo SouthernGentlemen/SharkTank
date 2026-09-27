@@ -14,6 +14,6 @@ The primary assets are the integrity of public evidence, availability within the
 
 ## Intentional disclosures and limitations
 
-Logs, incidents, readiness, spend, and control receipts are public by design and are redacted before publication. One person holds all operational roles, so segregation of duties is not claimed. ISO/IEC readiness records are not certification. The Latin profanity list does not claim semantic moderation for every script.
+Logs, incidents, spend, and control receipts are public by design and are redacted before publication. One person holds all operational roles, so segregation of duties is not claimed. The Latin profanity list does not claim semantic moderation for every script.
 
 Repository vulnerabilities use GitHub private vulnerability reporting as described in `SECURITY.md`; running-service reports use the product intake documented by the OpenAPI surface.

@@ -1,5 +1,3 @@
-import { conformanceHtml, summarise, ALL_CONTROLS } from "./conformance.js";
-import { governanceControlsHtml } from "./governance.js";
 import type { BackupState } from "./lobby-do.js";
 import type { MaintenanceState } from "./env.js";
 import { SECURITY_HEADERS } from "./responses.js";
@@ -144,7 +142,7 @@ const PAGE_CSS = `
   .live-controls .sub{margin:0}
   .server-controls{display:flex;align-items:stretch;gap:10px;flex-wrap:wrap}.server-controls>*{flex:1 1 240px}.security-report-button{background:linear-gradient(100deg,#ff8a1f,#ffd54a);color:#170d02}.security-receipt{margin-top:12px;white-space:pre-wrap;overflow-wrap:anywhere}.alert-test{display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-top:14px}.alert-code{width:8rem;min-height:44px;border:1px solid var(--strong);border-radius:10px;background:var(--surface-1);color:var(--text);font:900 1rem ui-monospace,monospace;letter-spacing:.18em;text-transform:uppercase;padding:8px 12px}
   @media(prefers-reduced-motion:reduce){*,*::before,*::after{animation-duration:.01ms!important;animation-iteration-count:1!important;transition-duration:.01ms!important;scroll-behavior:auto!important}}
-  .gov-doc{margin:0 0 14px}.gov-satisfies{display:flex;gap:10px;align-items:baseline;flex-wrap:wrap;margin:0 0 16px;padding:10px 12px;border:1px solid var(--border);border-radius:10px;background:rgba(11,10,20,.48)}.gov-satisfies-label{color:var(--faint);font:900 .66rem/1 ui-monospace,monospace;letter-spacing:.08em;text-transform:uppercase}.gov-satisfies ul{display:flex;gap:6px;flex-wrap:wrap;margin:0;padding:0;list-style:none}.gov-satisfies code{font-size:.72rem}.gov-section{margin:0 0 14px}.gov-section h3{margin:0 0 6px;font-size:.98rem}.gov-section p{margin:0 0 8px;color:var(--muted)}.gov-review{margin:14px 0 0;padding:10px 12px;border-left:2px solid var(--cyan);color:var(--muted);font-size:.86rem}.gov-index{display:block}.gov-index ul{margin:0;padding:0 0 0 2px;list-style:none;display:grid;grid-template-columns:repeat(auto-fill,minmax(min(100%,280px),1fr));gap:7px 14px}.gov-index a{color:var(--text)}.gov-index a>code{flex:0 0 auto;white-space:nowrap}.skip-link{position:absolute;left:-9999px;top:0;z-index:100;padding:10px 16px;border-radius:0 0 10px 0;background:var(--cyan);color:#07131a;font-weight:800;text-decoration:none}.skip-link:focus{left:0}main:focus{outline:none}table caption{caption-side:top;padding:0 0 8px;color:var(--muted);font-size:.78rem;text-align:left}[hidden]{display:none!important}.history-list{display:grid;gap:10px;margin-top:14px}.history-item{display:grid;grid-template-columns:7.2rem 1fr auto;gap:14px;align-items:start;padding:14px;border:1px solid var(--border);border-radius:12px;background:rgba(11,10,20,.48)}.history-sequence{color:var(--cyan);font:800 .76rem/1.4 ui-monospace,monospace}.history-copy strong{display:block}.history-copy p{margin:3px 0;color:var(--muted)}.history-meta{color:var(--faint);font-size:.75rem}.history-receipt{max-width:11rem;overflow:hidden;color:var(--faint);font:700 .72rem/1.4 ui-monospace,monospace;text-overflow:ellipsis;white-space:nowrap}.history-item--focus{border-color:var(--cyan);box-shadow:0 0 0 2px rgba(34,230,255,.28)}.history-pager{display:flex;gap:12px;align-items:center;justify-content:center;margin:16px 0 0;color:var(--muted);font-size:.8rem}.pager-btn{padding:7px 14px;border:1px solid var(--strong);border-radius:999px;background:rgba(11,10,20,.52);color:var(--text);font:inherit;font-weight:700;cursor:pointer}.pager-btn:disabled{opacity:.4;cursor:default}.pager-btn[aria-disabled="true"]{background:none;color:var(--faint);cursor:default}.integrity-line{display:flex;gap:8px;align-items:center;flex-wrap:wrap;color:var(--muted)}.incident-card{margin:0 0 12px}.incident-card--active{border-color:#ff8a1f}.incident-dot{display:inline-block;width:9px;height:9px;margin-right:7px;border-radius:3px;vertical-align:middle}.integrity-line code{overflow-wrap:anywhere}.integrity-badge{display:inline-flex;padding:3px 8px;border:1px solid #4ade80;border-radius:999px;color:#4ade80;font-size:.7rem;font-weight:900;letter-spacing:.07em;text-transform:uppercase}.integrity-badge.verdict-pass{border-color:#4ade80;color:#4ade80}.integrity-badge.verdict-fail{border-color:#ff6b6b;color:#ff6b6b}.integrity-badge.verdict-idle{border-color:var(--strong);color:var(--muted)}
+  .skip-link{position:absolute;left:-9999px;top:0;z-index:100;padding:10px 16px;border-radius:0 0 10px 0;background:var(--cyan);color:#07131a;font-weight:800;text-decoration:none}.skip-link:focus{left:0}main:focus{outline:none}table caption{caption-side:top;padding:0 0 8px;color:var(--muted);font-size:.78rem;text-align:left}[hidden]{display:none!important}.history-list{display:grid;gap:10px;margin-top:14px}.history-item{display:grid;grid-template-columns:7.2rem 1fr auto;gap:14px;align-items:start;padding:14px;border:1px solid var(--border);border-radius:12px;background:rgba(11,10,20,.48)}.history-sequence{color:var(--cyan);font:800 .76rem/1.4 ui-monospace,monospace}.history-copy strong{display:block}.history-copy p{margin:3px 0;color:var(--muted)}.history-meta{color:var(--faint);font-size:.75rem}.history-receipt{max-width:11rem;overflow:hidden;color:var(--faint);font:700 .72rem/1.4 ui-monospace,monospace;text-overflow:ellipsis;white-space:nowrap}.history-item--focus{border-color:var(--cyan);box-shadow:0 0 0 2px rgba(34,230,255,.28)}.history-pager{display:flex;gap:12px;align-items:center;justify-content:center;margin:16px 0 0;color:var(--muted);font-size:.8rem}.pager-btn{padding:7px 14px;border:1px solid var(--strong);border-radius:999px;background:rgba(11,10,20,.52);color:var(--text);font:inherit;font-weight:700;cursor:pointer}.pager-btn:disabled{opacity:.4;cursor:default}.pager-btn[aria-disabled="true"]{background:none;color:var(--faint);cursor:default}.integrity-line{display:flex;gap:8px;align-items:center;flex-wrap:wrap;color:var(--muted)}.incident-card{margin:0 0 12px}.incident-card--active{border-color:#ff8a1f}.incident-dot{display:inline-block;width:9px;height:9px;margin-right:7px;border-radius:3px;vertical-align:middle}.integrity-line code{overflow-wrap:anywhere}.integrity-badge{display:inline-flex;padding:3px 8px;border:1px solid #4ade80;border-radius:999px;color:#4ade80;font-size:.7rem;font-weight:900;letter-spacing:.07em;text-transform:uppercase}.integrity-badge.verdict-pass{border-color:#4ade80;color:#4ade80}.integrity-badge.verdict-fail{border-color:#ff6b6b;color:#ff6b6b}.integrity-badge.verdict-idle{border-color:var(--strong);color:var(--muted)}
   /* ── Spend ── */
   .spend-hero{display:grid;grid-template-columns:minmax(0,320px) minmax(0,1fr);gap:14px;margin:0 0 14px}
   .spend-hero>.card{margin:0;min-width:0}
@@ -193,79 +191,13 @@ const PAGE_CSS = `
   .timeline-scroll{width:100%;max-width:100%;overflow-x:auto;overscroll-behavior-inline:contain;scrollbar-width:thin;-webkit-overflow-scrolling:touch}.timeline-scroll:focus-visible{outline:3px solid var(--focus);outline-offset:3px}.timeline-scroll svg{display:block;min-width:520px;width:100%;height:112px}.incident-chart svg{min-width:768px}.availability-chart svg{min-width:768px}.timeline-key{display:grid;gap:8px;margin:10px 0 0;color:var(--muted);font-size:.76rem}.timeline-key__group{display:flex;gap:8px;align-items:center;flex-wrap:wrap}.timeline-key__label{min-width:9.5rem;color:var(--faint);font-size:.68rem;font-weight:900;letter-spacing:.1em;text-transform:uppercase}.timeline-key :is(span,a){display:inline-flex;align-items:center;gap:6px}.timeline-key :is(span,a)>b{color:var(--text);font-variant-numeric:tabular-nums}.timeline-key a{padding:2px 8px;border:1px solid var(--border);border-radius:999px;color:inherit;text-decoration:none}.timeline-key a:hover,.timeline-key a:focus-visible{border-color:var(--cyan);color:var(--text)}.timeline-key i{width:10px;height:10px;border-radius:3px;flex:none}.timeline-key-note{grid-column:1/-1;margin:2px 0 0;color:var(--faint);font-size:.72rem;font-style:italic}svg a{cursor:pointer}svg a:focus-visible{outline:2px solid var(--focus)}@media(max-width:560px){.timeline-key__label{min-width:100%}}.key-green{background:#4ade80}.key-violet{background:#8f7bff}.key-red{background:#ff6b6b}.key-indigo{background:#6d8bff}.key-amber{background:#ff8a1f}.key-crimson{background:#e5484d}.key-yellow{background:#ffe14d}
   .log-room{padding:0;overflow:hidden}.log-room>summary{display:flex;align-items:center;justify-content:space-between;gap:12px;min-height:64px;padding:14px 18px;cursor:pointer;list-style:none}.log-room>summary::-webkit-details-marker{display:none}.log-room>summary:after{content:"+";color:var(--cyan);font-size:1.35rem;font-weight:900}.log-room[open]>summary{border-bottom:1px solid var(--border)}.log-room[open]>summary:after{content:"−"}.log-summary{display:flex;align-items:center;gap:10px;min-width:0;flex-wrap:wrap}.log-count{padding:2px 8px;border:1px solid var(--border);border-radius:999px;color:var(--muted);font-size:.72rem;font-weight:800}.log-room-body{padding:16px 18px 4px}.log-actions{display:flex;justify-content:flex-end;margin-bottom:10px}.log-toolbar{display:grid;grid-template-columns:minmax(220px,1fr) minmax(150px,.42fr) auto;gap:10px;align-items:end;margin:0 0 14px}.log-toolbar label{display:grid;gap:4px;color:var(--muted);font-size:.7rem;font-weight:850;letter-spacing:.06em;text-transform:uppercase}.log-toolbar :is(input,select){width:100%;min-height:42px;border:1px solid var(--strong);border-radius:9px;background:var(--surface-1);color:var(--text);padding:8px 10px;font:inherit}.log-visible-count{padding:10px 0;color:var(--faint);font-size:.74rem;white-space:nowrap}.table-sort{min-height:0;padding:0;border-radius:0;background:none;color:inherit;font:inherit;letter-spacing:inherit;text-transform:inherit;box-shadow:none}.table-sort:active{transform:none;box-shadow:none}.table-sort:after{content:" ↕";color:var(--faint)}.table-sort[data-direction="asc"]:after{content:" ↑";color:var(--cyan)}.table-sort[data-direction="desc"]:after{content:" ↓";color:var(--cyan)}
   pre{background:var(--surface-1);border:1px solid var(--border);border-radius:10px;padding:14px;overflow:auto}
-  /* ── Conformance register (/audit/) ──────────────────────────────────────────
-     One pill shape for every status, one table shape for every register. The
-     status colours are text-on-transparent with a matching border rather than
-     filled chips: a filled amber chip cannot clear 4.5:1 against this surface
-     without turning the text near-black, and these pills sit next to body copy. */
-  .iso-pill{display:inline-block;padding:3px 10px;border:1px solid currentColor;border-radius:999px;font-size:.7rem;font-weight:900;letter-spacing:.06em;text-transform:uppercase;white-space:nowrap}
-  .iso-pill.is-met{color:#4ade80}.iso-pill.is-partial{color:#f6c445}.iso-pill.is-gap{color:#ff8080}.iso-pill.is-supplier{color:#b6a9ff}.iso-pill.is-excluded{color:#a49dc4}
-  .iso-section{margin:36px 0 10px;font-size:clamp(1.25rem,3vw,1.7rem);scroll-margin-top:18px}
-
-
-
-
-
-
-
-
-  .iso-key-table{--table-min:520px}
-  .iso-key-table :is(th,td):nth-child(1){width:9rem}
-  .iso-lock{display:inline-block;padding:1px 6px;border:1px solid var(--strong);border-radius:999px;color:var(--muted);font-size:.62rem;font-weight:900;letter-spacing:.08em;text-transform:uppercase;vertical-align:1px}
-  .iso-evidence{margin:0;padding:0;list-style:none;display:grid;gap:5px}
-  .iso-evidence li{min-width:0}
-  .iso-evidence a{font-size:.78rem;font-weight:700;overflow-wrap:anywhere}
-  .iso-missing{color:var(--faint);font-size:.78rem;font-style:italic;overflow-wrap:anywhere}
-  .iso-none{color:var(--faint);font-size:.78rem;font-style:italic}
-  .iso-toolbar-card{margin-bottom:18px}
-  .iso-toolbar{margin:0;grid-template-columns:minmax(220px,1.4fr) minmax(150px,.6fr) minmax(150px,.6fr) auto}
-  .iso-toolbar button{align-self:end;min-height:42px}
-  .iso-register{padding-bottom:6px}
-  .iso-register__head{display:flex;justify-content:space-between;align-items:flex-start;gap:14px;flex-wrap:wrap}
-  .iso-register__head h3{margin:0 0 6px;font-size:1.1rem}
-  .iso-count{padding:3px 10px;border:1px solid var(--border);border-radius:999px;color:var(--muted);font-size:.72rem;font-weight:800;white-space:nowrap}
-  .iso-empty{margin:0 0 12px;color:var(--faint);font-size:.78rem;font-style:italic}
-  .iso-table{--table-min:1200px;table-layout:fixed!important}
-  .iso-table :is(th,td){vertical-align:top}
-  .iso-table :is(th,td):nth-child(1){width:6.5rem}
-  .iso-table :is(th,td):nth-child(2){width:15rem}
-  .iso-table :is(th,td):nth-child(3){width:19rem}
-  .iso-table :is(th,td):nth-child(4){width:8.5rem}
-  .iso-table :is(th,td):nth-child(6){width:14rem}
-  /* The register's control names must wrap; the global one-line rule is for identifiers. */
-  .iso-table .cell-key{overflow:visible;text-overflow:clip;white-space:normal;overflow-wrap:anywhere;font-weight:700}
-  .iso-ask,.iso-note{color:var(--muted);font-size:.82rem;line-height:1.5;overflow-wrap:anywhere}
-  .iso-clauses{margin:0;font-size:.74rem;line-height:2;overflow-wrap:anywhere}
-  .iso-doc-table{--table-min:1160px}
-  .iso-doc-table :is(th,td):nth-child(3){width:11rem}
-  .iso-evidence-table{--table-min:900px}
-  .iso-evidence-table :is(th,td):nth-child(1){width:17rem}
-  .iso-evidence-table :is(th,td):nth-child(2){width:7.5rem}
-  .iso-evidence-table :is(th,td):nth-child(3){width:auto}
-  .iso-evidence-table :is(th,td):nth-child(4){width:13rem}
-  .iso-process{display:grid;gap:10px}
-  .iso-process__head{display:flex;justify-content:space-between;align-items:flex-start;gap:14px;flex-wrap:wrap}
-  .iso-process__head h3{margin:0;font-size:1.08rem}
-  .iso-process__purpose{margin:0;color:var(--text);max-width:88ch}
-  .iso-trigger{display:flex;gap:10px;align-items:baseline;flex-wrap:wrap;margin:0;padding:8px 12px;border:1px solid var(--border);border-radius:10px;background:rgba(11,10,20,.42)}
-  .iso-trigger span{color:var(--faint);font-size:.66rem;font-weight:900;letter-spacing:.1em;text-transform:uppercase}
-  .iso-trigger strong{min-width:0;color:var(--muted);font-weight:600;font-size:.86rem;overflow-wrap:anywhere}
-  .iso-process__grid{display:grid;grid-template-columns:minmax(0,1.35fr) minmax(0,1fr);gap:20px}
-  .iso-process__grid h4{margin:0 0 6px;color:var(--faint);font-size:.68rem;font-weight:900;letter-spacing:.1em;text-transform:uppercase}
-  .iso-process__grid h4+*{margin-bottom:14px}
-  .iso-steps{margin:0;padding-left:1.2em;display:grid;gap:5px;color:var(--muted);font-size:.85rem}
-  .iso-records{margin:0;padding-left:1.2em;display:grid;gap:4px;color:var(--muted);font-size:.85rem}
-  .iso-path{margin:0;padding-left:1.2em;display:grid;gap:10px;color:var(--muted);max-width:92ch}
-  .iso-path strong{color:var(--text)}
-  @media(max-width:900px){.iso-process__grid{grid-template-columns:1fr;gap:10px}}
-  @media(max-width:760px){.iso-toolbar{grid-template-columns:1fr 1fr}.iso-toolbar button{grid-column:1/-1}}
-  @media(max-width:420px){.iso-toolbar{grid-template-columns:1fr}}
   @media(max-width:900px){}
   @media(max-width:760px){.site-header{align-items:flex-start;flex-direction:column}.site-header nav{justify-content:flex-start}.site-header{padding:14px 12px 0}main{padding:22px 12px 48px}.gauge-layout{grid-template-columns:1fr}.metric-grid,.stat-grid{grid-template-columns:repeat(3,minmax(0,1fr))}.status-metrics,.spend-metrics,.metric-card{min-height:112px;padding:12px}.metric-icon{width:25px;height:25px}.metric-value{font-size:clamp(1.05rem,5vw,1.45rem)}th,td{padding:8px}.history-item{grid-template-columns:1fr}.history-receipt{max-width:100%}.log-toolbar{grid-template-columns:1fr 1fr}.log-visible-count{grid-column:1/-1;padding:0}}
   @media(max-width:420px){nav a{padding:5px 9px}.brand-copy small{display:none}.spend-metrics{grid-template-columns:repeat(2,minmax(0,1fr))}.spend-metrics .metric-value{font-size:clamp(.95rem,4.4vw,1.2rem)}.log-room>summary{padding:12px}.log-room-body{padding:12px 12px 2px}.log-toolbar{grid-template-columns:1fr}}
 
-  /* ── Trust overview ── */
-  .trust-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:12px;margin:0 0 20px}
+
+  /* ── MVP overview ── */
+  .trust-grid{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:12px;margin:0 0 20px}
   .trust-tile{position:relative;display:grid;gap:4px;min-height:132px;padding:16px;border:1px solid var(--border);border-radius:14px;background:var(--surface-1);color:var(--text);text-decoration:none}
   .trust-tile:hover{border-color:var(--strong);background:var(--surface-2)}
   .trust-tile__label{color:var(--muted);font-size:.72rem;font-weight:900;letter-spacing:.1em;text-transform:uppercase}
@@ -273,145 +205,41 @@ const PAGE_CSS = `
   .trust-tile__detail{color:var(--muted);font-size:.82rem}
   .trust-tile__go{position:absolute;right:14px;bottom:12px;color:var(--faint);font-weight:900}
   .trust-tile.tone-green .trust-tile__value{color:#4ade80}.trust-tile.tone-cyan .trust-tile__value{color:#22e6ff}.trust-tile.tone-violet .trust-tile__value{color:#c4b5fd}.trust-tile.tone-red .trust-tile__value{color:#ff8c92}
-
-
   .page-intro dfn{font-style:normal;font-weight:800;color:var(--text);border-bottom:1px dotted var(--strong)}
   .action-links{display:flex;flex-wrap:wrap;gap:14px;margin:0}
-  /* ── Governance case-study IA ── */
-  .governance-hero,.standard-hero{max-width:980px;padding:clamp(54px,10vw,112px) 0 clamp(36px,7vw,72px)}
-  .governance-hero h1,.standard-hero h1{max-width:16ch;margin:12px 0 20px;font-size:clamp(3rem,8vw,7rem);line-height:.9;letter-spacing:-.065em}
-  .standard-hero h1{max-width:18ch;font-size:clamp(2.8rem,7vw,6rem)}
-  .standard-hero>h2{max-width:18ch;margin:12px 0 20px;font-size:clamp(2.5rem,6vw,5.25rem);line-height:.92;letter-spacing:-.055em}
-  .governance-hero>p,.standard-hero>p{max-width:760px;margin:0 0 24px;color:var(--muted);font-size:clamp(1.05rem,2vw,1.35rem)}
-  .home-hero{max-width:none;display:grid;grid-template-columns:minmax(0,1.05fr) minmax(320px,.95fr);gap:clamp(28px,6vw,80px);align-items:center}
+  .home-hero{max-width:none;display:grid;grid-template-columns:minmax(0,1.05fr) minmax(320px,.95fr);gap:clamp(28px,6vw,80px);align-items:center;padding:clamp(54px,10vw,112px) 0 clamp(36px,7vw,72px)}
+  .home-hero h1{max-width:12ch;margin:12px 0 20px;font-size:clamp(3rem,8vw,7rem);line-height:.9;letter-spacing:-.065em}
   .home-hero__copy>p{max-width:760px;margin:0 0 24px;color:var(--muted);font-size:clamp(1.05rem,2vw,1.35rem)}
-  .proof-row{display:flex;flex-wrap:wrap;gap:8px;margin:0 0 24px}
-  .proof-row span{padding:7px 10px;border:1px solid var(--strong);border-radius:999px;background:rgba(22,20,42,.72);color:var(--text);font-size:.72rem;font-weight:850;letter-spacing:.04em}
-  .governance-art{position:relative;min-height:340px;margin:0;overflow:hidden;border:1px solid var(--border);border-radius:22px;background:var(--surface-1);box-shadow:0 32px 90px rgba(0,0,0,.38)}
-  .governance-art:after{content:"";position:absolute;inset:0;background:linear-gradient(180deg,rgba(11,10,20,.05),rgba(11,10,20,.76))}
-  .governance-art img{width:100%;height:100%;min-height:340px;display:block;object-fit:cover;filter:blur(7px) saturate(.78) brightness(.72);transform:scale(1.05)}
-  .governance-art figcaption{position:absolute;z-index:1;left:20px;bottom:18px;color:var(--text);font-size:.72rem;font-weight:900;letter-spacing:.12em;text-transform:uppercase}
-  .governance-flow{display:grid;align-items:center;grid-template-columns:1fr auto 1fr auto 1fr auto 1fr;gap:10px;margin:0 0 clamp(50px,9vw,94px)}
-  .governance-flow>div{min-height:150px;padding:20px;border:1px solid var(--border);border-radius:14px;background:var(--surface-1)}
-  .governance-flow strong{display:block;margin-bottom:28px;color:var(--cyan);font-size:.74rem;letter-spacing:.08em;text-transform:uppercase}
-  .governance-flow span{color:var(--muted);font-size:.84rem}
-  .governance-flow>i{color:var(--faint);font-style:normal;transform:rotate(-90deg)}
-  .standard-pair{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:14px;margin:0 0 clamp(50px,9vw,94px)}
-  .standard-card{display:flex;min-height:360px;padding:clamp(24px,4vw,42px);border:1px solid var(--border);border-radius:18px;background:linear-gradient(145deg,rgba(34,230,255,.08),var(--surface-1));color:var(--text);text-decoration:none;flex-direction:column}
-  .standard-card:nth-child(2){background:linear-gradient(145deg,rgba(143,123,255,.12),var(--surface-1))}
-  .standard-card>span,.ai-definition article>span{color:var(--cyan);font-size:.72rem;font-weight:900;letter-spacing:.1em;text-transform:uppercase}
-  .standard-card:nth-child(2)>span{color:#b6a9ff}
-  .standard-card h2{max-width:15ch;margin:auto 0 14px;font-size:clamp(2rem,4vw,3.5rem);line-height:.95;letter-spacing:-.045em}
-  .standard-card p{margin:0 0 24px;color:var(--muted)}
-  .standard-card>strong{color:var(--text)}
-  .case-principle,.register-cta,.workload-card{display:grid;grid-template-columns:minmax(0,1fr) minmax(280px,.7fr);gap:clamp(28px,7vw,90px);align-items:end;margin:0 0 clamp(50px,9vw,94px);padding:clamp(30px,6vw,58px) 0;border-top:1px solid var(--border);border-bottom:1px solid var(--border)}
-  .case-principle h2,.register-cta h2,.workload-card h2,.section-head h2{max-width:18ch;margin:8px 0 0;font-size:clamp(2rem,4.5vw,4rem);line-height:.96;letter-spacing:-.05em}
-  .case-principle>p,.case-principle>div:last-child p,.register-cta p,.workload-card p{margin:0;color:var(--muted);font-size:1.03rem}
-  .case-principle>div:last-child{display:grid;gap:12px}
+  .workload-art{position:relative;min-height:340px;margin:0;overflow:hidden;border:1px solid var(--border);border-radius:22px;background:var(--surface-1);box-shadow:0 32px 90px rgba(0,0,0,.38)}
+  .workload-art:after{content:"";position:absolute;inset:0;background:linear-gradient(180deg,rgba(11,10,20,.05),rgba(11,10,20,.76))}
+  .workload-art img{width:100%;height:100%;min-height:340px;display:block;object-fit:cover;filter:blur(7px) saturate(.78) brightness(.72);transform:scale(1.05)}
+  .workload-art figcaption{position:absolute;z-index:1;left:20px;bottom:18px;color:var(--text);font-size:.72rem;font-weight:900;letter-spacing:.12em;text-transform:uppercase}
   .section-head{display:flex;align-items:end;justify-content:space-between;gap:20px;margin:0 0 20px}
-  .workload-card>div:last-child{display:grid;justify-items:center;gap:18px}
-  .workload-card svg{width:min(220px,70%);filter:drop-shadow(0 16px 34px rgba(34,230,255,.16))}
-  .governance-topics{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:1px;margin:0 0 clamp(50px,9vw,94px);border:1px solid var(--border);background:var(--border)}
-  .governance-topics article{min-width:0;padding:clamp(22px,4vw,38px);background:var(--bg)}
-  .governance-topics article>span{display:block;margin-bottom:42px;color:var(--cyan);font-size:.7rem;font-weight:900}
-  .governance-topics :is(h2,h3){margin:0 0 10px;font-size:clamp(1.6rem,3vw,2.4rem)}
-  .governance-topics p{margin:0 0 20px;color:var(--muted)}
-  .control-example{display:grid;grid-template-columns:minmax(220px,.65fr) minmax(0,1fr);gap:clamp(26px,7vw,90px);margin:0 0 clamp(50px,9vw,94px);padding:clamp(24px,5vw,48px);border:1px solid var(--border);border-radius:18px;background:var(--surface-1)}
-  .control-example :is(h2,h3){margin:8px 0 18px;font-size:clamp(2rem,5vw,4rem);line-height:.92}
-  .control-example dl{display:grid;grid-template-columns:9rem minmax(0,1fr);gap:14px 20px;margin:0}
-  .control-example dt{color:var(--faint);font-size:.68rem;font-weight:900;letter-spacing:.1em;text-transform:uppercase}
-  .control-example dd{margin:0;color:var(--muted)}
-  .register-cta .button{margin-top:18px}
-  .ai-definition{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:12px;margin:0 0 clamp(50px,9vw,94px)}
-  .ai-definition article{min-height:250px;padding:24px;border:1px solid var(--border);border-radius:14px;background:var(--surface-1)}
-  .ai-definition h2{margin:54px 0 10px;font-size:1.35rem;line-height:1.05}
-  .ai-definition p{margin:0;color:var(--muted);font-size:.88rem}
 
 
 
-
-
-  @media(max-width:900px){.governance-flow{grid-template-columns:1fr}.governance-flow>i{justify-self:center;transform:none}.standard-pair,.ai-definition{grid-template-columns:1fr 1fr}.ai-definition article:last-child{grid-column:1/-1}}
-  @media(max-width:700px){.standard-pair,.case-principle,.register-cta,.workload-card,.governance-topics,.control-example,.ai-definition{grid-template-columns:1fr}.standard-card{min-height:300px}.control-example dl{grid-template-columns:1fr;gap:4px}.control-example dd{margin-bottom:14px}.ai-definition article:last-child{grid-column:auto}.section-head{align-items:flex-start;flex-direction:column}}
-
-  /* ── Consolidated controls and evidence ── */
-  .controls-intro{padding:clamp(48px,9vw,96px) 0 38px}
-  .controls-intro h1,.evidence-intro h1{max-width:18ch}
-  .controls-block,.evidence-block{scroll-margin-top:18px}
-  .controls-block{margin-top:clamp(48px,9vw,100px);padding-top:clamp(32px,6vw,68px);border-top:1px solid var(--border)}
-  .standard-hero.controls-block{max-width:none;padding-bottom:42px}
-  .gov-control-doc{margin:12px 0;padding:0;overflow:hidden}
-  .gov-control-doc>summary{min-height:68px;display:grid;grid-template-columns:auto minmax(0,1fr) auto;align-items:center;gap:12px;padding:16px 18px;cursor:pointer;list-style:none}
-  .gov-control-doc>summary::-webkit-details-marker{display:none}
-  .gov-control-doc>summary:after{content:"+";color:var(--cyan);font-size:1.35rem;font-weight:900}
-  .gov-control-doc[open]>summary{border-bottom:1px solid var(--border)}
-  .gov-control-doc[open]>summary:after{content:"−"}
-  .gov-control-doc .gov-body{padding:10px 20px 24px}
-  .iso-register{padding:0;overflow:hidden}
-  .iso-register>summary{min-height:76px;padding:18px;cursor:pointer;list-style:none}
-  .iso-register>summary::-webkit-details-marker{display:none}
-  .iso-register>summary:after{content:"+";margin-left:10px;color:var(--cyan);font-size:1.35rem;font-weight:900}
-  .iso-register[open]>summary{border-bottom:1px solid var(--border)}
-  .iso-register[open]>summary:after{content:"−"}
-  .iso-register__body{padding:18px}
+  /* ── Evidence ── */
   .evidence-intro{padding:clamp(48px,9vw,96px) 0 26px}
+  .evidence-intro h1{max-width:18ch}
   .evidence-jump{justify-content:flex-start;margin-top:22px}
-  .evidence-block{margin:clamp(42px,8vw,84px) 0 0;padding-top:clamp(28px,5vw,52px);border-top:1px solid var(--border)}
+  .evidence-block{scroll-margin-top:18px;margin:clamp(42px,8vw,84px) 0 0;padding-top:clamp(28px,5vw,52px);border-top:1px solid var(--border)}
   .card.evidence-block{padding:clamp(20px,4vw,34px)}
   .degradation-ladder{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:1px;margin:22px 0;padding:1px;background:var(--border);list-style:none}
   .degradation-ladder li{min-width:0;padding:18px;background:var(--surface-1)}
   .degradation-ladder strong,.degradation-ladder span{display:block}
   .degradation-ladder strong{color:var(--cyan);font-size:.78rem;text-transform:uppercase;letter-spacing:.08em}
   .degradation-ladder span{margin-top:12px;color:var(--muted);font-size:.82rem}
-  @media(max-width:900px){.home-hero{grid-template-columns:1fr}.governance-art{min-height:280px}.degradation-ladder{grid-template-columns:1fr}}
-  @media(prefers-reduced-motion:reduce){html{scroll-behavior:auto!important}.governance-art img{transform:none}.trust-tile,tbody tr{transition:none}}
-
-  /* ── Policy index and documents ── */
-  .gov-breadcrumb{margin:0 0 8px;color:var(--muted);font-size:.8rem;font-weight:700}
-  .gov-list{display:grid;gap:10px;margin:14px 0 0;padding:0;list-style:none}
-  .gov-card{padding:14px;border:1px solid var(--border);border-radius:12px;background:rgba(11,10,20,.42)}
-  .gov-card__link{display:flex;flex-wrap:wrap;align-items:baseline;gap:10px;font-size:1.02rem;text-decoration:none}
-  .gov-card__link strong{color:var(--text)}
-  .gov-card__link:hover strong{color:#d4ccff}
-  .gov-card .sub{margin:6px 0 8px;font-size:.86rem}
-  .gov-card__clauses{margin:0;font-size:.72rem;line-height:2}
-  .gov-body{display:grid;gap:4px}
-  .gov-body .gov-section h2{margin:22px 0 8px;font-size:1.08rem}
-  .gov-body .gov-section:first-child h2{margin-top:0}
-  .gov-steps{display:flex;justify-content:space-between;gap:14px;flex-wrap:wrap;margin:18px 0 0}
-
-  /* ── The register on a phone ──
-     .iso-table pins a 1200px minimum at every width, which is 3.1x horizontal scroll on a
-     390px viewport across all 184 rows. Below 760px the rows become cards: each cell prints
-     the column name it belongs to from data-label, so the header association survives the
-     table losing its shape. The filter stays on screen while they scroll, so narrowing the
-     set is always one reach away rather than five screens back up. */
-  @media(max-width:760px){
-    .iso-toolbar-card{position:sticky;top:0;z-index:3;backdrop-filter:blur(14px);background:rgba(11,10,20,.94)}
-    /* Doubled class throughout: the base layout rules are written as ".table-scroll table",
-       which outranks a single ".iso-table" on specificity no matter which comes last. */
-    .iso-table.iso-table{--table-min:0;min-width:0;width:100%;display:block;table-layout:auto}
-    .iso-table.iso-table :is(tbody,tr){display:block;width:100%}
-    .iso-table.iso-table thead{position:absolute;width:1px;height:1px;padding:0;margin:-1px;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap;border:0}
-    .iso-table.iso-table tr{margin:0 0 10px;padding:12px;border:1px solid var(--border);border-radius:12px;background:rgba(11,10,20,.42)}
-    /* The per-table column pins (.iso-doc-table :is(th,td):nth-child(3){width:11rem} and
-       friends) carry a pseudo-class, so they outrank a plain class pair. Nothing here is a
-       column any more, so the pins are simply cancelled. */
-    .iso-table.iso-table :is(th,td){display:block;width:auto!important;min-width:0;padding:6px 0;border:0;text-align:left;overflow-wrap:anywhere}
-    .iso-table.iso-table :is(th,td):empty{display:none}
-    .iso-table.iso-table :is(th,td)[data-label]:before{content:attr(data-label);display:block;margin:0 0 3px;color:var(--faint);font-size:.65rem;font-weight:900;letter-spacing:.1em;text-transform:uppercase}
-    .iso-table.iso-table .cell-key{font-size:1rem;white-space:normal}
-    .table-scroll:has(.iso-table){overflow-x:visible}
-    .trust-grid{grid-template-columns:repeat(2,minmax(0,1fr))}
+  @media(max-width:900px){.home-hero{grid-template-columns:1fr}.workload-art{min-height:280px}.degradation-ladder{grid-template-columns:1fr}}
+  @media(max-width:700px){.section-head{align-items:flex-start;flex-direction:column}}
+  @media(prefers-reduced-motion:reduce){html{scroll-behavior:auto!important}.workload-art img{transform:none}.trust-tile,tbody tr{transition:none}}
 
 
-  }
+  @media(max-width:760px){.trust-grid{grid-template-columns:repeat(2,minmax(0,1fr))}}
+
   @media(max-width:420px){.trust-grid{grid-template-columns:1fr}}
 
   /* ── Contrast preferences ──
-     The game's theme implements prefers-contrast three times; these nine pages implemented
-     it zero times. On a portal whose whole purpose is to demonstrate conformance, that
-     asymmetry is the finding. Borders and muted text move to values that clear 4.5:1
+     Borders and muted text move to values that clear 4.5:1
      against the surfaces they sit on, and forced-colors hands every one of them back to the
      system palette rather than fighting it. */
   @media(prefers-contrast:more){
@@ -421,14 +249,14 @@ const PAGE_CSS = `
     :where(a,button,input,select,textarea,summary,[tabindex]):focus-visible{outline-width:4px}
   }
   @media(forced-colors:active){
-    .metric-card,.card,.trust-tile,.gov-card,.iso-table tr{border:1px solid CanvasText}
-    .iso-pill,.meter-pill,.integrity-badge{border:1px solid CanvasText;forced-color-adjust:none;background:Canvas;color:CanvasText}
+    .metric-card,.card,.trust-tile{border:1px solid CanvasText}
+    .meter-pill,.integrity-badge{border:1px solid CanvasText;forced-color-adjust:none;background:Canvas;color:CanvasText}
     :where(a,button,input,select,textarea,summary,[tabindex]):focus-visible{outline:3px solid Highlight;outline-offset:2px}
     .key-dot,.incident-dot,.meter-fill{forced-color-adjust:none}
     svg a:focus-visible{outline:3px solid Highlight}
   }
-  /* Estate footer. The top nav stays six items for the common path; this carries the
-     whole estate so that no page is a dead end. Overrides the bare "nav a" pill rules
+  /* Estate footer. The primary navigation stays focused while this carries supporting
+     routes so that no page is a dead end. Overrides the bare "nav a" pill rules
      above by specificity (0,1,2 against 0,0,2), not by order. */
   .site-footer{position:relative;z-index:1;max-width:1120px;margin:0 auto;padding:0 20px 56px}
   .site-footer-inner{border-top:1px solid var(--border);padding-top:22px}
@@ -1259,41 +1087,6 @@ var m=matching(),i=m.indexOf(target);if(i<0){search.value='';code.value='';m=mat
 if(i>=0){page=Math.floor(i/PER);render(0);target.classList.add('history-item--focus');target.scrollIntoView({block:'center'});if(!target.hasAttribute('tabindex'))target.setAttribute('tabindex','-1');target.focus({preventScroll:true});}}
 render(0);reveal();window.addEventListener('hashchange',reveal);}());</script>`;
 }
-function iso27001Html(embedded = false): string {
-  const heading = embedded ? "h2" : "h1";
-  return `<section class="standard-hero controls-block" id="iso-27001" tabindex="-1"><div class="eyebrow">ISO/IEC 27001:2022</div><${heading}>Information Security Management System</${heading}><div class="action-links"><a class="button" href="#iso27001-clauses">Open 27001 register →</a><a class="button secondary" href="#statement-of-applicability">Statement of Applicability →</a></div></section>
-  <section class="governance-topics">
-    <article><span>01</span><h3>Scope</h3><p>The governed system is the SharkTank production service: its Worker routes, realtime tank state, Durable Objects, stored copies, operational interfaces, and computer-controlled actors. Provider infrastructure remains a supplier boundary.</p><a href="#context">Scope and context →</a></article>
-    <article><span>02</span><h3>Risk management</h3><p>Risks are identified, scored, treated, accepted, and revisited on a defined interval and when material system changes occur. Open positions remain explicit.</p><a href="#risk-assessment">Risk assessment →</a></article>
-    <article><span>03</span><h3>Statement of Applicability</h3><p>Every Annex A control carries an applicability decision and justification. Supplier-inherited, partial, excluded, and gap states are preserved instead of converted into a badge.</p><a href="#statement-of-applicability">Inspect applicability →</a></article>
-    <article><span>04</span><h3>Secure development</h3><p>Changes are classified, reviewed, tested, version-controlled, released through an authenticated path, and tied to a visible change and evidence record.</p><a href="#secure-development">Secure development process →</a></article>
-    <article><span>05</span><h3>Operations &amp; recovery</h3><p>Availability, incidents, state copies, restore drills, resource ceilings, and append-only receipts are recorded by the service they describe.</p><a href="/evidence/#continuity">Operational record →</a></article>
-    <article><span>06</span><h3>Continuous improvement</h3><p>Findings, nonconformities, corrective action, management review, and system evolution remain part of the public record, including known limits in independent assurance.</p><a href="#audit-and-review">Audit and review →</a></article>
-  </section>
-  <section class="control-example"><div><div class="eyebrow">Example control</div><h3>A.8.32<br>Change management</h3><span class="iso-pill is-met">Evidenced</span></div><dl><dt>Purpose</dt><dd>Production changes are assessed, authorized, tested, and recorded.</dd><dt>Implementation</dt><dd>Git-based controlled change workflow, required verification, an authenticated deployment path, and append-only operational receipts.</dd><dt>Evidence</dt><dd><a href="https://github.com/Wizard-Gang/SharkTank/commits/main">Git history</a> · <a href="/evidence/#receipts">Control receipts</a> · <a href="#secure-development">Secure development procedure</a></dd><dt>Current gaps</dt><dd>Independent assurance remains outside the project’s current boundary; the public register does not claim certification.</dd></dl></section>`;
-}
-
-function iso42001Html(embedded = false): string {
-  const heading = embedded ? "h2" : "h1";
-  return `<section class="standard-hero controls-block" id="iso-42001" tabindex="-1"><div class="eyebrow">ISO/IEC 42001:2023</div><${heading}>AI Management System</${heading}><div class="action-links"><a class="button" href="#iso42001-clauses">Open 42001 register →</a><a class="button secondary" href="#ai-policy">AI policy &amp; impact →</a></div></section>
-  <section class="ai-definition" aria-label="SharkTank AI system definition">
-    <article><span>System purpose</span><h2>Computer-controlled actors operate inside the game.</h2><p>The system creates autonomous sharks that steer, select targets, move, and interact inside the same realtime simulation as human players.</p></article>
-    <article><span>Intended use</span><h2>Gameplay simulation only.</h2><p>The actors provide a populated, dynamic workload for play and for exercising system governance.</p></article>
-    <article><span>Model dependency</span><h2>Deterministic rules, not machine learning.</h2><p>Behavior uses fixed rule-based logic. There is no trained model, external inference service, training dataset, or probabilistic model dependency.</p></article>
-    <article><span>Impact</span><h2>Gameplay effects only.</h2><p>No employment, credit, health, education, legal-status, eligibility, or other consequential decision about a person is made.</p></article>
-    <article><span>Human authority</span><h2>Operators retain control.</h2><p>Authorized operators control deployment, configuration, availability, incident response, and the system’s operating boundary.</p></article>
-    <article><span>Monitoring</span><h2>State is inspectable and reproducible.</h2><p>Behavior is visible in tank state and retained action records; deterministic replay can reconstruct authoritative state at a retained tick.</p></article>
-    <article><span>Transparency</span><h2>Purpose and limits are public.</h2><p>The implementation, intended use, impact boundary, supplier position, life cycle, and control mapping are documented.</p></article>
-    <article><span>Change management</span><h2>Behavior changes are auditable.</h2><p>Changes are version-controlled, verified, deployed through the controlled path, and recorded with their evidence.</p></article>
-    <article><span>Known limitations</span><h2>No claim beyond the evidence.</h2><p>The project has no independent audit objectivity, no certification, and no claim that low-impact deterministic agents represent every AI risk profile.</p></article>
-  </section>
-  <section class="register-cta"><div><div class="eyebrow">Control mapping</div><h2>Inspect the ISO 42001 implementation.</h2></div><div><p>The searchable register below covers management-system clauses and all 38 Annex A controls, including partial and excluded positions.</p><a class="button" href="#iso42001-clauses">Open searchable register →</a></div></section>`;
-}
-
-function controlsHtml(): string {
-  return `<section class="page-intro controls-intro"><div class="eyebrow">Controls · standards · policy record</div><h1>One control surface, with the detail intact.</h1><p class="sub">The management-system narrative, complete conformance register, and all maintained governance documents live here. ISO/IEC references describe implementation readiness and do not claim certification.</p><div class="action-links"><a class="button" href="#iso-27001">ISO 27001 →</a><a class="button secondary" href="#iso-42001">ISO 42001 →</a><a class="button secondary" href="#registers">Register →</a><a class="button secondary" href="#policies">Policies →</a></div></section>
-  ${iso27001Html(true)}${iso42001Html(true)}${conformanceHtml(metricCard, true)}${governanceControlsHtml()}`;
-}
 
 
 interface PublicLogEvent { ts: number; type: string; room?: string | null; subject?: string | null; detail?: string | null }
@@ -1447,7 +1240,7 @@ function evidenceDashboardHtml(
   const gateClosed = billing.hardLimitExceeded === true;
   const roomRows = rooms.map((room) => `<tr><td><strong>${esc(room.name)}</strong></td><td>${room.players}</td><td>${room.bots}</td><td>${room.topScore}</td><td>${esc(room.topName)}</td></tr>`).join("");
 
-  return `<section class="page-intro evidence-intro"><div class="eyebrow">Evidence · generated by the running service</div><h1>Production claims, with inspectable proof.</h1><p class="sub">Availability, incidents, continuity, spend, degradation, reason-coded logs, and control receipts share this dashboard. The raw endpoints remain available for independent checks.</p><nav class="evidence-jump" aria-label="Evidence sections"><a href="#availability">Availability</a><a href="#incidents">Incidents</a><a href="#continuity">Continuity</a><a href="#spend">Spend</a><a href="#degradation">Degradation</a><a href="#logs">Logs</a><a href="#machine-data">JSON</a></nav></section>
+  return `<section class="page-intro evidence-intro"><div class="eyebrow">Evidence · generated by the running service</div><h1>Live operations, with inspectable evidence.</h1><p class="sub">Availability, incidents, continuity, spend, degradation, reason-coded logs, and control receipts share this dashboard. The raw endpoints remain available for independent checks.</p><nav class="evidence-jump" aria-label="Evidence sections"><a href="#availability">Availability</a><a href="#incidents">Incidents</a><a href="#continuity">Continuity</a><a href="#spend">Spend</a><a href="#degradation">Degradation</a><a href="#logs">Logs</a><a href="#machine-data">JSON</a></nav></section>
   <section class="evidence-block" id="availability" tabindex="-1" aria-labelledby="availability-heading">
     <div class="eyebrow">Reliability · live</div><h2 id="availability-heading">Availability and workload state</h2>
     <p class="action-links"><a class="action-link" href="/status.json">Raw status JSON →</a><a class="action-link" href="/incidents.json">Incident JSON →</a></p>
@@ -1468,7 +1261,7 @@ function evidenceDashboardHtml(
   ${spendHtml(billing, true)}
   <section class="card evidence-block degradation-card" id="degradation" tabindex="-1" aria-labelledby="degradation-heading"><div class="eyebrow">Controlled degradation · ${gateClosed ? "active" : "standing by"}</div><h2 id="degradation-heading">The service sheds variable-cost work before it sheds evidence.</h2><ol class="degradation-ladder"><li><strong>Normal</strong><span>Gameplay, public reads, and bounded public writes operate.</span></li><li><strong>Hard threshold reached</strong><span>The measured billing window reaches its configured spend stop.</span></li><li><strong>Variable-cost traffic gated</strong><span>Gameplay and metered public writes close; an append-only receipt records why.</span></li><li><strong>Evidence preserved</strong><span>Read-only status and evidence, security-report intake, and protected administration and recovery remain available.</span></li><li><strong>Controlled recovery</strong><span>An authenticated billing reset restores normal operation and records the change.</span></li></ol><p class="sub">Current state: <strong>${gateClosed ? "hard threshold exceeded; the cost gate is active" : "normal; the hard threshold has not been reached"}</strong>.</p></section>
   ${publicLogsHtml(logs.serviceEvents, logs.tanks, logs.caps, true)}
-  <section class="card evidence-block" id="machine-data" tabindex="-1"><div class="eyebrow">Machine-readable evidence</div><h2>Raw endpoints</h2><p class="sub">The human dashboard and machine responses are two views over the same records.</p><div class="action-links"><a class="action-link" href="/status.json">Status JSON</a><a class="action-link" href="/incidents.json">Incidents JSON</a><a class="action-link" href="/spend.json">Spend JSON</a><a class="action-link" href="/logs.json">Logs JSON</a><a class="action-link" href="/audit/manifest.json">Control register JSON</a><a class="action-link" href="/policies.json">Policies JSON</a></div></section>
+  <section class="card evidence-block" id="machine-data" tabindex="-1"><div class="eyebrow">Machine-readable evidence</div><h2>Raw endpoints</h2><p class="sub">The human dashboard and machine responses are two views over the same records.</p><div class="action-links"><a class="action-link" href="/status.json">Status JSON</a><a class="action-link" href="/incidents.json">Incidents JSON</a><a class="action-link" href="/spend.json">Spend JSON</a><a class="action-link" href="/logs.json">Logs JSON</a></div></section>
   ${statusLiveScript()}`;
 }
 
@@ -1518,7 +1311,7 @@ function adminViewerHtml(): string {
     "tick();setInterval(tick,1500);",
   ].join("");
   return `<section class="page-intro"><div class="eyebrow">Control room · sharp teeth</div><h1>Admin</h1>
-    <p class="sub">Authenticated traffic controls, incident receipts, billing thresholds, and live runtime KPIs. The conformance register these controls produce evidence for is public in <a href="/controls/#registers">Controls</a>.</p></section>
+    <p class="sub">Authenticated traffic controls, incident receipts, billing thresholds, and live runtime KPIs.</p></section>
     <h2 class="u-ops-pulse-heading">Operations pulse</h2>
     <div class="metric-grid stat-grid">
       ${metricCard("—", "Active players", "live human sessions", "players", "tone-cyan", "kpi-active-players")}
@@ -1578,7 +1371,6 @@ export {
   AUDIT_ROOM_NAMES,
   incidentSummary,
   INCIDENTS,
-  controlsHtml,
   normalizeServiceLogEvent,
   normalizeGameLogEvent,
   CAPTURE_WINDOW_MS,
