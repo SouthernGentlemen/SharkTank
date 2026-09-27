@@ -140,6 +140,7 @@ expect(githubSettings.defaultBranch === "main", "GitHub settings must keep main 
 expect(githubSettings.mergeMethods?.mergeCommit === false, "single-commit policy must disable merge commits");
 expect(githubSettings.mergeMethods?.squash === true, "single-commit policy must enable squash");
 expect(githubSettings.mergeMethods?.rebase === false, "single-commit policy must disable rebase");
+expect(githubSettings.allowAutoMerge === true, "auto-merge availability must be enabled");
 expect(githubSettings.deleteBranchOnMerge === true, "merged branches must be deleted");
 expect(JSON.stringify(githubSettings.requiredStatusChecks) === JSON.stringify(["verify"]), "main ruleset must require exactly verify");
 const mainRuleset = githubSettings.rulesets?.find((r) => r.name === "main-protection");

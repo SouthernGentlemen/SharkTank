@@ -53,6 +53,7 @@ export function compareGithubSettings(expected, actual) {
       ["merge commits", repository.allow_merge_commit, expected.mergeMethods.mergeCommit],
       ["squash merges", repository.allow_squash_merge, expected.mergeMethods.squash],
       ["rebase merges", repository.allow_rebase_merge, expected.mergeMethods.rebase],
+      ["auto-merge availability", repository.allow_auto_merge, expected.allowAutoMerge],
       ["delete branch on merge", repository.delete_branch_on_merge, expected.deleteBranchOnMerge],
     ];
     for (const [label, actualValue, expectedValue] of fields) {

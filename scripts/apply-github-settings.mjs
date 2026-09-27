@@ -27,6 +27,7 @@ try {
       allow_merge_commit: expected.mergeMethods.mergeCommit,
       allow_squash_merge: expected.mergeMethods.squash,
       allow_rebase_merge: expected.mergeMethods.rebase,
+      allow_auto_merge: expected.allowAutoMerge,
       delete_branch_on_merge: expected.deleteBranchOnMerge,
     },
   });
