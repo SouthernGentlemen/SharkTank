@@ -6,15 +6,6 @@ MVP target for every task below: SharkTank is the game at `/play/`, a short serv
 
 Shared validation for every task: pinned `npm ci`, focused tests for the touched modules and scripts, canonical `npm run check`, `npm run audit:dependencies`, committed-range whitespace, exact-head required CI, post-merge CI, history and completed-branch cleanup.
 
-### ST-106 — [FEAT] Rebuild the evidence page around live operations and billing
-
-- Dependency: ST-105 has merged.
-- Why: `/evidence/` is about 511 KB, and 377 KB of it is 772 inline log rows. It leads with a "Server availability" metric, timeline lane and legend entry that are constants computed from an empty incident list, and each request makes three Lobby reads and four Room reads.
-- Scope: Order the page as a live status strip (tank access, tank availability from recorded incidents, active players, the tank activity table and the pause control), then billing (gauge, trend and meter table unchanged), incidents (chart, active and resolved), control receipts (verdict and the 50 newest), state copies and restore drills, and recent logs (the 100 newest service records plus per-tank 24-hour TXT downloads instead of inline capture tables). Remove the synthetic server metric, lane and legend entry and `portalAvailability` from `/status.json`. Remove the controlled-degradation ladder, keeping one sentence about the hard stop in billing, and the machine-data block. Update the jump links and live-refresh script, and render from one Lobby status read and one 100-row service-log read with no Room reads.
-- Non-goals: Billing calculations, the spend gate, incident and receipt storage, and retention windows stay as they are. No release.
-- Acceptance: A Vitest case renders the page from synthetic worst-case data (5,000 service records and 2,000 captures per tank) and asserts at most 100 service rows, no inline capture rows and no server-availability figure; `check-public-ia` asserts the section order; the page stays complete without JavaScript, under strict CSP, with keyboard-reachable chart links and an accessible pause control.
-- Authorities: src/worker/presentation.ts, src/worker/presentation-data.ts, src/worker/index.ts, scripts/check-public-ia.mjs, tests/accessibility-contract.test.ts.
-
 ### ST-107 — [DOCS] Consolidate repository documentation
 
 - Dependency: ST-106 has merged.

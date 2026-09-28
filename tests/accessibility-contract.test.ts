@@ -25,6 +25,24 @@ describe("public accessibility contract", () => {
     expect(presentation).toContain("@media(prefers-reduced-motion:reduce)");
     expect(presentation).toContain("@media(prefers-contrast:more)");
     expect(humanDocs).toContain("target.focus({ preventScroll: true })");
+    expect(presentation).toContain('id="status-autoupdate"');
+    expect(presentation).toContain("Pause auto-update");
+    expect(presentation).toContain("Resume auto-update");
+  });
+
+  it("keeps evidence rendering to one status read, one 100-row service-log read, and zero Room reads", () => {
+    const route = worker.match(/if \(path === "\/evidence\/"\) \{[\s\S]*?\n      \}\n\n      if \(path === "\/spend\.json"\)/)?.[0] ?? "";
+    const start = worker.indexOf("async function publicLogData(env: Env) {");
+    const end = worker.indexOf("/* ── State backup", start);
+    const logReader = start >= 0 && end > start ? worker.slice(start, end) : "";
+    expect(route.match(/lobbyStub\(env\)\.fetch\("https:\/\/lobby\/status"\)/g)).toHaveLength(1);
+    expect(route).toContain("publicLogData(env)");
+    expect(route).not.toContain("incidentData");
+    expect(logReader.match(/lobbyStub\(env\)\.fetch/g)).toHaveLength(1);
+    expect(logReader).toContain("https://lobby/audit?limit=${LOG_FETCH_SERVICE}");
+    expect(logReader).not.toContain("roomFetch");
+    expect(presentation).toContain("const LOG_FETCH_SERVICE = 100;");
+    expect(worker).not.toContain("portalAvailability");
   });
 
 

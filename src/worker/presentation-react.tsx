@@ -286,7 +286,7 @@ export function renderEvidenceDocument(...args: Parameters<typeof evidenceDashbo
   return renderGeneratedDocument(
     {
       title: "SharkTank — Live production evidence",
-      description: "Live availability, incidents, continuity, spend, controlled degradation, logs, receipts, and release identity from the running SharkTank service.",
+      description: "Live tank status, billing, incidents, control receipts, continuity evidence, and bounded service logs from the running SharkTank service.",
       canonicalPath: "/evidence/",
     },
     "evidence",

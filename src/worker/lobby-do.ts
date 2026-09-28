@@ -854,8 +854,8 @@ export class Lobby implements DurableObject {
       return json({ ok: true });
     }
     if (path.endsWith("/audit")) {
-      // The public log page shows the whole 90-day retention window, not a recent
-      // slice, so the ceiling here is the retention cap rather than a page size.
+      // The evidence page requests a bounded recent slice; authenticated callers may ask
+      // for a larger retained window. The hard ceiling remains the 90-day retention cap.
       const limit = clampInt(
         Number(url.searchParams.get("limit") ?? 200),
         1,
