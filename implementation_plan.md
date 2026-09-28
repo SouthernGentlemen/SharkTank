@@ -6,16 +6,6 @@ MVP target for every task below: SharkTank is the game at `/play/`, a short serv
 
 Shared validation for every task: pinned `npm ci`, focused tests for the touched modules and scripts, canonical `npm run check`, `npm run audit:dependencies`, committed-range whitespace, exact-head required CI, post-merge CI, history and completed-branch cleanup.
 
-### ST-107 — [DOCS] Consolidate repository documentation
-
-- Dependency: ST-106 has merged.
-- Why: After the cull, `docs/` mostly restates README, AGENTS.md, CONTRIBUTING.md and the portfolio standard held with the demo, and one copy is already wrong: `docs/CHANGE-MANAGEMENT.md` says a delivery deletes an empty plan and `do needful` plans fresh work, contradicting the permanent queue in AGENTS.md.
-- Scope: Delete `docs/SECURITY-MODEL.md`, `docs/OPERATIONS.md`, `docs/CONTINUITY.md`, `docs/DEPLOYMENT.md`, `docs/CHANGE-MANAGEMENT.md` and `docs/RELEASE-MANAGEMENT.md`. Give README a short product statement, the command map, and concise operations and security, release and deployment, and controlled-work sections carrying what is still true; drop its documentation index. Trim `docs/ARCHITECTURE.md` to the MVP system while keeping the statements `check-repository-baseline` requires. Keep `docs/history/*.csv` as provenance validator inputs. Trim the PR template to commands that still exist and the vendored module README to current usage.
-- Non-goals: AGENTS.md, CONTRIBUTING.md and the empty-queue template stay byte-identical. No validator change. No release.
-- Owner decision: Keep `docs/ARCHITECTURE.md` by default because the shared WG-ARCH-001 baseline requires it; retiring it needs a separate portfolio baseline change.
-- Acceptance: `docs/` holds only `ARCHITECTURE.md` and the provenance CSVs; every repository Markdown link resolves; README states the release, deployment and production boundaries.
-- Authorities: AGENTS.md, CONTRIBUTING.md, README.md, docs/, scripts/check-repository-baseline.mjs, scripts/check-provenance.mjs, .github/pull_request_template.md.
-
 ### ST-108 — [OPS] Release the MVP surface
 
 - Dependency: ST-107 has merged.

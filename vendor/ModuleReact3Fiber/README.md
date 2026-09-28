@@ -1,27 +1,21 @@
 # ModuleReact3Fiber
 
-Portable game engine + React Three Fiber client for the new Wizard Gang game.
-Consumed by the Wizard Gang Portal Framework host.
-for local play; designed to port to **Cloudflare Workers / Durable Objects** later.
+First-party deterministic game engine, protocol, storage seam, and React Three Fiber client vendored into SharkTank.
 
-## Design (continuity with the previous iteration)
-- **Deterministic engine** (`src/engine/`) — pure functions over a serializable `RoomState`.
-  No DOM / three.js / node APIs, so the *same* code runs in the browser now and in a
-  Worker or Durable Object later. Seeded RNG (`rng.ts`) lives in the snapshot → replayable.
-  - `createRoom()`, `step(state)` (tick), `applyAction(state, action)` (join/leave/move + orb pickup).
-- **Generic blob store** (`src/store/`) — one storage seam (`BlobStore` interface + `JsonStore`).
-  `MemoryBlobStore` for local dev; swap an R2/KV/D1-backed store on Cloudflare without touching game code.
-- **Protocol** (`src/protocol/`) — tiny JSON contract; becomes the WebSocket/DO message shape when realtime lands.
-- **R3F client** (`src/client/`) — `<GameCanvas/>`: a live 3D arena where you (WASD) collect orbs.
-  Positions are driven imperatively from the engine each frame; save/load exercise the blob store.
+## Current use
 
-## Entry points (package `exports`)
-| import | contents | server-safe? |
-|---|---|---|
-| `module-react3fiber/engine` | engine core + types + RNG | ✅ (no browser deps) |
-| `module-react3fiber/store`  | BlobStore, JsonStore, MemoryBlobStore | ✅ |
-| `module-react3fiber/protocol` | API paths + request/response types | ✅ |
-| `module-react3fiber/client` | `<GameCanvas/>`, `useEngine`, `Scene` | ❌ (needs react/three) |
+- `src/engine/` contains pure deterministic simulation over serializable `RoomState`. Seeded RNG state is part of the snapshot so Room Durable Objects can replay authoritative state.
+- `src/protocol/` defines the JSON/API and WebSocket shapes shared by the Worker and browser client.
+- `src/store/` provides the server-safe `BlobStore` abstraction and JSON helpers used by the module.
+- `src/client/` contains the browser-only React Three Fiber game client.
 
-> Keep the Worker importing only `engine`/`store`/`protocol` — never `client` — so browser
-> libraries never end up in the server bundle.
+The SharkTank Worker imports only the server-safe engine, store, and protocol entry points. Browser code may import the client entry. Keep that boundary intact so React/Three code does not enter the Worker bundle.
+
+## Entry points
+
+| Import | Contents | Server-safe? |
+| --- | --- | --- |
+| `module-react3fiber/engine` | deterministic engine core, types, and RNG | Yes |
+| `module-react3fiber/store` | `BlobStore`, `JsonStore`, and `MemoryBlobStore` | Yes |
+| `module-react3fiber/protocol` | API paths plus request/response types | Yes |
+| `module-react3fiber/client` | `GameCanvas`, hooks, and scene code | No |
