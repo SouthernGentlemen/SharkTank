@@ -1,11 +1,11 @@
 // Wire protocol between the client and the server. Kept JSON-only so the same shapes
-// travel over HTTP (tank/profile/leaderboard) and over the WebSocket (realtime play)
+// travel over HTTP (tank/profile) and over the WebSocket (realtime play)
 // into the Room Durable Object.
 
 import type { Action, Explosion, Food, RocketProjectile, RoomState, ScoreEntry, Snake } from "../engine/types.js";
 export { isFamilyFriendlyName, sanitizeDisplayName } from "./name-policy.js";
 
-// ── HTTP: health / tank / profile / global leaderboard ─────────────────────────
+// ── HTTP: health / tank / profile ─────────────────────────────────────────────
 export interface HealthResponse {
   ok: true;
   module: "module-react3fiber";
@@ -41,11 +41,6 @@ export interface Profile {
 export interface ProfileResponse {
   ok: true;
   profile: Profile;
-}
-
-export interface LeaderboardResponse {
-  ok: true;
-  entries: ScoreEntry[];
 }
 
 export interface ErrorResponse {
@@ -138,7 +133,6 @@ export const API = {
   health: "/api/health",
   tank: "/api/tank",
   profile: "/api/profile",
-  leaderboard: "/api/leaderboard",
 } as const;
 
 /** WebSocket path for a given room id, e.g. `/room/room-1/ws`. */

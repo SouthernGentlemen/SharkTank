@@ -3,7 +3,6 @@ import { describe, expect, it } from "vitest";
 import {
   renderDowntimeDocument,
   renderNotFoundDocument,
-  renderOpenApiDocument,
   renderOverviewDocument,
 } from "../src/worker/presentation-react.js";
 import { html as htmlResponse } from "../src/worker/responses.js";
@@ -56,10 +55,9 @@ describe("React Worker presentation", () => {
 
   it("keeps raw HTML confined to one audited generated-artifact boundary", () => {
     expect(source.match(/dangerouslySetInnerHTML/g)).toHaveLength(1);
-    expect(source).toContain('type AuditedRawArtifactKind = "openapi" | "evidence" | "admin"');
-    const html = renderOpenApiDocument('<section id="generated"><h1>API reference</h1></section>');
-    expect(html).toContain('data-raw-artifact="openapi"');
-    expect(html).toContain('<section id="generated"><h1>API reference</h1></section>');
+    expect(source).toContain('type AuditedRawArtifactKind = "evidence" | "admin"');
+    expect(source).not.toContain('data-raw-artifact="openapi"');
+    expect(source).not.toContain("renderOpenApiDocument");
   });
 
   it("renders ordinary not-found and maintenance responses as complete React documents", () => {

@@ -6,17 +6,6 @@ MVP target for every task below: SharkTank is the game at `/play/`, a short serv
 
 Shared validation for every task: pinned `npm ci`, focused tests for the touched modules and scripts, canonical `npm run check`, `npm run audit:dependencies`, committed-range whitespace, exact-head required CI, post-merge CI, history and completed-branch cleanup.
 
-
-### ST-105 — [API] Reduce public and operator endpoints to the MVP set
-
-- Dependency: ST-104 has merged.
-- Why: The endpoints proved the concept, but several have no MVP caller: the `/docs/` OpenAPI page and both OpenAPI JSON routes; `/api/leaderboard`, whose top-25 list no UI shows although the Lobby rewrites it on room reports; `/incidents.json` and `/logs.json`, which duplicate the evidence page while operators keep `/admin/*`; and the ISO-era security-report intake, lockdown, dry-run resolution and test-alert controls. `/status.json` also publishes the Lobby `instance` block (boot ID and rate-bucket counts) that the source marks operator-only.
-- Scope: Keep public `/api/health`, `/api/tank`, `/api/profile`, `/api/audit`, `/room/:id/ws`, `/status.json`, `/spend.json`, `/version.json` and `/logs/game/:tank.txt`. Keep operator `/admin/`, `/admin/status.json`, `/admin/maintenance`, `/admin/billing-reset`, `/admin/backup.json`, `/admin/backup/run`, `/admin/backup/drill`, `/admin/log.json`, `/admin/log.jsonl`, `/admin/game/:tank` and `/admin/replay/:tank`. Remove `/docs/`, `/openapi.json`, `/docs/openapi.json` and `src/worker/openapi.ts`; `/api/leaderboard`, the public `global` list and the Lobby writes that maintain it; `/incidents.json` and `/logs.json`; and `/api/security-report`, `/admin/security-report`, `/admin/security-resolve` and `/admin/test-alert` with their admin UI and Lobby handlers. Stop publishing `instance` in `/status.json`; it stays in `/admin/status.json`. Stored incidents and receipts with retired causes keep rendering, and Lobby storage keys stay in place. Remove page, footer and `robots.txt` references to retired endpoints, and make GitHub private vulnerability reporting the only intake in SECURITY.md.
-- Non-goals: Billing, the spend gate, maintenance, backups and restore drills, and replay stay as they are. No Durable Object class or migration change. No release.
-- Owner decision: Retire the security-report and test-alert controls by default, or keep them.
-- Acceptance: Each removed route returns 404, as JSON under `/api/`; `/status.json` carries no `instance` or `global`; the admin console still toggles maintenance, resets billing and runs backups and drills; historical security and test-alert incidents still render on `/evidence/`.
-- Authorities: SECURITY.md, src/worker/index.ts, src/worker/lobby-do.ts, src/worker/presentation.ts, src/worker/presentation-react.tsx, vendor/ModuleReact3Fiber/src/protocol/index.ts, scripts/check-public-ia.mjs, scripts/check-evidence.mjs.
-
 ### ST-106 — [FEAT] Rebuild the evidence page around live operations and billing
 
 - Dependency: ST-105 has merged.

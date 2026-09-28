@@ -1,7 +1,6 @@
 import type {
   TankRoom,
   Profile,
-  ScoreEntry,
 } from "module-react3fiber/protocol";
 import { sanitizeDisplayName } from "module-react3fiber/protocol";
 import { DEFAULT_SKIN, SKINS } from "module-react3fiber/engine";
@@ -14,8 +13,7 @@ const CATALOG = [
 ] as const;
 // Human seats per tank. Bots fill the rest of the 32-shark roster (see room-do.ts).
 const CAPACITY = 8,
-  STALE_MS = 70_000,
-  GLOBAL_TOP = 25;
+  STALE_MS = 70_000;
 const AUDIT_RETENTION_MS = 90 * 24 * 60 * 60 * 1000,
   AUDIT_MAX_ROWS = 5_000,
   AUDIT_RATE_PER_MINUTE = 60;
@@ -138,14 +136,6 @@ interface DayBaseline {
   r2ClassB: number;
   usd: number;
 }
-/**
- * Minimum gap between two accepted public security reports. The public intake is
- * unauthenticated by design, so this is the only thing standing between it and an
- * unbounded append to the audit log and receipt chain. Lobby is a singleton DO
- * (idFromName("global")), so an in-memory stamp is effectively a global throttle.
- */
-const PUBLIC_SECURITY_REPORT_MIN_INTERVAL_MS = 60_000;
-
 interface Usage {
   startedAt: number;
   requests: number;
@@ -256,16 +246,6 @@ interface ControlHistoryInput {
   reference?: string | null;
   detail?: string | null;
 }
-interface SecurityReport {
-  id: string;
-  reportedAt: string;
-  environment: string;
-  deploymentVersion: string;
-  route: string;
-  colo: string | null;
-  country: string | null;
-  userAgent: string;
-}
 interface RateBucket {
   start: number;
   count: number;
@@ -366,7 +346,6 @@ export class Lobby implements DurableObject {
   /** Identifies this resident instance, so ops can see whether in-memory state survives. */
   private readonly bootId = crypto.randomUUID().slice(0, 8);
   private readonly bootedAt = Date.now();
-  private global: ScoreEntry[] = [];
   private usage: Usage = {
     startedAt: Date.now(),
     requests: 0,
@@ -385,7 +364,6 @@ export class Lobby implements DurableObject {
     reason: "",
   };
   private maintenanceIncidents: MaintenanceIncident[] = [];
-  private lastPublicSecurityReportAt = 0;
   private r2Snapshot: R2Snapshot = {
     checkedAt: 0,
     objectCount: 0,
@@ -457,8 +435,6 @@ export class Lobby implements DurableObject {
         historyIndex.rowsWritten;
     void this.ctx.blockConcurrencyWhile(async () => {
       let bootstrapReads = 0;
-      this.global = (await this.ctx.storage.get<ScoreEntry[]>("global")) ?? [];
-      bootstrapReads += 1;
       this.usage = (await this.ctx.storage.get<Usage>("usage")) ?? this.usage;
       this.spendHistory = (await this.ctx.storage.get<SpendSample[]>("spendHistory")) ?? [];
       bootstrapReads += 1;
@@ -780,172 +756,6 @@ export class Lobby implements DurableObject {
       return json({ ok: true, billingWindow: await this.billing(), history });
     }
     if (path.endsWith("/profile")) return this.profile(request);
-    if (path.endsWith("/security-report/resolve") && request.method === "POST") {
-      const body = await safeJson<{ ownerConfirmed?: boolean; dryRun?: boolean; note?: string }>(request);
-      if (!body?.ownerConfirmed || !body.dryRun) return json({ ok: false, error: "owner confirmation and dry-run flag required" }, 400);
-      const now = Date.now(), note = clean(body.note, 240) ?? "Owner confirmed the report was a controlled dry run.";
-      const resolved = this.maintenanceIncidents.filter((incident) => incident.cause === "Independent security report" && incident.status === "active");
-      const history: ControlHistoryEntry[] = [];
-      for (const incident of resolved) {
-        incident.status = "resolved";
-        incident.resolvedAt = now;
-        incident.impactEndedAt ??= now;
-        incident.cause = "Owner security exercise";
-        incident.title = "Owner-confirmed white-hat dry run";
-        incident.summary = `${note} Investigation closed; the separate maintenance gate was not changed.`;
-        history.push(await this.appendControlHistory({
-          ts: now,
-          code: "SECURITY-REPORT-RESOLVED",
-          actor: "owner",
-          title: "White-hat dry run resolved",
-          summary: incident.summary,
-          reference: incident.id,
-          detail: `ownerConfirmed=true;dryRun=true;maintenance=${this.maintenance.enabled ? "enabled" : "disabled"}`,
-        }));
-      }
-      if (resolved.length) {
-        this.record({ ts: now, type: "security-resolved", subject: "owner", detail: `${resolved.length} owner-confirmed dry-run report${resolved.length === 1 ? "" : "s"} resolved` });
-        this.pruneIncidents();
-        this.countWrites(2);
-        await this.ctx.storage.put({ maintenanceIncidents: this.maintenanceIncidents, usage: this.usage });
-      }
-      return json({ ok: true, resolved: resolved.map((incident) => incident.id), resolvedAt: new Date(now).toISOString(), ownerConfirmed: true, dryRun: true, maintenance: this.maintenance, history, message: resolved.length ? "Owner-confirmed white-hat dry run resolved; scheduled maintenance remains independent." : "No open white-hat reports remained." });
-    }
-    if (path.endsWith("/security-report") && request.method === "POST") {
-      const body = await safeJson<Partial<SecurityReport> & { lockdown?: boolean }>(request);
-      if (
-        !body ||
-        typeof body.id !== "string" ||
-        !/^white-hat-[a-f0-9-]{36}$/.test(body.id)
-      )
-        return json({ ok: false, error: "invalid security report" }, 400);
-      // `lockdown` is set by the Worker from the route the request arrived on, not by the
-      // client: false for the unauthenticated public intake, true only for the ops-gated
-      // /admin/security-report. Recording a report and taking the game down are separate
-      // privileges, and only the second one is authenticated.
-      const lockdown = body.lockdown === true;
-      const now = Date.now();
-      if (!lockdown && now - this.lastPublicSecurityReportAt < PUBLIC_SECURITY_REPORT_MIN_INTERVAL_MS)
-        return json({ ok: false, error: "a security report was accepted moments ago" }, 429);
-      const report: SecurityReport = {
-          id: body.id,
-          reportedAt: new Date(now).toISOString(),
-          environment: clean(body.environment, 40) ?? "unknown",
-          deploymentVersion: clean(body.deploymentVersion, 80) ?? "unknown",
-          route: clean(body.route, 120) ?? "/api/security-report",
-          colo: clean(body.colo, 12),
-          country: clean(body.country, 12),
-          userAgent: clean(body.userAgent, 160) ?? "unknown",
-        },
-        detail = `${report.id}; ${report.reportedAt}; ${report.environment}; ${report.colo ?? "unknown-colo"}`,
-        reportMetadata = JSON.stringify({
-          environment: report.environment,
-          deploymentVersion: report.deploymentVersion,
-          route: report.route,
-          colo: report.colo,
-          country: report.country,
-        });
-
-      if (!lockdown) {
-        this.lastPublicSecurityReportAt = now;
-        this.record({
-          ts: now,
-          type: "security-report",
-          subject: "white-hat-report",
-          detail,
-        });
-        const history = await this.appendControlHistory({
-          ts: now,
-          code: "SECURITY-REPORT",
-          actor: "public-report",
-          title: "Independent security report received",
-          summary: `Report ${report.id} was recorded for operator review. Service state was not changed.`,
-          reference: report.id,
-          detail: reportMetadata,
-        });
-        return json({
-          ok: true,
-          message:
-            "Security report recorded and raised to operations. Service state is unchanged; this receipt does not confirm a compromise.",
-          report,
-          maintenance: this.maintenance,
-          history,
-        });
-      }
-
-      // One open lockdown at a time. Without this each retry mints a fresh incident and a
-      // fresh receipt, and maintenanceIncidents is rewritten whole under a single DO key.
-      const open = this.maintenanceIncidents.find(
-        (i) => i.cause === "Independent security report" && i.status === "active",
-      );
-      if (open)
-        return json({
-          ok: true,
-          message:
-            "A security report lockdown is already open; no second incident was created.",
-          report,
-          incident: open,
-          maintenance: this.maintenance,
-          history: null,
-        });
-
-      const wasEnabled = this.maintenance.enabled,
-        summary = `Report ${report.id} triggered immediate game downtime pending operator review.`;
-      const incident: MaintenanceIncident = {
-        id: report.id,
-        title: "Security report lockdown",
-        cause: "Independent security report",
-        status: "active",
-        startedAt: now,
-        resolvedAt: null,
-        impactEndedAt: null,
-        summary,
-      };
-      this.maintenanceIncidents.push(incident);
-      this.maintenance = {
-        enabled: true,
-        changedAt: now,
-        reason: `Security report ${report.id}`,
-      };
-      this.pruneIncidents();
-      this.countWrites(3);
-      await this.ctx.storage.put({
-        maintenance: this.maintenance,
-        maintenanceIncidents: this.maintenanceIncidents,
-        usage: this.usage,
-      });
-      this.record({
-        ts: now,
-        type: "security-report",
-        subject: "white-hat-report",
-        detail,
-      });
-      if (!wasEnabled)
-        this.record({
-          ts: now,
-          type: "maintenance-on",
-          subject: "security-report",
-          detail: `Immediate lockdown for ${report.id}`,
-        });
-      const history = await this.appendControlHistory({
-        ts: now,
-        code: "SECURITY-LOCKDOWN",
-        actor: "ops",
-        title: "Security report forced game downtime",
-        summary,
-        reference: report.id,
-        detail: reportMetadata,
-      });
-      return json({
-        ok: true,
-        message:
-          "Security report recorded and game downtime enabled. This receipt does not confirm a compromise.",
-        report,
-        incident,
-        maintenance: this.maintenance,
-        history,
-      });
-    }
     if (path.endsWith("/report") && request.method === "POST") {
       const b = await safeJson<TankRoom & { topName?: string }>(request);
       if (!b || !CATALOG.some((r) => r.id === b.id))
@@ -1005,7 +815,6 @@ export class Lobby implements DurableObject {
       this.usage.reports += 1;
       if (!this.usage.roomsSeen.includes(b.id)) this.usage.roomsSeen.push(b.id);
       this.countWrites(2);
-      this.mergeGlobal(b);
       this.ctx.waitUntil(
         this.ctx.storage.put({
           usage: this.usage,
@@ -1013,53 +822,6 @@ export class Lobby implements DurableObject {
         }),
       );
       return json({ ok: true });
-    }
-    if (path.endsWith("/test-alert") && request.method === "POST") {
-      const body = await safeJson<{ code?: string }>(request),
-        code = typeof body?.code === "string" ? body.code.toUpperCase() : "";
-      if (!/^[A-Z][0-9]{3}$/.test(code))
-        return json({ ok: false, error: "invalid alert code" }, 400);
-      const now = Date.now();
-      this.maintenanceIncidents.push({
-        id: `test-alert-${code}-${now}`,
-        title: `Test alert ${code}`,
-        cause: "Test alert",
-        status: "resolved",
-        startedAt: now,
-        resolvedAt: now,
-        impactEndedAt: now,
-        summary:
-          "Authenticated operations message-response test; no downtime occurred.",
-      });
-      this.pruneIncidents();
-      this.countWrites(2);
-      await this.ctx.storage.put({
-        maintenanceIncidents: this.maintenanceIncidents,
-        usage: this.usage,
-      });
-      this.record({
-        ts: now,
-        type: "test-alert",
-        subject: "ops",
-        detail: `${code} acknowledged at ${new Date(now).toISOString()}`,
-      });
-      const history = await this.appendControlHistory({
-        ts: now,
-        code: "TEST-ALERT",
-        actor: "ops",
-        title: `Test alert ${code}`,
-        summary:
-          "Authenticated message-response control completed without downtime.",
-        reference: code,
-        detail: `acknowledged=${new Date(now).toISOString()}`,
-      });
-      return json({
-        ok: true,
-        code,
-        receivedAt: new Date(now).toISOString(),
-        message: `Test alert ${code} received and recorded.`,
-        history,
-      });
     }
     if (path.endsWith("/event") && request.method === "POST") {
       const actor = request.headers.get("x-actor-id") ?? "server";
@@ -1091,8 +853,6 @@ export class Lobby implements DurableObject {
       this.record(ev, publicKey ? "public" : "server");
       return json({ ok: true });
     }
-    if (path.endsWith("/leaderboard"))
-      return json({ ok: true, entries: this.global.slice(0, GLOBAL_TOP) });
     if (path.endsWith("/audit")) {
       // The public log page shows the whole 90-day retention window, not a recent
       // slice, so the ceiling here is the retention cap rather than a page size.
@@ -1474,7 +1234,6 @@ export class Lobby implements DurableObject {
       backup: await this.loadBackupState(),
       ...(await this.controlHistory(50)),
       rooms,
-      global: this.global.slice(0, GLOBAL_TOP),
     };
   }
   private async billing() {
@@ -1951,25 +1710,6 @@ export class Lobby implements DurableObject {
       r2ClassB: this.usage.r2ClassB,
       rooms,
     };
-  }
-  private mergeGlobal(b: TankRoom & { topName?: string }): void {
-    const name = sanitizeDisplayName(b.topName);
-    if (!b.topScore || name === "Player") return;
-    const existing = this.global.find((e) => e.name === name);
-    if (existing)
-      existing.score = Math.max(existing.score, clampInt(b.topScore, 0, 1e9));
-    else
-      this.global.push({
-        id: `${b.id}:${crypto.randomUUID()}`,
-        name,
-        skin: DEFAULT_SKIN,
-        score: clampInt(b.topScore, 0, 1e9),
-        alive: true,
-      });
-    this.global.sort((a, c) => c.score - a.score);
-    this.global = this.global.slice(0, GLOBAL_TOP);
-    this.countWrites(1);
-    this.ctx.waitUntil(this.ctx.storage.put("global", this.global));
   }
   private countWrites(count: number): void {
     this.usage.storageWrites += count;
@@ -2494,7 +2234,6 @@ export class Lobby implements DurableObject {
    * from the state it held before the restore and report the copy as having failed.
    */
   private async reloadFromStorage(): Promise<void> {
-    this.global = (await this.ctx.storage.get<ScoreEntry[]>("global")) ?? [];
     this.usage = (await this.ctx.storage.get<Usage>("usage")) ?? this.usage;
     this.spendHistory = (await this.ctx.storage.get<SpendSample[]>("spendHistory")) ?? [];
     this.dayBaseline = (await this.ctx.storage.get<DayBaseline>("dayBaseline")) ?? null;
@@ -2668,7 +2407,7 @@ async function hashControlEntry(
 function validEventType(type: unknown): type is string {
   return (
     typeof type === "string" &&
-    /^(room-boot|join|leave|death|play|customize|skin|settings|nav|quit|security-report|test-alert)$/.test(
+    /^(room-boot|join|leave|death|play|customize|skin|settings|nav|quit)$/.test(
       type,
     )
   );

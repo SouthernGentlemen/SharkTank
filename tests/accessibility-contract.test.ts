@@ -13,6 +13,9 @@ const focusTrap = read("../vendor/ModuleReact3Fiber/src/client/a11y/useFocusTrap
 const input = read("../vendor/ModuleReact3Fiber/src/client/game/useLocalInput.ts");
 const theme = read("../vendor/ModuleReact3Fiber/src/client/ui/theme.css");
 const settings = read("../vendor/ModuleReact3Fiber/src/client/ui/Settings.tsx");
+const lobby = read("../src/worker/lobby-do.ts");
+const presentationData = read("../src/worker/presentation-data.ts");
+const protocol = read("../vendor/ModuleReact3Fiber/src/protocol/index.ts");
 
 describe("public accessibility contract", () => {
   it("keeps a keyboard bypass, visible focus, contrast, motion, and hash focus handling on evidence pages", () => {
@@ -62,6 +65,15 @@ describe("canonical public information architecture", () => {
 
     for (const retiredLiteral of [
       'path === "/api/lobby"',
+      'path === "/api/leaderboard"',
+      'path === "/api/security-report"',
+      'path === "/admin/security-report"',
+      'path === "/admin/security-resolve"',
+      'path === "/admin/test-alert"',
+      'path === "/incidents.json"',
+      'path === "/logs.json"',
+      'path === "/docs/openapi.json"',
+      'path === "/openapi.json"',
       'path === "/inquiry.json"',
       'path === "/audit.json"',
       'path === "/audit.jsonl"',
@@ -75,6 +87,15 @@ describe("canonical public information architecture", () => {
     expect(worker).toContain('if (path === "/admin/log.jsonl")');
     expect(worker).toContain("path.match(/^\\/admin\\/game\\/");
     expect(worker).toContain("path.match(/^\\/admin\\/replay\\/");
+    expect(protocol).not.toContain('leaderboard: "/api/leaderboard"');
+    expect(protocol).not.toContain("LeaderboardResponse");
+    expect(lobby).not.toContain("mergeGlobal");
+    expect(lobby).not.toContain('ctx.storage.put("global"');
+    expect(lobby).not.toContain('path.endsWith("/leaderboard")');
+    expect(presentationData).toContain("instance: _instance, global: _global");
+    for (const retiredControl of ["/admin/security-report", "/admin/security-resolve", "/admin/test-alert", "/api/security-report"]) expect(presentation).not.toContain(retiredControl);
+    expect(presentation).toContain('"security-report": "S500"');
+    expect(presentation).toContain('"test-alert": "A600"');
   });
 
 });
