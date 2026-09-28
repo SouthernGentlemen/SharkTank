@@ -14,7 +14,8 @@ const workerPresentationSource = read("../src/worker/presentation-react.tsx");
 const appSource = read("../vendor/ModuleReact3Fiber/src/client/App.tsx");
 const mountedPresentationSource = [
   "../vendor/ModuleReact3Fiber/src/client/App.tsx",
-  "../vendor/ModuleReact3Fiber/src/client/game/GameCanvas.tsx",
+  "../vendor/ModuleReact3Fiber/src/client/game/GameViewport.tsx",
+  "../vendor/ModuleReact3Fiber/src/client/game/Scene.tsx",
   "../vendor/ModuleReact3Fiber/src/client/settings/SettingsContext.tsx",
   "../vendor/ModuleReact3Fiber/src/client/ui/Captions.tsx",
   "../vendor/ModuleReact3Fiber/src/client/ui/Customize.tsx",
