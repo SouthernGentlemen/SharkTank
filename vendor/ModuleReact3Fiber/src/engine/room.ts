@@ -18,7 +18,7 @@ import {
   yawPitchToward,
 } from "./geometry3d.js";
 import { nextRandom, seedToNumber } from "./rng.js";
-import type { Action, Food, RocketProjectile, RoomState, ScoreEntry, Snake, Vec3 } from "./types.js";
+import type { Action, Food, OceanVolume, RocketProjectile, RoomState, ScoreEntry, Snake, Vec3 } from "./types.js";
 
 // ── Tuning ────────────────────────────────────────────────────────────────────
 // Ticking at 30Hz (vs 20) means fresher snapshots → less perceived lag. Per-tick speeds
@@ -33,7 +33,8 @@ export const DEFAULT_SEABED_Y = -12;
 export const DEFAULT_SURFACE_Y = 12;
 const BASE_SPEED = 0.556; // world units / tick (~11 u/s)
 const BOOST_SPEED = 1.42; // (~28 u/s) — short, high-impact chomp dash
-const TURN_RATE = 0.22; // max radians / tick (~4.4 rad/s)
+const TURN_RATE = 0.22; // max yaw radians / tick (~4.4 rad/s)
+const PITCH_RATE = 0.16; // max pitch radians / tick (~3.2 rad/s), calmer near surface/floor
 const SEGMENT_SPACING = 0.62; // arc-length between body discs sampled off the head trail
 const START_LENGTH = 10;
 /** A fresh shark enters at the size of the field, not at the size of an empty tank.
@@ -70,6 +71,8 @@ const FRENZY_CHUM = 46;
 // farm every fresh spawn. A lower ceiling keeps the size ladder climbable.
 const BOT_RETIRE_SCORE = 240;
 const DASH_TICKS = 10;
+const DASH_ACCEL_TICKS = 3;
+const DASH_DECEL_TICKS = 4;
 const DASH_COOLDOWN_TICKS = TICKS_PER_SECOND * 2;
 const ROCKET_SPEED = 3.1;
 const ROCKET_LIFETIME_TICKS = TICKS_PER_SECOND * 3;
@@ -225,10 +228,25 @@ export const MOVE = {
   BASE_SPEED,
   BOOST_SPEED,
   TURN_RATE,
+  PITCH_RATE,
   SEGMENT_SPACING,
   MIN_LENGTH,
   FRENZY_SPEED,
 } as const;
+
+/**
+ * Deterministic forward speed envelope for the existing dash/lunge state.
+ * It uses only lungeTicks, so schema-8 snapshots/replays need no new velocity field.
+ */
+export function swimSpeedForLungeTicks(lungeTicks: number): number {
+  const ticks = Math.max(0, Math.min(DASH_TICKS, Math.floor(Number.isFinite(lungeTicks) ? lungeTicks : 0)));
+  if (ticks === 0) return BASE_SPEED;
+  const elapsed = DASH_TICKS - ticks;
+  const accel = Math.min(1, (elapsed + 1) / DASH_ACCEL_TICKS);
+  const decel = Math.min(1, ticks / DASH_DECEL_TICKS);
+  const envelope = Math.min(accel, decel);
+  return BASE_SPEED + (BOOST_SPEED - BASE_SPEED) * envelope;
+}
 
 /** Sample `count` evenly-spaced points by walking a head-first trail at SEGMENT_SPACING
  *  arc-length steps (interpolating between breadcrumbs). Pure — reused by the server
@@ -298,11 +316,23 @@ function spawnLength(state: RoomState): number {
   return Math.min(MAX_SPAWN_LENGTH, Math.max(START_LENGTH, medianLivingLength(state) * SPAWN_MEDIAN_SHARE));
 }
 
+export function spawnOrientationForPoint(
+  spawn: Vec3,
+  ocean: OceanVolume,
+  yawJitter = 0,
+): { yaw: number; pitch: number } {
+  const yaw = normalizeYaw(Math.atan2(-spawn.z, -spawn.x) + yawJitter);
+  const middleY = (ocean.seabedY + ocean.surfaceY) / 2;
+  const horizontalDistance = Math.max(8, Math.sqrt(spawn.x * spawn.x + spawn.z * spawn.z));
+  const pitchToMiddle = Math.atan2(middleY - spawn.y, horizontalDistance);
+  const pitch = clampPitch(Math.max(-0.35, Math.min(0.35, pitchToMiddle)));
+  return { yaw, pitch };
+}
+
 function makeSnake(state: RoomState, id: string, name: string, skin: string, isBot: boolean): Snake {
   const spawn = safeSpawn(state);
   const length = spawnLength(state);
-  const yaw = normalizeYaw(Math.atan2(-spawn.z, -spawn.x) + randRange(state, -0.5, 0.5));
-  const pitch = 0;
+  const { yaw, pitch } = spawnOrientationForPoint(spawn, state.ocean, randRange(state, -0.5, 0.5));
   const backward = forwardFromYawPitch(yaw, pitch);
   const path: Vec3[] = [];
   const trailStep = SEGMENT_SPACING;
@@ -544,19 +574,16 @@ export function step(state: RoomState): RoomState {
 
 function moveSnake(state: RoomState, s: Snake): void {
   s.yaw = rotateYawToward(s.yaw, s.targetYaw, TURN_RATE);
-  s.pitch = clampPitch(moveToward(s.pitch, s.targetPitch, TURN_RATE));
+  s.pitch = clampPitch(moveToward(s.pitch, s.targetPitch, PITCH_RATE));
 
-  let speed = BASE_SPEED;
+  let speed = swimSpeedForLungeTicks(s.lungeTicks);
   s.chargeTicks ??= 0;
   s.lungeTicks ??= 0;
   s.dashCooldownTick ??= 0;
   s.rocketTicks ??= 0;
   s.rocketCooldownTick ??= 0;
   if (s.boosting) s.chargeTicks = Math.min(16, s.chargeTicks + 1);
-  if (s.lungeTicks > 0) {
-    speed = BOOST_SPEED;
-    s.lungeTicks -= 1;
-  }
+  if (s.lungeTicks > 0) s.lungeTicks -= 1;
   if (s.rocketTicks > 0) s.rocketTicks -= 1;
   if (isFrenzy(state)) speed *= FRENZY_SPEED;
 

@@ -82,38 +82,6 @@ These are acceptance targets, not permission to fake authority:
 
 ## Open tasks
 
-### ST-115 — [FEAT] Add third-person shark swimming and chase-camera handling
-
-**Goal**
-
-Make movement feel like controlling an animal through water rather than moving a cursor token on a plane.
-
-**Scope**
-
-- Add camera-relative yaw/pitch steering with configurable turn and pitch rates.
-- Clamp extreme pitch so players cannot flip into disorienting singularities.
-- Add acceleration/deceleration and turn smoothing without making input feel delayed.
-- Derive visual roll/bank from yaw rate and smoothly return toward neutral.
-- Add chase-camera spring, look-ahead and distance behavior based on shark size/speed.
-- Keep camera collision/simple environment avoidance bounded; do not build a general physics system.
-- Implement reduced-motion behavior that lowers camera spring, bank, shake and aggressive FOV changes without removing 3D gameplay information.
-- Tune spawn orientation to face into useful water volume rather than walls/surface/floor.
-
-**Non-goals**
-
-- No final touch controls in this task.
-- No bite/combat rewrite.
-- No final environment art.
-
-**Acceptance**
-
-- Full pitch/yaw traversal is possible in a local deterministic tank.
-- Camera remains behind/readable through dives, climbs and hard turns.
-- A player can always tell forward direction.
-- Reduced motion remains fully playable.
-
----
-
 ### ST-116 — [FEAT] Rebuild desktop controls for full-3D play
 
 **Goal**
