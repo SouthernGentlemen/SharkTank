@@ -82,45 +82,6 @@ These are acceptance targets, not permission to fake authority:
 
 ## Open tasks
 
-### ST-110 — [REFACTOR] Make React Three Fiber the only gameplay renderer
-
-**Goal**
-
-Replace the shipped Canvas2D gameplay surface with an R3F `<Canvas>` path while deliberately keeping the current planar game mechanics for this one task. This proves the renderer cutover before protocol and movement semantics change.
-
-**Scope**
-
-- Introduce one production game viewport component that owns the R3F `<Canvas>`, camera and `Scene`.
-- Mount that viewport from `GameScreen.tsx` instead of the current Canvas2D `GameCanvas`.
-- Port every currently visible competitive cue needed for parity into R3F: local/remote sharks, food, arena boundary, rockets, explosions, frenzy state and local prediction/interpolation.
-- Preserve the existing DOM HUD, leaderboard, settings, captions, labels, death/respawn and touch/keyboard controls.
-- Keep existing X/Z gameplay state and existing wire protocol unchanged in this task.
-- Once parity is proved, delete the Canvas2D draw loop, `goofySharkSprite` path and helpers that exist only for the old renderer.
-- Rename/refactor misleading component names so `GameCanvas` no longer means a Canvas2D implementation.
-
-**Non-goals**
-
-- No Y-axis gameplay yet.
-- No new shark model, ocean art, combat rules, round system or release.
-- No dependency upgrade merely for the cutover.
-
-**Acceptance**
-
-- There is exactly one production gameplay renderer and it is R3F.
-- No `CanvasRenderingContext2D` gameplay renderer remains reachable from `/play/`.
-- Current movement, dash, rocket, feeding frenzy, death, respawn, score and leaderboard behavior remain mechanically unchanged.
-- Local prediction and remote interpolation remain smooth enough to play.
-- Reduced-motion and colorblind label behavior still work.
-
-**Validation**
-
-- Focused renderer/import-boundary tests.
-- Existing engine/protocol/game-client tests.
-- `npm run check`, `npm run audit:dependencies`, `git diff --check`.
-- Build output proves Three/R3F stays client-only.
-
----
-
 ### ST-111 — [BUILD] Establish the 3D ocean-world rendering skeleton
 
 **Goal**

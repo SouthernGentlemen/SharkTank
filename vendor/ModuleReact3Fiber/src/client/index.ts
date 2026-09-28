@@ -4,7 +4,7 @@ export type { AppProps } from "./App.js";
 
 // Lower-level pieces, exported for embedding/testing.
 export { GameScreen } from "./ui/GameScreen.js";
-export { GameCanvas } from "./game/GameCanvas.js";
+export { GameViewport } from "./game/GameViewport.js";
 export { Scene } from "./game/Scene.js";
 export { useRoomSocket } from "./net/useRoomSocket.js";
 export type { RoomSocket } from "./net/useRoomSocket.js";

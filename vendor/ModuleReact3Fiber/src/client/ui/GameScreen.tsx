@@ -8,7 +8,7 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import { TICKS_PER_SECOND } from "../../engine/index.js";
-import { GameCanvas } from "../game/GameCanvas.js";
+import { GameViewport } from "../game/GameViewport.js";
 import type { SnakeLabel } from "../game/Scene.js";
 import type { StickState } from "../game/useLocalInput.js";
 import { useRoomSocket } from "../net/useRoomSocket.js";
@@ -91,7 +91,7 @@ export function GameScreen({ room, identity, onQuit }: GameScreenProps) {
       id="main"
       className={touch ? `game-screen game-screen--touch game-screen--stick-${stickSide}` : "game-screen"}
     >
-      <GameCanvas socket={socket} settings={settings} inputEnabled={inputEnabled} labelsRef={labelsRef} stickRef={stickRef} touchControls={touch} />
+      <GameViewport socket={socket} settings={settings} inputEnabled={inputEnabled} labelsRef={labelsRef} stickRef={stickRef} touchControls={touch} />
 
       {settings.a11y.colorblindLabels && <SnakeLabels labelsRef={labelsRef} />}
 

@@ -521,7 +521,7 @@ body {
 .settings-choice-legend{padding:0 6px;font-weight:600}.settings-choice-options{flex-wrap:wrap}.settings-choice-option{gap:6px;cursor:pointer}.settings-radio{width:20px;height:20px}
 .settings-keybind-list{list-style:none;margin:0;padding:0;display:grid;gap:8px}
 
-.game-screen,.game-canvas-surface{position:absolute;inset:0;overflow:hidden}.game-canvas-surface{outline:none}.game-canvas{width:100%;height:100%;display:block;touch-action:none}
+.game-screen,.game-viewport{position:absolute;inset:0;overflow:hidden}.game-viewport{outline:none}.game-viewport canvas{width:100%;height:100%;display:block;touch-action:none}
 .game-captions{position:absolute;bottom:84px;left:50%;transform:translateX(-50%);z-index:11;pointer-events:none}
 .game-caption-pill{display:inline-block;padding:6px 14px;border:1px solid var(--border-strong);border-radius:999px;background:rgba(6,5,12,.85);color:var(--text);font-weight:700;letter-spacing:.4px}
 .control-key{display:inline-block;min-width:22px;padding:2px 6px;border:1px solid var(--border-strong);border-radius:6px;background:var(--surface-3);color:var(--text);font-family:ui-monospace,monospace;font-size:.85rem;text-align:center}
