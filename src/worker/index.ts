@@ -22,12 +22,9 @@ import {
   PAGE_CSS_PATH,
   gameLogText,
   incidentSummary,
-  normalizeGameLogEvent,
-  normalizeServiceLogEvent,
   pageCssResponse,
   tankCopy,
   type ControlHistoryEntry,
-  type ControlHistoryIntegrity,
   type GameLogWireEvent,
   type IncidentRecord,
   type PublicEvidenceStatus,
@@ -234,41 +231,17 @@ function roomFetch(env: Env, roomId: string, pathAndQuery: string, init?: Reques
  * evidence pages read as "nothing has ever happened" the moment a day passed. Anchored
  * to the first hour of the build so the window only ever grows.
  */
-async function incidentData(env: Env): Promise<{ incidents: IncidentRecord[]; history: ControlHistoryEntry[]; historyIntegrity: ControlHistoryIntegrity }> { const res = await lobbyStub(env).fetch("https://lobby/incidents"); const data = (await res.json()) as { incidents?: IncidentRecord[]; history?: ControlHistoryEntry[]; historyIntegrity?: ControlHistoryIntegrity }; return { incidents: [...INCIDENTS, ...(data.incidents ?? [])].map((incident) => ({ ...incident, title: tankCopy(incident.title), summary: tankCopy(incident.summary) })), history: data.history ?? [], historyIntegrity: data.historyIntegrity ?? { mode: "append-only tamper-evident hash chain", algorithm: "SHA-256", entryCount: 0, headHash: null } }; }
-/**
- * Availability bar, measured from the first hour of the project to now.
- *
- * Reorganised into two explicitly labelled lanes with a real time axis. Previously the
- * two stacked strips were unlabelled and `preserveAspectRatio="none"` stretched the
- * markers into wedges, so the chart showed colour without saying what was being
- * measured or when. Every marker is now a link to its control receipt — or, when a
- * control never produced one, to the incident's own card — so nothing on the chart is
- * a dead end.
- */
-
-/** The whole public log record: 90 days of service evidence, 24 hours of captures. */
+/** The evidence page reads only the newest service slice; tank captures stay on per-tank TXT routes. */
 async function publicLogData(env: Env) {
-  const [serviceResponse, ...roomResponses] = await Promise.all([
-    lobbyStub(env).fetch(`https://lobby/audit?limit=${LOG_FETCH_SERVICE}`),
-    ...AUDIT_ROOMS.map((room) => roomFetch(env, room, `/log?limit=${LOG_FETCH_CAPTURES}`)),
-  ]);
+  const serviceResponse = await lobbyStub(env).fetch(`https://lobby/audit?limit=${LOG_FETCH_SERVICE}`);
   const serviceData = (await serviceResponse.json()) as { events?: PublicLogEvent[] };
-  const roomData = await Promise.all(roomResponses.map((response) => response.json() as Promise<{ events?: GameLogWireEvent[] }>));
   const serviceEvents = serviceData.events ?? [];
-  // The room prunes past 24 hours, but a snapshot restored from storage can still hand
-  // back an older row; filter here so the page's stated window is always the true one.
-  const cutoff = Date.now() - CAPTURE_WINDOW_MS;
-  const tanks = AUDIT_ROOMS.map((room, index) => ({
-    room,
-    records: (roomData[index].events ?? []).filter((event) => event.ts >= cutoff).map(normalizeGameLogEvent),
-  }));
   return {
     serviceEvents,
-    service: serviceEvents.map(normalizeServiceLogEvent),
-    tanks,
+    tanks: [],
     caps: {
       serviceTruncated: serviceEvents.length >= LOG_FETCH_SERVICE,
-      captureTruncated: tanks.some((tank) => tank.records.length >= LOG_FETCH_CAPTURES),
+      captureTruncated: false,
     },
   };
 }
@@ -574,13 +547,12 @@ export default {
       }
       if (path === "/evidence") return movedTo(url, "/evidence/");
       if (path === "/evidence/") {
-        const [statusRes, incidentRecord, logs] = await Promise.all([
+        const [statusRes, logs] = await Promise.all([
           lobbyStub(env).fetch("https://lobby/status"),
-          incidentData(env),
           publicLogData(env),
         ]);
         const data = (await statusRes.json()) as PublicEvidenceStatus;
-        return html(renderEvidenceDocument(data, incidentRecord, logs));
+        return html(renderEvidenceDocument(data, logs));
       }
 
       if (path === "/spend.json") {
@@ -636,8 +608,8 @@ export default {
         const data = (await res.json()) as Record<string, unknown> & { maintenanceIncidents?: IncidentRecord[]; billingWindow?: unknown; usage?: Record<string, unknown> };
         const incidents = [...INCIDENTS, ...(data.maintenanceIncidents ?? [])];
         const { publicData, publicUsage } = publicStatusProjection(data);
-        const tankAvailability = incidentSummary(incidents), portalAvailability = incidentSummary([]);
-        return json({ ...publicData, usage: publicUsage, availability: tankAvailability, tankAvailability, portalAvailability, incidents });
+        const tankAvailability = incidentSummary(incidents);
+        return json({ ...publicData, usage: publicUsage, availability: tankAvailability, tankAvailability, incidents });
       }
       // Full state export. Behind operations authentication because it is every profile
       // and every receipt in one body; the public evidence for backups is the shape and

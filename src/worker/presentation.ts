@@ -32,15 +32,15 @@ function statusLiveScript(): string {
   var btn=document.getElementById('status-autoupdate'),stamp=document.getElementById('status-updated-at'),live=document.getElementById('status-live'),rows=document.getElementById('status-tank-rows');
   if(!btn)return;
   var timer=null,lastSummary='',failures=0;
-  function dur(ms){var s=Math.round(ms/1000);return s<60?s+'s':s<3600?Math.round(s/60)+'m':(s/3600).toFixed(1)+'h';}
   function value(id,text){var el=document.getElementById(id);if(el)el.textContent=text;}
   function detail(id,text){var el=document.getElementById(id);if(!el||!el.parentNode)return;var d=el.parentNode.querySelector('.metric-detail');if(d)d.textContent=text;}
   function apply(d){
     var list=d.rooms||[],players=list.reduce(function(n,r){return n+(r.players||0);},0),open=!(d.maintenance&&d.maintenance.enabled);
-    if(d.portalAvailability){value('status-portal-availability',d.portalAvailability.availabilityPercent+'%');detail('status-portal-availability',d.portalAvailability.unscheduledDowntimePercent+'% unscheduled downtime');}
-    if(d.availability){value('status-tank-availability',d.availability.availabilityPercent+'%');detail('status-tank-availability',d.availability.unscheduledDowntimePercent+'% unscheduled downtime');value('status-scheduled-downtime',dur(d.availability.scheduledDowntimeMs||0));}
+    if(d.availability){value('status-tank-availability',d.availability.availabilityPercent+'%');detail('status-tank-availability',d.availability.unscheduledDowntimePercent+'% unscheduled downtime');}
     value('status-tank-access',open?'OPEN':'CLOSED');
-    detail('status-tank-access',open?players+' active players':'scheduled gate active');
+    detail('status-tank-access',open?'game traffic available':'scheduled gate active');
+    value('status-active-players',String(players));
+    detail('status-active-players',(players===1?'human session across ':'human sessions across ')+list.length+' tanks');
     if(rows){
       var frag=document.createDocumentFragment();
       list.forEach(function(r){
@@ -57,7 +57,6 @@ function statusLiveScript(): string {
   }
   function poll(){
     fetch('/status.json',{headers:{'accept':'application/json'}}).then(function(r){return r.ok?r.json():Promise.reject(r.status);}).then(function(d){failures=0;apply(d);}).catch(function(){
-      // Three consecutive failures: stop polling rather than hammer a struggling origin.
       if(++failures>=3){stop();if(stamp)stamp.textContent='paused after repeated errors';}
     });
   }
@@ -126,7 +125,7 @@ const PAGE_CSS = `
   .grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:12px}
   .kpi{font-size:1.6rem;font-weight:800}
   .kpi small{display:block;font-size:.75rem;color:#b9b4d6;font-weight:600}
-  .metric-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:12px;margin:0 0 14px}.metric-grid>*{min-width:0}.stat-grid{grid-template-columns:repeat(6,minmax(0,1fr))}.status-metrics{grid-template-columns:repeat(4,minmax(0,1fr))}.spend-metrics{grid-template-columns:repeat(4,minmax(0,1fr))}.spend-metrics .metric-value{display:-webkit-box;min-height:2.15em;overflow:hidden;white-space:normal;overflow-wrap:anywhere;-webkit-box-orient:vertical;-webkit-line-clamp:2}
+  .metric-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:12px;margin:0 0 14px}.metric-grid>*{min-width:0}.stat-grid{grid-template-columns:repeat(6,minmax(0,1fr))}.status-metrics{grid-template-columns:repeat(3,minmax(0,1fr))}.spend-metrics{grid-template-columns:repeat(4,minmax(0,1fr))}.spend-metrics .metric-value{display:-webkit-box;min-height:2.15em;overflow:hidden;white-space:normal;overflow-wrap:anywhere;-webkit-box-orient:vertical;-webkit-line-clamp:2}
   .metric-card{position:relative;display:grid;grid-template-rows:auto auto auto 1fr;align-content:start;overflow:hidden;min-width:0;min-height:124px;padding:15px 16px;border:1px solid #3a355e;border-radius:14px;background:linear-gradient(145deg,#19172f,#121123)}
   .metric-card:after{content:"";position:absolute;right:-35px;bottom:-45px;width:110px;height:110px;border-radius:50%;background:color-mix(in srgb,currentColor 10%,transparent)}
   .metric-head{display:flex;align-items:center;justify-content:space-between;gap:12px}.metric-icon{width:30px;height:30px;color:#a78bff}.metric-icon svg{display:block;width:100%;height:100%}
@@ -650,7 +649,7 @@ function spendHtml(billing: Record<string, unknown>, embedded = false): string {
       <p class="meter-legend"><span><i></i> today, against a whole day's allowance</span><span><b></b> where the daily average sits</span><span>ticks mark 0.001 / 0.01 / 0.1 / 1 / 10 / 100% — the axis is logarithmic</span></p>
       <div class="table-scroll" role="region" aria-label="Usage against the free tier" tabindex="0"><table class="billing-table meter-table"><caption class="sr-only">Usage against the free tier</caption><thead><tr><th scope="col">Service</th><th scope="col">Used to date</th><th scope="col">Limit</th><th scope="col">Today</th><th scope="col">Daily average</th></tr></thead><tbody>
       ${rows.map(meterRowHtml).join("")}
-    </tbody></table></div><p class="sub u-m-12-0-0">Sources: <a href="${esc(String(sources.workers ?? "#"))}">Workers</a>, <a href="${esc(String(sources.durableObjects ?? "#"))}">Durable Objects</a>, <a href="${esc(String(sources.r2 ?? "#"))}">R2</a>. Worker requests are not counted here: exact request billing is only available from account analytics.</p></div>`;
+    </tbody></table></div><p class="sub u-m-12-0-0">At the ${hardLimit.toFixed(2)} hard stop, gameplay and metered public writes close while read-only evidence and protected administration remain available.</p><p class="sub u-m-12-0-0">Sources: <a href="${esc(String(sources.workers ?? "#"))}">Workers</a>, <a href="${esc(String(sources.durableObjects ?? "#"))}">Durable Objects</a>, <a href="${esc(String(sources.r2 ?? "#"))}">R2</a>. Worker requests are not counted here: exact request billing is only available from account analytics.</p></div>`;
 }
 
 
@@ -757,7 +756,6 @@ function timelineLegend(incidents: IncidentRecord[], history: ControlHistoryEntr
   const unscheduled = causes.filter((cause) => !SCHEDULED_INCIDENT_CAUSES.has(cause));
   const group = (label: string, items: string[]) => items.length ? `<div class="timeline-key__group"><span class="timeline-key__label">${label}</span>${items.join("")}</div>` : "";
   return `<div class="timeline-key">
-    ${group("Server", [`<span><i class="key-green"></i>Available <b>100%</b></span>`])}
     ${group("Tank · scheduled", scheduled.map(entry))}
     ${group("Tank · unscheduled", unscheduled.map(entry))}
     <p class="timeline-key-note">Every legend entry links to the record that produced it. Chart markers are pointer shortcuts to the same records; by keyboard, reach them through the legend above or the incident list under <a href="#incidents">Incidents</a>.</p>
@@ -965,48 +963,33 @@ function incidentTimelineSvg(incidents: IncidentRecord[], now = Date.now(), hist
     const b = Math.min(ticks - 1, Math.floor((incidentImpactEnd(incident, now) - start) / bucket));
     for (let i = a; i <= b; i += 1) byCause.set(i, incidentTone(incident.cause).color);
   }
-  const bar = (y: number, fill: (i: number) => string) => Array.from({ length: ticks }, (_, i) =>
-    `<rect x="${(left + i * step).toFixed(2)}" y="${y}" width="${Math.max(1.2, step - 0.6).toFixed(2)}" height="16" fill="${fill(i)}"/>`).join("");
-  const serverLane = bar(20, () => "#4ade80");
-  const tankLane = bar(48, (i) => byCause.get(i) ?? "#4ade80");
-  const markers = incidents.map((x) => {
+  const tankLane = Array.from({ length: ticks }, (_, i) =>
+    `<rect x="${(left + i * step).toFixed(2)}" y="20" width="${Math.max(1.2, step - 0.6).toFixed(2)}" height="16" fill="${byCause.get(i) ?? "#4ade80"}"/>`).join("");
+  const markers = relevant.map((x) => {
     const at = incidentTime(x.startedAt, now);
     const px = left + Math.max(0, Math.min(ticks - 1, Math.floor((at - start) / bucket))) * step + step / 2;
     const tone = incidentTone(x.cause), anchor = receiptAnchor(x, history) ?? incidentAnchor(x);
     const when = new Date(at).toISOString().replace("T", " ").slice(0, 16) + "Z";
-    // Marker sits in the gutter with a guide line into the tank lane, so a five-minute
-    // incident inside a multi-day window is still findable at a glance.
     const label = esc(`${x.status.toUpperCase()} · ${x.cause} · ${x.title} · ${when}`);
     const shape = `<g class="tl-marker"><title>${label}</title>`
-      + `<line x1="${px.toFixed(2)}" y1="44" x2="${px.toFixed(2)}" y2="64" stroke="${tone.color}" stroke-width="1.5" opacity=".85"/>`
-      + `<path d="M ${px.toFixed(2)} 44 l -6 -8 l 12 0 Z" fill="${tone.color}" stroke="#0b0a14" stroke-width="1"/></g>`;
-    // A padded transparent rect behind the marker: the arrow itself is 12x8, well under the
-    // 24x24 target minimum once the link is focusable (SC 2.5.8).
-    const hit = `<rect x="${(px - 13).toFixed(2)}" y="34" width="26" height="32" fill="transparent" rx="3" class="tl-hit"/>`;
+      + `<line x1="${px.toFixed(2)}" y1="16" x2="${px.toFixed(2)}" y2="40" stroke="${tone.color}" stroke-width="1.5" opacity=".85"/>`
+      + `<path d="M ${px.toFixed(2)} 16 l -6 -8 l 12 0 Z" fill="${tone.color}" stroke="#0b0a14" stroke-width="1"/></g>`;
+    const hit = `<rect x="${(px - 13).toFixed(2)}" y="6" width="26" height="38" fill="transparent" rx="3" class="tl-hit"/>`;
     return `<g role="listitem"><a href="${linkBase}#${anchor}" aria-label="${label}">${hit}${shape}</a></g>`;
   }).join("");
-  const axis = (label: string, x: number, anchorPoint: string) => `<text x="${x}" y="82" class="tl-axis" text-anchor="${anchorPoint}">${esc(label)}</text>`;
-  // Wrapped in a scroller with a floor width: letting the chart shrink to a phone's
-  // width scaled the lane labels and axis down to a few pixels, which is worse than
-  // scrolling. Same containment the data tables already use.
+  const axis = (label: string, x: number, anchorPoint: string) => `<text x="${x}" y="58" class="tl-axis" text-anchor="${anchorPoint}">${esc(label)}</text>`;
   const downMs = relevant.reduce((total, x) => total + Math.max(0, incidentImpactEnd(x, now) - incidentTime(x.startedAt, now)), 0);
   const spoken = relevant.length === 0
-    ? `Server and tank availability from project start to now, ${formatWindow(span)} measured. No downtime recorded on either lane.`
-    : `Server and tank availability from project start to now, ${formatWindow(span)} measured. Server lane: no downtime recorded. Tank lane: ${relevant.length} incident${relevant.length === 1 ? "" : "s"} totalling ${formatWindow(downMs)} of degraded availability.`;
+    ? `Tank availability from project start to now, ${formatWindow(span)} measured. No downtime recorded.`
+    : `Tank availability from project start to now, ${formatWindow(span)} measured. ${relevant.length} incident${relevant.length === 1 ? "" : "s"} total ${formatWindow(downMs)} of degraded availability.`;
   const spokenDetail = relevant.length === 0 ? "" : `<ul class="sr-only">${relevant.map((x) => {
     const from = incidentTime(x.startedAt, now), to = incidentImpactEnd(x, now);
     return `<li>${esc(x.cause)} — ${esc(new Date(from).toISOString().replace("T", " ").slice(0, 16))}Z, lasting ${esc(formatWindow(Math.max(0, to - from)))}.</li>`;
   }).join("")}</ul>`;
-  // The floor width is what makes the marker hit areas real: the viewBox is 768 units wide,
-  // so below a 768px render one unit is under one CSS pixel and a 26-unit target lands
-  // beneath the 24x24 minimum (SC 2.5.8). At 768 the mapping is 1:1 and the scroller —
-  // already here, already labelled and focusable — takes the overflow, exactly as the
-  // incident chart beside it does.
-  return `<div class="timeline-scroll availability-chart" role="region" aria-label="Availability timeline" tabindex="0"><svg role="group" aria-labelledby="tl-title tl-desc" viewBox="0 0 ${width} 90" preserveAspectRatio="xMidYMid meet">
-    <title id="tl-title">Availability timeline</title>
+  return `<div class="timeline-scroll availability-chart" role="region" aria-label="Tank availability timeline" tabindex="0"><svg role="group" aria-labelledby="tl-title tl-desc" viewBox="0 0 ${width} 66" preserveAspectRatio="xMidYMid meet">
+    <title id="tl-title">Tank availability timeline</title>
     <desc id="tl-desc">${esc(spoken)}</desc>
-    <text x="0" y="32" class="tl-lane">Server</text>${serverLane}
-    <text x="0" y="60" class="tl-lane">Tank</text>${tankLane}
+    <text x="0" y="32" class="tl-lane">Tank</text>${tankLane}
     <g role="list" aria-label="Incident markers">${markers}</g>
     ${axis(new Date(start).toISOString().slice(0, 10), left, "start")}
     ${axis(formatWindow(span) + " measured", left + plot / 2, "middle")}
@@ -1021,6 +1004,7 @@ function historyItemHtml(entry: ControlHistoryEntry, searchable = false): string
 
 /** Rows per page in the receipt chain — shared by the markup and the inline script. */
 const CONTROL_HISTORY_PAGE_SIZE = 10;
+const CONTROL_HISTORY_RENDER_LIMIT = 50;
 const controlHistoryPageCount = (rows: number) => Math.max(1, Math.ceil(rows / CONTROL_HISTORY_PAGE_SIZE));
 
 /**
@@ -1039,9 +1023,10 @@ function logCountText(matched: number, total: number, page: number, pages: numbe
 
 /** Full receipt chain: searchable, code-filterable, paged 10 at a time, with the running total. */
 function controlHistoryListHtml(history: ControlHistoryEntry[], integrity: ControlHistoryIntegrity): string {
-  const ordered = history.slice().reverse();
+  const retained = history.slice(-CONTROL_HISTORY_RENDER_LIMIT);
+  const ordered = retained.slice().reverse();
   const items = ordered.map((entry) => historyItemHtml(entry, true)).join("");
-  const codes = [...new Set(history.map((entry) => entry.code))].sort().map((code) => `<option value="${esc(code)}">${esc(code)}</option>`).join("");
+  const codes = [...new Set(retained.map((entry) => entry.code))].sort().map((code) => `<option value="${esc(code)}">${esc(code)}</option>`).join("");
   const head = integrity.headHash ? `<code>${esc(integrity.headHash)}</code>` : "No receipt yet";
   return `<section class="card evidence-block" id="receipts" tabindex="-1"><div class="eyebrow">Control receipts</div><h2 class="u-mt-0">Append-only control history</h2><div class="integrity-line"><span class="integrity-badge">${esc(integrity.algorithm)}</span><span>${integrity.entryCount} entries · chain head ${head}</span></div><div class="integrity-line">${integrityVerdict(integrity)}</div>
     <div class="log-toolbar"><label><span>Search</span><input type="search" id="history-search" placeholder="Title, actor, reference, detail" autocomplete="off"></label><label><span>Control code</span><select id="history-code"><option value="">All codes</option>${codes}</select></label><span class="log-visible-count" id="history-count" role="status" aria-live="polite" aria-atomic="true">${esc(historyCountText(ordered.length, ordered.length, 1, controlHistoryPageCount(ordered.length)))}</span></div>
@@ -1140,23 +1125,20 @@ function logPager(tableId: string, records: number): string {
   return `<div class="history-pager"><button type="button" class="pager-btn" data-log-prev="${tableId}" aria-disabled="true">← Newer</button><span data-log-page="${tableId}" aria-hidden="true">Page 1 of ${pages}</span><button type="button" class="pager-btn" data-log-next="${tableId}"${pages > 1 ? "" : ' aria-disabled="true"'}>Older →</button></div>`;
 }
 
-function publicLogsHtml(events: PublicLogEvent[], gameLogs: PublicTankLog[], caps: { serviceTruncated: boolean; captureTruncated: boolean }, embedded = false): string {
-  const serviceRecords = events.map(normalizeServiceLogEvent).reverse(), serviceTableId = "service-log-table";
-  const rows = serviceRecords.map((record) => { const search = `${record.timestamp} ${record.reasonCode} ${record.action} ${record.subject} ${record.details}`.toLowerCase(); return `<tr data-log-row="1" data-search="${esc(search)}" data-reason="${esc(record.reasonCode)}"><td class="cell-time" title="${esc(record.timestamp)}"><time datetime="${esc(record.timestamp)}">${esc(record.timestamp)}</time></td><td class="cell-code"><code>${esc(record.reasonCode)}</code></td><td class="cell-code" title="${esc(record.action)}"><code>${esc(record.action)}</code></td><td class="cell-key" title="${esc(record.subject)}">${esc(record.subject)}</td><td class="cell-detail" title="${esc(record.details)}"><span>${esc(record.details)}</span></td></tr>`; }).join("");
-  const tanks = gameLogs.map(({ room, records }) => {
-    const tableId = `game-log-${room}`;
-    const captures = records.slice().reverse().map((record) => { const search = `${record.timestamp} ${record.reasonCode} ${record.tick} ${record.action} ${record.name} ${record.details}`.toLowerCase(); return `<tr data-log-row="1" data-search="${esc(search)}" data-reason="${esc(record.reasonCode)}" data-timestamp="${esc(record.timestamp)}" data-code="${esc(record.reasonCode)}" data-tick="${record.tick}" data-action="${esc(record.action.toLowerCase())}" data-details="${esc(record.details.toLowerCase())}"><td class="cell-time" title="${esc(record.timestamp)}"><time datetime="${esc(record.timestamp)}">${esc(record.timestamp)}</time></td><td class="cell-code"><code>${esc(record.reasonCode)}</code></td><td class="cell-seq">${record.tick}</td><td class="cell-code" title="${esc(record.action)}"><code>${esc(record.action)}</code></td><td class="cell-detail" title="${esc(record.details)}"><span>${esc(record.details)}</span></td></tr>`; }).join("");
-    const sortButton = (key: string, label: string, direction = "") => `<th scope="col" aria-sort="${direction === "asc" ? "ascending" : direction === "desc" ? "descending" : "none"}"><button type="button" class="table-sort" data-table="${tableId}" data-key="${key}"${direction ? ` data-direction="${direction}"` : ""}>${label}</button></th>`;
-    const tankName = AUDIT_ROOM_NAMES[room] ?? room;
-    return `<details class="card log-room"><summary><span class="log-summary"><strong>${esc(tankName)} Tank</strong><code>${esc(room)}</code><span class="log-count">${records.length} ${records.length === 1 ? "capture" : "captures"} · past 24h</span></span></summary><div class="log-room-body"><div class="log-actions"><a class="action-link" href="/logs/game/${encodeURIComponent(room)}.txt" download>Download the full 24-hour capture (TXT)</a></div>${logToolbar(tableId, records, `${tankName} Tank captures`)}<div class="table-scroll" role="region" aria-label="${esc(tankName)} Tank captures" tabindex="0"><table class="capture-table" id="${tableId}"><caption class="sr-only">${esc(tankName)} Tank captures</caption><thead><tr>${sortButton("timestamp", "Timestamp", "desc")}${sortButton("code", "Reason")}${sortButton("tick", "Tick")}${sortButton("action", "Action")}${sortButton("details", "Details")}</tr></thead><tbody>${captures || '<tr><td colspan="5">No captures in the past 24 hours.</td></tr>'}</tbody></table></div>${records.length > LOG_PAGE_SIZE ? logPager(tableId, records.length) : ""}</div></details>`;
+function publicLogsHtml(events: PublicLogEvent[], _gameLogs: PublicTankLog[], _caps: { serviceTruncated: boolean; captureTruncated: boolean }, embedded = false): string {
+  const serviceRecords = events.slice(-LOG_FETCH_SERVICE).map(normalizeServiceLogEvent).reverse(), serviceTableId = "service-log-table";
+  const rows = serviceRecords.map((record) => {
+    const search = `${record.timestamp} ${record.reasonCode} ${record.action} ${record.subject} ${record.details}`.toLowerCase();
+    return `<tr data-log-row="1" data-search="${esc(search)}" data-reason="${esc(record.reasonCode)}"><td class="cell-time" title="${esc(record.timestamp)}"><time datetime="${esc(record.timestamp)}">${esc(record.timestamp)}</time></td><td class="cell-code"><code>${esc(record.reasonCode)}</code></td><td class="cell-code" title="${esc(record.action)}"><code>${esc(record.action)}</code></td><td class="cell-key" title="${esc(record.subject)}">${esc(record.subject)}</td><td class="cell-detail" title="${esc(record.details)}"><span>${esc(record.details)}</span></td></tr>`;
   }).join("");
-  const truncationNote = caps.serviceTruncated || caps.captureTruncated
-    ? `<p class="table-note u-m-0">Showing the newest ${caps.serviceTruncated ? `${serviceRecords.length} service records` : ""}${caps.serviceTruncated && caps.captureTruncated ? " and " : ""}${caps.captureTruncated ? "captures per tank" : ""} — the retained record is larger than one page can carry.</p>`
-    : "";
+  const downloads = AUDIT_ROOMS.map((room) => {
+    const tankName = AUDIT_ROOM_NAMES[room] ?? room;
+    return `<a class="action-link" href="/logs/game/${encodeURIComponent(room)}.txt" download>${esc(tankName)} Tank · 24-hour TXT</a>`;
+  }).join("");
   const heading = embedded ? "h2" : "h1";
-  return `<section class="page-intro${embedded ? " evidence-block" : ""}"${embedded ? ' id="logs" tabindex="-1"' : ""}><div class="eyebrow">Public Shark Tank evidence</div><${heading}>Every operational move leaves a reason.</${heading}><p class="sub">Service evidence is retained for 90 days; tank captures for 24 hours. Both are shown in full below — every row carries a reason code.</p></section>
-    <details class="card log-room"><summary><span class="log-summary"><strong>Service evidence</strong><code>90-day retention</code><span class="log-count">${serviceRecords.length} records</span></span></summary><div class="log-room-body">${logToolbar(serviceTableId, serviceRecords, "service evidence")}<div class="table-scroll" role="region" aria-label="Service evidence" tabindex="0"><table class="events-table" id="${serviceTableId}"><caption class="sr-only">Service evidence</caption><thead><tr><th scope="col">Timestamp</th><th scope="col">Reason</th><th scope="col">Action</th><th scope="col">Subject</th><th scope="col">Detail</th></tr></thead><tbody>${rows || '<tr><td colspan="5">No public events recorded.</td></tr>'}</tbody></table></div>${serviceRecords.length > LOG_PAGE_SIZE ? logPager(serviceTableId, serviceRecords.length) : ""}<p class="table-note">Reason codes are one letter plus three digits.</p></div></details>
-    <section><h2>Tank captures · past 24 hours</h2>${tanks}</section>${truncationNote}${gameLogSortScript()}`;
+  return `<section class="page-intro${embedded ? " evidence-block" : ""}"${embedded ? ' id="logs" tabindex="-1"' : ""}><div class="eyebrow">Recent logs</div><${heading}>Newest service records, with tank captures on demand.</${heading}><p class="sub">The newest ${LOG_FETCH_SERVICE} service records are shown inline. Per-tank captures stay on their 24-hour public TXT downloads instead of expanding this page.</p></section>
+    <details class="card log-room" open><summary><span class="log-summary"><strong>Service evidence</strong><code>newest ${LOG_FETCH_SERVICE}</code><span class="log-count">${serviceRecords.length} records</span></span></summary><div class="log-room-body">${logToolbar(serviceTableId, serviceRecords, "service evidence")}<div class="table-scroll" role="region" aria-label="Service evidence" tabindex="0"><table class="events-table" id="${serviceTableId}"><caption class="sr-only">Newest service evidence records</caption><thead><tr><th scope="col">Timestamp</th><th scope="col">Reason</th><th scope="col">Action</th><th scope="col">Subject</th><th scope="col">Detail</th></tr></thead><tbody>${rows || '<tr><td colspan="5">No public events recorded.</td></tr>'}</tbody></table></div>${serviceRecords.length > LOG_PAGE_SIZE ? logPager(serviceTableId, serviceRecords.length) : ""}<p class="table-note">Reason codes are one letter plus three digits.</p></div></details>
+    <section class="card"><div class="eyebrow">Tank captures · past 24 hours</div><h3 class="u-card-heading">Download the retained capture for a tank.</h3><p class="sub">These links fetch the existing 24-hour Room record only when requested.</p><div class="action-links">${downloads}</div></section>${gameLogSortScript()}`;
 }
 
 /**
@@ -1201,10 +1183,8 @@ document.querySelectorAll('table[id]').forEach(function(t){if(t.querySelector('t
 }());</script>`;
 }
 
-/** Per-surface fetch ceilings. Generous enough to carry the whole retained record in
- *  practice; when one does bite, the page and the JSON both say so rather than
- *  presenting a truncated set as complete. */
-const LOG_FETCH_SERVICE = 5_000;
+/** Evidence renders a bounded service slice. Room capture downloads keep their existing ceiling. */
+const LOG_FETCH_SERVICE = 100;
 const LOG_FETCH_CAPTURES = 2_000;
 
 interface PublicEvidenceStatus {
@@ -1220,42 +1200,45 @@ interface PublicEvidenceStatus {
 
 function evidenceDashboardHtml(
   data: PublicEvidenceStatus,
-  incidentRecord: { incidents: IncidentRecord[]; history: ControlHistoryEntry[]; historyIntegrity: ControlHistoryIntegrity },
-  logs: { serviceEvents: PublicLogEvent[]; service: PublicServiceLogRecord[]; tanks: PublicTankLog[]; caps: { serviceTruncated: boolean; captureTruncated: boolean } },
+  logs: { serviceEvents: PublicLogEvent[]; tanks?: PublicTankLog[]; caps?: { serviceTruncated: boolean; captureTruncated: boolean } },
 ): string {
   const rooms = data.rooms ?? [];
   const players = rooms.reduce((n, room) => n + room.players, 0);
-  const incidents = incidentRecord.incidents;
+  const incidents = [...INCIDENTS, ...(data.maintenanceIncidents ?? [])].map((incident) => ({
+    ...incident,
+    title: tankCopy(incident.title),
+    summary: tankCopy(incident.summary),
+  }));
   const availability = incidentSummary(incidents);
-  const portalAvailability = incidentSummary([]);
-  const history = data.history ?? incidentRecord.history;
-  const integrity = data.historyIntegrity ?? incidentRecord.historyIntegrity;
+  const history = (data.history ?? []).slice(-CONTROL_HISTORY_RENDER_LIMIT);
+  const integrity = data.historyIntegrity ?? {
+    mode: "append-only tamper-evident hash chain",
+    algorithm: "SHA-256",
+    entryCount: history.length,
+    headHash: history.at(-1)?.hash ?? null,
+  };
   const billing = publicBillingWindow(data.billingWindow ?? {});
-  const gateClosed = billing.hardLimitExceeded === true;
   const roomRows = rooms.map((room) => `<tr><td><strong>${esc(room.name)}</strong></td><td>${room.players}</td><td>${room.bots}</td><td>${room.topScore}</td><td>${esc(room.topName)}</td></tr>`).join("");
 
-  return `<section class="page-intro evidence-intro"><div class="eyebrow">Evidence · generated by the running service</div><h1>Live operations, with inspectable evidence.</h1><p class="sub">Availability, incidents, continuity, spend, degradation, reason-coded logs, and control receipts share this dashboard. The raw endpoints remain available for independent checks.</p><nav class="evidence-jump" aria-label="Evidence sections"><a href="#availability">Availability</a><a href="#incidents">Incidents</a><a href="#continuity">Continuity</a><a href="#spend">Spend</a><a href="#degradation">Degradation</a><a href="#logs">Logs</a><a href="#machine-data">JSON</a></nav></section>
+  return `<section class="page-intro evidence-intro"><div class="eyebrow">Evidence · generated by the running service</div><h1>Live operations, with inspectable evidence.</h1><p class="sub">Live status, billing, incidents, control receipts, continuity, and bounded service logs share one operational view.</p><nav class="evidence-jump" aria-label="Evidence sections"><a href="#availability">Live status</a><a href="#spend">Billing</a><a href="#incidents">Incidents</a><a href="#receipts">Control receipts</a><a href="#continuity">State copies</a><a href="#logs">Recent logs</a></nav></section>
   <section class="evidence-block" id="availability" tabindex="-1" aria-labelledby="availability-heading">
-    <div class="eyebrow">Reliability · live</div><h2 id="availability-heading">Availability and workload state</h2>
+    <div class="eyebrow">Live status</div><h2 id="availability-heading">Tank access and activity</h2>
     <p class="action-links"><a class="action-link" href="/status.json">Raw status JSON →</a></p>
     <div class="live-controls"><button type="button" id="status-autoupdate" class="secondary">Pause auto-update</button><p class="sub">Live figures refresh every 15 seconds in place. Last updated <time id="status-updated-at">just now</time>.</p></div>
     <p class="sr-only" id="status-live" role="status" aria-live="polite"></p>
     <div class="metric-grid status-metrics">
-      ${metricCard(`${portalAvailability.availabilityPercent}%`, "Server availability", `${portalAvailability.unscheduledDowntimePercent}% unscheduled downtime`, "availability", "tone-green", "status-portal-availability")}
+      ${metricCard(data.maintenance?.enabled ? "CLOSED" : "OPEN", "Tank access", data.maintenance?.enabled ? "scheduled gate active" : "game traffic available", "traffic", data.maintenance?.enabled ? "tone-violet" : "tone-green", "status-tank-access")}
       ${metricCard(`${availability.availabilityPercent}%`, "Tank availability", `${availability.unscheduledDowntimePercent}% unscheduled downtime`, "availability", "tone-green", "status-tank-availability")}
-      ${metricCard(formatCompactDuration(availability.scheduledDowntimeMs), "Scheduled downtime", "excluded from availability", "uptime", "tone-violet", "status-scheduled-downtime")}
-      ${metricCard(data.maintenance?.enabled ? "CLOSED" : "OPEN", "Tank access", data.maintenance?.enabled ? "scheduled gate active" : `${players} active players`, "traffic", data.maintenance?.enabled ? "tone-violet" : "tone-green", "status-tank-access")}
+      ${metricCard(players, "Active players", `${players === 1 ? "human session" : "human sessions"} across ${rooms.length} tanks`, "players", players ? "tone-cyan" : "tone-violet", "status-active-players")}
     </div>
-    <div class="card hero-card"><h3 class="u-card-heading">Availability since project start</h3>${incidentTimelineSvg(incidents, Date.now(), history)}${timelineLegend(incidents, history)}</div>
+    <div class="card hero-card"><h3 class="u-card-heading">Tank availability since project start</h3>${incidentTimelineSvg(incidents, Date.now(), history)}${timelineLegend(incidents, history)}</div>
     <div class="card"><h3 class="u-card-heading">Tank activity</h3><div class="table-scroll" role="region" aria-label="Tank activity" tabindex="0"><table class="capacity-table"><caption class="sr-only">Tank activity: human players and computer-controlled agents per tank</caption><thead><tr><th scope="col">Tank</th><th scope="col">Active players</th><th scope="col">Agents</th><th scope="col">Top score</th><th scope="col">Leader</th></tr></thead><tbody id="status-tank-rows">${roomRows}</tbody></table></div></div>
   </section>
-  ${incidentsSection(incidents, history)}
-  ${backupPanelHtml(data.backup)}
-  ${controlHistoryListHtml(history, integrity)}
   ${spendHtml(billing, true)}
-  <section class="card evidence-block degradation-card" id="degradation" tabindex="-1" aria-labelledby="degradation-heading"><div class="eyebrow">Controlled degradation · ${gateClosed ? "active" : "standing by"}</div><h2 id="degradation-heading">The service sheds variable-cost work before it sheds evidence.</h2><ol class="degradation-ladder"><li><strong>Normal</strong><span>Gameplay, public reads, and bounded public writes operate.</span></li><li><strong>Hard threshold reached</strong><span>The measured billing window reaches its configured spend stop.</span></li><li><strong>Variable-cost traffic gated</strong><span>Gameplay and metered public writes close; an append-only receipt records why.</span></li><li><strong>Evidence preserved</strong><span>Read-only status and evidence plus protected administration and recovery remain available.</span></li><li><strong>Controlled recovery</strong><span>An authenticated billing reset restores normal operation and records the change.</span></li></ol><p class="sub">Current state: <strong>${gateClosed ? "hard threshold exceeded; the cost gate is active" : "normal; the hard threshold has not been reached"}</strong>.</p></section>
-  ${publicLogsHtml(logs.serviceEvents, logs.tanks, logs.caps, true)}
-  <section class="card evidence-block" id="machine-data" tabindex="-1"><div class="eyebrow">Machine-readable evidence</div><h2>Raw endpoints</h2><p class="sub">The human dashboard and machine responses are two views over the same records.</p><div class="action-links"><a class="action-link" href="/status.json">Status JSON</a><a class="action-link" href="/spend.json">Spend JSON</a></div></section>
+  ${incidentsSection(incidents, history)}
+  ${controlHistoryListHtml(history, integrity)}
+  ${backupPanelHtml(data.backup)}
+  ${publicLogsHtml(logs.serviceEvents, logs.tanks ?? [], logs.caps ?? { serviceTruncated: false, captureTruncated: false }, true)}
   ${statusLiveScript()}`;
 }
 

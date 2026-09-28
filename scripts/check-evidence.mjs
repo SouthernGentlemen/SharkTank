@@ -48,6 +48,7 @@ const retiredHtml = [
 ];
 
 async function main() {
+  const pageBodies = new Map();
   for (const [path, marker] of publicPages) {
     const response = await request(path);
     if (response.status !== 200) {
@@ -57,9 +58,19 @@ async function main() {
     const type = response.headers.get("content-type") || "";
     if (!type.startsWith("text/html")) fail(`${path} expected HTML, got ${type || "none"}`);
     const body = await response.text();
+    pageBodies.set(path, body);
     if (!body.includes(marker)) fail(`${path} lost its expected public document marker`);
   }
 
+  const evidence = pageBodies.get("/evidence/") || "";
+  const orderedIds = ["availability", "spend", "incidents", "receipts", "continuity", "logs"];
+  const positions = orderedIds.map((id) => evidence.indexOf(`id="${id}"`));
+  if (positions.some((position) => position < 0) || positions.some((position, index) => index > 0 && position <= positions[index - 1])) fail("/evidence/ section order changed");
+  if ((evidence.match(/data-log-row="1"/g) || []).length > 100) fail("/evidence/ renders more than 100 service records");
+  for (const retired of ["Server availability", 'id="status-portal-availability"', 'class="capture-table"', 'id="degradation"', 'id="machine-data"']) {
+    if (evidence.includes(retired)) fail(`/evidence/ still renders retired content: ${retired}`);
+  }
+  if (!evidence.includes('id="status-autoupdate"')) fail("/evidence/ lost its live-refresh control");
   for (const path of publicJson) {
     const response = await request(path);
     if (response.status !== 200) {
@@ -72,7 +83,8 @@ async function main() {
       continue;
     }
     try {
-      JSON.parse(await response.text());
+      const body = JSON.parse(await response.text());
+      if (path === "/status.json" && Object.prototype.hasOwnProperty.call(body, "portalAvailability")) fail("/status.json still publishes retired portalAvailability");
     } catch {
       fail(`${path} did not return valid JSON`);
     }
