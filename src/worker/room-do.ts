@@ -1,10 +1,10 @@
 import { applyAction, createRoom, leaderboard, playerCount, replay, SKINS, spawnBots, step, TICKS_PER_SECOND, type Action, type GameLogEntry, type RoomState } from "module-react3fiber/engine";
-import { sanitizeDisplayName, toNetState, type ClientMessage, type ServerMessage } from "module-react3fiber/protocol";
+import { legacyPlanarHeadingToOrientation, sanitizeDisplayName, toNetState, type ClientInputAction, type ClientMessage, type ServerMessage } from "module-react3fiber/protocol";
 
 // A tank holds 32 sharks: up to SHARK_CAPACITY - BOT_COUNT humans, with bots making up
 // the rest so a lightly-populated tank still feels like a full lobby.
 const SHARK_CAPACITY = 32, CAPACITY = 8, BOT_COUNT = SHARK_CAPACITY - CAPACITY;
-const MAX_FOOD = 620, ARENA_RADIUS = 82, SCHEMA_VERSION = 7;
+const MAX_FOOD = 620, OCEAN_RADIUS = 82, SCHEMA_VERSION = 8;
 const LEADERBOARD_EVERY = TICKS_PER_SECOND * 2, REPORT_EVERY = TICKS_PER_SECOND * 30;
 const STATE_BROADCAST_EVERY = 2; // 20Hz authoritative simulation, 10Hz snapshots.
 // Tank captures are a rolling 24-hour record: anything older is pruned, so the public
@@ -34,7 +34,7 @@ export class Room implements DurableObject {
   private storageRowsWritten = 0;
 
   constructor(private readonly ctx: DurableObjectState, private readonly env: Env) {
-    this.room = createRoom({ id: this.ctx.id.toString(), seed: `seed-${this.ctx.id.toString().slice(0, 8)}` }); spawnBots(this.room, BOT_COUNT);
+    this.room = createRoom({ id: this.ctx.id.toString(), seed: `seed-${this.ctx.id.toString().slice(0, 8)}`, oceanRadius: OCEAN_RADIUS }); spawnBots(this.room, BOT_COUNT);
     this.trackSql("CREATE TABLE IF NOT EXISTS game_log (id INTEGER PRIMARY KEY AUTOINCREMENT, ts INTEGER NOT NULL, tick INTEGER NOT NULL, action TEXT NOT NULL, language TEXT NOT NULL DEFAULT 'ts')");
     try { this.trackSql("ALTER TABLE game_log ADD COLUMN language TEXT NOT NULL DEFAULT 'ts'"); } catch { /* existing schema already has the retained column */ }
     this.trackSql("CREATE INDEX IF NOT EXISTS game_log_ts ON game_log(ts)");
@@ -46,24 +46,18 @@ export class Room implements DurableObject {
         this.storageRowsWritten += 1;
         await this.ctx.storage.put("gameLogGeneration", generation);
       }
-      const storedRoom = await this.ctx.storage.get<RoomState>("snapshot"); this.storageRowsRead += 1;
-      this.room = storedRoom ?? this.room;
-      // Forward-fill gameplay fields added after older Durable Object snapshots were
-      // persisted. Uptime, scores, and audit state survive the engine upgrade.
-      const gameplayUpgrade = this.room.schemaVersion < SCHEMA_VERSION;
-      if (gameplayUpgrade) this.room = createRoom({ id: this.room.id, seed: this.room.seed, arenaRadius: ARENA_RADIUS });
-      this.room.rockets ??= [];
-      this.room.explosions ??= [];
-      this.room.frenzyUntilTick ??= 0;
-      this.room.schemaVersion = SCHEMA_VERSION;
-      for (const shark of Object.values(this.room.snakes)) shark.dashCooldownTick ??= 0;
-      // Downsize older snapshots in place; changing spawn constants alone would leave
-      // already-persisted bots and food consuming CPU, bandwidth, and storage forever.
+      const storedRoom = await this.ctx.storage.get<unknown>("snapshot"); this.storageRowsRead += 1;
+      if (storedRoom) {
+        const storedVersion = (storedRoom as { schemaVersion?: unknown }).schemaVersion;
+        // ST-113 owns persisted v7 -> v8 migration. Refuse to misread an old shape as
+        // volumetric state; this task only defines and persists fresh/current v8 state.
+        if (storedVersion !== SCHEMA_VERSION) throw new Error(`room snapshot schema ${String(storedVersion)} requires ST-113 migration`);
+        this.room = storedRoom as RoomState;
+      }
       for (const id of Object.keys(this.room.snakes)) {
         const botIndex = /^bot-(\d+)$/.exec(id);
-        if (botIndex && (gameplayUpgrade || Number(botIndex[1]) >= BOT_COUNT)) delete this.room.snakes[id];
+        if (botIndex && Number(botIndex[1]) >= BOT_COUNT) delete this.room.snakes[id];
       }
-      if (gameplayUpgrade) this.room.arena.radius = ARENA_RADIUS;
       spawnBots(this.room, BOT_COUNT);
       if (this.room.food.length > MAX_FOOD) this.room.food.splice(0, this.room.food.length - MAX_FOOD);
       const bootRowsRead = this.storageRowsRead, bootRowsWritten = this.storageRowsWritten;
@@ -123,8 +117,8 @@ export class Room implements DurableObject {
     if (msg.t === "input" && session.joined) {
       const action = safeAction(msg.action, session.id);
       if (!action) return;
-      if (action.type === "setHeading" && this.room.tick - session.lastHeadingLogTick < 5) applyAction(this.room, action);
-      else { this.applyAndLog(action); if (action.type === "setHeading") session.lastHeadingLogTick = this.room.tick; }
+      if (action.type === "setOrientation" && this.room.tick - session.lastHeadingLogTick < 5) applyAction(this.room, action);
+      else { this.applyAndLog(action); if (action.type === "setOrientation") session.lastHeadingLogTick = this.room.tick; }
     }
   }
   webSocketClose(ws: WebSocket): void { this.dropSession(ws); }
@@ -170,9 +164,9 @@ export class Room implements DurableObject {
   private replayResponse(url: URL): Response { const toTick = Math.max(0, Math.min(this.room.tick, Math.trunc(Number(url.searchParams.get("tick") ?? this.room.tick)))); if (toTick > 100_000) return roomJson({ ok: false, error: "replay tick exceeds safety limit" }, 422); const logs = this.logs(); if (logs.length && logs[0].tick > 0) return roomJson({ ok: false, error: "complete replay history has expired" }, 410); const state = replay({ seed: this.room.seed, id: this.roomId, botCount: BOT_COUNT }, logs, toTick); return roomJson({ ok: true, roomId: this.roomId, tick: toTick, state: toNetState(state) }); }
 }
 
-function safeAction(action: Action, playerId: string): Action | null {
+function safeAction(action: ClientInputAction, playerId: string): Action | null {
   if (!action || typeof action !== "object" || typeof action.type !== "string") return null;
-  if (action.type === "setHeading" && Number.isFinite(action.angle)) return { type: "setHeading", playerId, angle: Math.max(-Math.PI, Math.min(Math.PI, action.angle)) };
+  if (action.type === "setHeading") return legacyPlanarHeadingToOrientation(playerId, action.angle);
   if (action.type === "setBoost" && typeof action.on === "boolean") return { type: "setBoost", playerId, on: action.on };
   if (action.type === "rocket") return { type: "rocket", playerId };
   if (action.type === "respawn") return { type: "respawn", playerId };

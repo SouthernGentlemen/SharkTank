@@ -26,7 +26,7 @@ export interface LocalInput {
 export interface StickState {
   /** True while a thumb is down on the stick. */
   active: boolean;
-  /** Absolute heading in the X/Z plane, same convention as Snake.heading. */
+  /** Absolute heading in the X/Z plane, same convention as authoritative Snake.yaw. */
   angle: number;
 }
 
@@ -152,7 +152,7 @@ export function useLocalInput(
       const dir = s.invertSteer ? -1 : 1;
       if (!headingInitialized.current) {
         const me = stateRef.current?.snakes.find((snake) => snake.id === youId);
-        if (me) { headingRef.current = me.heading; headingInitialized.current = true; }
+        if (me) { headingRef.current = me.yaw; headingInitialized.current = true; }
       }
       const dt = Math.min(.05, (frameAt - previousFrameAt) / 1000); previousFrameAt = frameAt;
       const stick = stickRef?.current;

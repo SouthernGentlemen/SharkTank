@@ -2,7 +2,8 @@
 // travel over HTTP (tank/profile) and over the WebSocket (realtime play)
 // into the Room Durable Object.
 
-import type { Action, Explosion, Food, RocketProjectile, RoomState, ScoreEntry, Snake } from "../engine/types.js";
+import { normalizeYaw } from "../engine/geometry3d.js";
+import type { Action, Explosion, Food, OceanVolume, RocketProjectile, RoomState, ScoreEntry, Snake, Vec3 } from "../engine/types.js";
 export { isFamilyFriendlyName, sanitizeDisplayName } from "./name-policy.js";
 
 // ── HTTP: health / tank / profile ─────────────────────────────────────────────
@@ -49,16 +50,32 @@ export interface ErrorResponse {
 }
 
 // ── WebSocket: realtime play (client ⇄ Room DO) ───────────────────────────────
-/** Client → server. `input` carries the same Action union the engine applies. */
+/** Temporary ST-112 adapter input. Remove when the 3D control/network task lands. */
+export interface LegacyPlanarHeadingAction {
+  type: "setHeading";
+  playerId: string;
+  angle: number;
+}
+
+export type ClientInputAction =
+  | LegacyPlanarHeadingAction
+  | Extract<Action, { type: "setBoost" | "rocket" | "respawn" }>;
+
+export function legacyPlanarHeadingToOrientation(playerId: string, angle: number): Action | null {
+  if (!Number.isFinite(angle)) return null;
+  return { type: "setOrientation", playerId, yaw: normalizeYaw(angle), pitch: 0 };
+}
+
+/** Client → server. Current clients keep the bounded planar compatibility input only. */
 export type ClientMessage =
   | { t: "hello"; name: string; skin: string }
-  | { t: "input"; action: Action }
+  | { t: "input"; action: ClientInputAction }
   | { t: "ping"; ts: number };
 
 /** A trimmed snake for the wire — segments are the bulk of the payload. */
 export type NetSnake = Pick<
   Snake,
-  "id" | "name" | "skin" | "segments" | "heading" | "length" | "boosting" | "chargeTicks" | "lungeTicks" | "dashCooldownTick" | "rocketTicks" | "rocketCooldownTick" | "score" | "alive"
+  "id" | "name" | "skin" | "segments" | "yaw" | "pitch" | "length" | "boosting" | "chargeTicks" | "lungeTicks" | "dashCooldownTick" | "rocketTicks" | "rocketCooldownTick" | "score" | "alive"
 >;
 
 /**
@@ -69,6 +86,7 @@ export type NetSnake = Pick<
  */
 export interface NetFood {
   x: number;
+  y: number;
   z: number;
   value: number;
   r: number;
@@ -76,8 +94,11 @@ export interface NetFood {
 
 /** The per-tick world snapshot broadcast to every connected client. */
 export interface NetState {
+  schemaVersion: 8;
   tick: number;
   arenaRadius: number;
+  seabedY: number;
+  surfaceY: number;
   snakes: NetSnake[];
   food: NetFood[];
   rockets: RocketProjectile[];
@@ -103,15 +124,19 @@ function round(value: number, places = 2): number {
 /** Build the on-the-wire snapshot from authoritative RoomState. */
 export function toNetState(state: RoomState): NetState {
   return {
+    schemaVersion: state.schemaVersion,
     tick: state.tick,
-    arenaRadius: state.arena.radius,
+    arenaRadius: state.ocean.radius,
+    seabedY: state.ocean.seabedY,
+    surfaceY: state.ocean.surfaceY,
     frenzyUntilTick: state.frenzyUntilTick ?? 0,
     snakes: Object.values(state.snakes).map((s) => ({
       id: s.id,
       name: s.name,
       skin: s.skin,
-      segments: s.segments.map((seg) => ({ x: round(seg.x), z: round(seg.z) })),
-      heading: round(s.heading, 3),
+      segments: s.segments.map((seg) => ({ x: round(seg.x), y: round(seg.y), z: round(seg.z) })),
+      yaw: round(s.yaw, 3),
+      pitch: round(s.pitch, 3),
       length: s.length,
       boosting: s.boosting,
       chargeTicks: s.chargeTicks ?? 0,
@@ -122,7 +147,7 @@ export function toNetState(state: RoomState): NetState {
       score: s.score,
       alive: s.alive,
     })),
-    food: state.food.map((f) => ({ x: round(f.x, 1), z: round(f.z, 1), value: f.value, r: f.r })),
+    food: state.food.map((f) => ({ x: round(f.x, 1), y: round(f.y, 1), z: round(f.z, 1), value: f.value, r: f.r })),
     rockets: state.rockets ?? [],
     explosions: state.explosions ?? [],
   };
@@ -140,4 +165,4 @@ export function roomSocketPath(roomId: string): string {
   return `/room/${encodeURIComponent(roomId)}/ws`;
 }
 
-export type { Action, Explosion, Food, RocketProjectile, RoomState, ScoreEntry, Snake };
+export type { Action, Explosion, Food, OceanVolume, RocketProjectile, RoomState, ScoreEntry, Snake, Vec3 };

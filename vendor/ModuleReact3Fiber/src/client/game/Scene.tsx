@@ -1,5 +1,5 @@
 // Browser-only React Three Fiber composition for the production game world.
-// Authority remains planar until ST-112; this task establishes the modular 3D scene graph.
+// Authority is volumetric from ST-112 onward; later tasks replace the temporary planar input adapter and tune final 3D behavior.
 
 import { useRef } from "react";
 import type { RoomSocket } from "../net/useRoomSocket.js";
