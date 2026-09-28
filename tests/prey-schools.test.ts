@@ -120,7 +120,7 @@ describe("ST-120 authoritative fish and prey schools", () => {
     expect(drops.every((actor) => isInsideOceanVolume(actor, state.ocean))).toBe(true);
   });
 
-  it("updates bots only enough to target the new volumetric prey representation", () => {
+  it("keeps authoritative volumetric prey consumable by the bot planner", () => {
     const state = createRoom({ seed: "bot-prey", oceanRadius: 100, seabedY: -20, surfaceY: 20 });
     state.food = [
       prey({ id: "upper-reef", kind: "reef", x: 8, y: 6, z: 0, school: -1 }),
@@ -137,8 +137,8 @@ describe("ST-120 authoritative fish and prey schools", () => {
 
     expect(bot.targetPitch).toBeGreaterThan(0);
     const engine = read("../vendor/ModuleReact3Fiber/src/engine/room.ts");
-    expect(engine).toContain("ST-121 owns volumetric navigation");
-    expect(engine).toContain("const target = yawPitchToward(head, best)");
+    expect(engine).toContain("choosePreyTarget");
+    expect(engine).toContain("yawPitchToward(head, targetPoint)");
   });
 
   it("renders recognizable procedural fish and distinct chum/carcass drops through bounded instancing", () => {
