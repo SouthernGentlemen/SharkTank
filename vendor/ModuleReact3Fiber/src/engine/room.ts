@@ -12,7 +12,9 @@ import {
   forwardFromYawPitch,
   horizontalRadiusSquared,
   isInsideOceanVolume,
+  moveToward,
   normalizeYaw,
+  rotateYawToward,
   yawPitchToward,
 } from "./geometry3d.js";
 import { nextRandom, seedToNumber } from "./rng.js";
@@ -225,6 +227,7 @@ export const MOVE = {
   TURN_RATE,
   SEGMENT_SPACING,
   MIN_LENGTH,
+  FRENZY_SPEED,
 } as const;
 
 /** Sample `count` evenly-spaced points by walking a head-first trail at SEGMENT_SPACING
@@ -849,20 +852,6 @@ export function replay(opts: ReplayOptions, events: GameLogEntry[], toTick: numb
     if (t < toTick) step(state);
   }
   return state;
-}
-
-// ── Math helpers ───────────────────────────────────────────────────────────────
-function rotateYawToward(current: number, target: number, maxStep: number): number {
-  let diff = normalizeYaw(target) - normalizeYaw(current);
-  while (diff > Math.PI) diff -= Math.PI * 2;
-  while (diff < -Math.PI) diff += Math.PI * 2;
-  if (Math.abs(diff) <= maxStep) return normalizeYaw(target);
-  return normalizeYaw(current + Math.sign(diff) * maxStep);
-}
-
-function moveToward(current: number, target: number, maxStep: number): number {
-  const delta = target - current;
-  return Math.abs(delta) <= maxStep ? target : current + Math.sign(delta) * maxStep;
 }
 
 /** Deep clone a snapshot (structured, JSON-safe). Handy for React state updates. */

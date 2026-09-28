@@ -6,6 +6,8 @@ import {
   createRoom,
   forwardFromYawPitch,
   isInsideOceanVolume,
+  MAX_PITCH,
+  normalizeYaw,
   replay,
   spawnBots,
   step,
@@ -13,10 +15,7 @@ import {
   type GameLogEntry,
   type Snake,
 } from "../vendor/ModuleReact3Fiber/src/engine/index.js";
-import {
-  legacyPlanarHeadingToOrientation,
-  toNetState,
-} from "../vendor/ModuleReact3Fiber/src/protocol/index.js";
+import { toNetState } from "../vendor/ModuleReact3Fiber/src/protocol/index.js";
 
 function join(state: ReturnType<typeof createRoom>, id: string): Snake {
   applyAction(state, { type: "join", playerId: id, name: id });
@@ -153,17 +152,14 @@ describe("volumetric authoritative engine", () => {
     expect(state.explosions.every((burst) => Number.isFinite(burst.y))).toBe(true);
   });
 
-  it("maps temporary planar steering to yaw with neutral pitch and rejects non-finite orientation", () => {
-    expect(legacyPlanarHeadingToOrientation("p", 1.25)).toEqual({
-      type: "setOrientation",
-      playerId: "p",
-      yaw: 1.25,
-      pitch: 0,
-    });
-    expect(legacyPlanarHeadingToOrientation("p", Number.NaN)).toBeNull();
-
+  it("normalizes yaw, clamps pitch and rejects non-finite authoritative orientation", () => {
     const state = createRoom({ seed: "finite-input" });
     const shark = join(state, "p");
+
+    applyAction(state, { type: "setOrientation", playerId: "p", yaw: Math.PI * 5, pitch: 99 });
+    expect(shark.targetYaw).toBe(normalizeYaw(Math.PI * 5));
+    expect(shark.targetPitch).toBe(MAX_PITCH);
+
     const before = { yaw: shark.targetYaw, pitch: shark.targetPitch };
     applyAction(state, { type: "setOrientation", playerId: "p", yaw: Number.NaN, pitch: Number.POSITIVE_INFINITY } as Action);
     expect({ yaw: shark.targetYaw, pitch: shark.targetPitch }).toEqual(before);

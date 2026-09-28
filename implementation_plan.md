@@ -82,38 +82,6 @@ These are acceptance targets, not permission to fake authority:
 
 ## Open tasks
 
-### ST-114 — [API] Carry 3D movement through protocol, prediction and interpolation
-
-**Goal**
-
-Make the browser and Room Durable Object exchange and smooth the new volumetric state correctly.
-
-**Scope**
-
-- Extend compact `NetState`, shark, prey, projectile and explosion payloads with required Y/orientation fields.
-- Round/quantize 3D values deliberately so bandwidth remains bounded.
-- Add a protocol/gameplay schema marker if needed so stale clients fail visibly and safely after a deployment rather than sending ambiguous input.
-- Replace `setHeading`-only client intent with a bounded 3D steering action while preserving a short-lived compatibility parser only if required for task sequencing.
-- Validate yaw wrapping and pitch limits server-side.
-- Extend local prediction to 3D movement and reconciliation.
-- Extend remote interpolation to X/Y/Z and shortest-path angular interpolation.
-- Measure representative full-room snapshot size before and after the change and keep it within an explicit checked budget.
-
-**Non-goals**
-
-- No final control layout.
-- No final camera feel.
-- No art work.
-
-**Acceptance**
-
-- Local predicted movement and authoritative correction agree in all three axes.
-- Remote sharks interpolate through depth without planar snapping.
-- Invalid NaN/infinite/out-of-range orientation input is rejected or clamped safely.
-- Snapshot-size regression is measured in tests rather than guessed.
-
----
-
 ### ST-115 — [FEAT] Add third-person shark swimming and chase-camera handling
 
 **Goal**

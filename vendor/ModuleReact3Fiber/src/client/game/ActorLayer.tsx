@@ -7,7 +7,7 @@ import type { RoomSocket } from "../net/useRoomSocket.js";
 import type { Settings } from "../settings/SettingsContext.js";
 import type { CameraFollowTarget } from "./CameraRig.js";
 import { LocalPredictor } from "./prediction.js";
-import { resolveSceneQuality } from "./sceneMath.js";
+import { interpolateOrientedPose, resolveSceneQuality, type OrientedScenePose } from "./sceneMath.js";
 import type { LocalInput } from "./useLocalInput.js";
 
 const MAX_SHARKS = 32;
@@ -27,16 +27,6 @@ export interface SnakeLabel {
   y: number;
   color: string;
   me: boolean;
-}
-
-function lerpHead(prev: NetSnake | undefined, cur: NetSnake, alpha: number, out: THREE.Vector3): void {
-  const current = cur.segments[0];
-  const prior = prev?.segments[0] ?? current;
-  out.set(
-    prior.x + (current.x - prior.x) * alpha,
-    prior.y + (current.y - prior.y) * alpha,
-    prior.z + (current.z - prior.z) * alpha,
-  );
 }
 
 export function ActorLayer({
@@ -59,6 +49,7 @@ export function ActorLayer({
   const predictor = useMemo(() => new LocalPredictor(), []);
   const dummy = useMemo(() => new THREE.Object3D(), []);
   const position = useMemo(() => new THREE.Vector3(), []);
+  const interpolatedPose = useMemo<OrientedScenePose>(() => ({ x: 0, y: 0, z: 0, yaw: 0, pitch: 0 }), []);
   const projected = useMemo(() => new THREE.Vector3(), []);
   const tempColor = useMemo(() => new THREE.Color(), []);
   const prevById = useMemo(() => new Map<string, NetSnake>(), []);
@@ -86,7 +77,12 @@ export function ActorLayer({
     const authoritativeMe = socket.stateRef.current?.snakes.find((shark) => shark.id === socket.youId) ?? null;
     const staleness = Math.max(0, (performance.now() - socket.newestAtRef.current) / 1000);
     const predicted = !reducedMotion && inputRef
-      ? predictor.step(authoritativeMe, inputRef.current, dt, staleness)
+      ? predictor.step(authoritativeMe, inputRef.current, dt, staleness, {
+          seabedY: state.seabedY,
+          surfaceY: state.surfaceY,
+          tick: state.tick,
+          frenzyUntilTick: state.frenzyUntilTick,
+        })
       : null;
 
     const labels: SnakeLabel[] = [];
@@ -104,13 +100,25 @@ export function ActorLayer({
       const bodyColor = skinBody.get(shark.skin) ?? FALLBACK;
       const sharkScale = Math.min(2.5, 0.72 + Math.sqrt(shark.length) * 0.12);
 
+      let yaw: number;
+      let pitch: number;
       if (usePrediction) {
         position.set(predicted.head.x, predicted.head.y, predicted.head.z);
+        yaw = predicted.yaw;
+        pitch = predicted.pitch;
       } else {
-        lerpHead(previousShark, shark, alpha, position);
+        const head = shark.segments[0];
+        const priorHead = previousShark?.segments[0] ?? head;
+        interpolateOrientedPose(
+          { x: priorHead.x, y: priorHead.y, z: priorHead.z, yaw: previousShark?.yaw ?? shark.yaw, pitch: previousShark?.pitch ?? shark.pitch },
+          { x: head.x, y: head.y, z: head.z, yaw: shark.yaw, pitch: shark.pitch },
+          alpha,
+          interpolatedPose,
+        );
+        position.set(interpolatedPose.x, interpolatedPose.y, interpolatedPose.z);
+        yaw = interpolatedPose.yaw;
+        pitch = interpolatedPose.pitch;
       }
-      const yaw = usePrediction ? predicted.yaw : shark.yaw;
-      const pitch = usePrediction ? predicted.pitch : shark.pitch;
 
       dummy.position.copy(position);
       dummy.rotation.set(0, -yaw, pitch);
@@ -211,13 +219,21 @@ export function ActorLayer({
       followRef.current.yaw = predicted.yaw;
       followRef.current.pitch = predicted.pitch;
     } else if (interpolatedMe?.segments[0]) {
-      lerpHead(prevById.get(interpolatedMe.id), interpolatedMe, alpha, position);
+      const prior = prevById.get(interpolatedMe.id);
+      const head = interpolatedMe.segments[0];
+      const priorHead = prior?.segments[0] ?? head;
+      interpolateOrientedPose(
+        { x: priorHead.x, y: priorHead.y, z: priorHead.z, yaw: prior?.yaw ?? interpolatedMe.yaw, pitch: prior?.pitch ?? interpolatedMe.pitch },
+        { x: head.x, y: head.y, z: head.z, yaw: interpolatedMe.yaw, pitch: interpolatedMe.pitch },
+        alpha,
+        interpolatedPose,
+      );
       followRef.current.active = true;
-      followRef.current.position.x = position.x;
-      followRef.current.position.y = position.y;
-      followRef.current.position.z = position.z;
-      followRef.current.yaw = interpolatedMe.yaw;
-      followRef.current.pitch = interpolatedMe.pitch;
+      followRef.current.position.x = interpolatedPose.x;
+      followRef.current.position.y = interpolatedPose.y;
+      followRef.current.position.z = interpolatedPose.z;
+      followRef.current.yaw = interpolatedPose.yaw;
+      followRef.current.pitch = interpolatedPose.pitch;
     } else {
       followRef.current.active = false;
     }

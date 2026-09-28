@@ -1,5 +1,5 @@
 import { applyAction, createRoom, leaderboard, playerCount, replay, SKINS, spawnBots, step, TICKS_PER_SECOND, type Action, type GameLogEntry, type RoomState } from "module-react3fiber/engine";
-import { legacyPlanarHeadingToOrientation, sanitizeDisplayName, toNetState, type ClientInputAction, type ClientMessage, type ServerMessage } from "module-react3fiber/protocol";
+import { clientInputToAction, parseRealtimeClientMessage, sanitizeDisplayName, toNetState, withRealtimeProtocol, type ServerMessagePayload } from "module-react3fiber/protocol";
 import { GAME_LOG_SCHEMA_VERSION, bootstrapRoomSnapshot, shouldRotateGameLogSchema } from "./room-state-schema.js";
 
 // A tank holds 32 sharks: up to SHARK_CAPACITY - BOT_COUNT humans, with bots making up
@@ -14,7 +14,7 @@ const SNAPSHOT_EVERY = TICKS_PER_SECOND * 30, GAME_LOG_RETENTION_MS = 24 * 60 * 
 const MAX_MESSAGE_BYTES = 4_096, INPUTS_PER_SECOND = 40;
 interface Env { LOBBY: DurableObjectNamespace; AUDIT_GENERATION?: string; GAME_LOG_GENERATION?: string }
 interface SessionAttachment { id: string; name: string; skin: string; wasAlive: boolean; joined: boolean; rateAt: number; rateCount: number }
-interface Session extends SessionAttachment { ws: WebSocket; lastHeadingLogTick: number }
+interface Session extends SessionAttachment { ws: WebSocket; lastOrientationLogTick: number }
 interface RoomMeta { roomId: string; roomName: string; booted: boolean; maintenance?: boolean; activeMs: number; activeSince: number | null; wsMessages: number; connections: number; storageWrites: number; storageRowsRead?: number; storageRowsWritten?: number }
 interface StoredLog extends GameLogEntry { ts: number }
 
@@ -71,7 +71,7 @@ export class Room implements DurableObject {
       else this.storageRowsRead += 1;
       for (const ws of this.ctx.getWebSockets()) {
         const a = ws.deserializeAttachment() as SessionAttachment | null;
-        if (a?.id) this.sessions.set(ws, { ws, ...a, lastHeadingLogTick: -Infinity });
+        if (a?.id) this.sessions.set(ws, { ws, ...a, lastOrientationLogTick: -Infinity });
       }
       if (this.maintenance) for (const ws of [...this.sessions.keys()]) this.close(ws, 1012, "maintenance");
       else if ([...this.sessions.values()].some((s) => s.joined)) this.ensureLoop();
@@ -93,7 +93,7 @@ export class Room implements DurableObject {
     if (request.method !== "GET" || request.headers.get("Upgrade")?.toLowerCase() !== "websocket") return new Response("expected websocket", { status: 426 });
     if (this.full()) return new Response("room full", { status: 503, headers: { "retry-after": "5" } });
     const pair = new WebSocketPair(), client = pair[0], server = pair[1];
-    const session: Session = { id: `p-${crypto.randomUUID().slice(0, 12)}`, ws: server, name: "Player", skin: "cyan", wasAlive: true, joined: false, rateAt: Date.now(), rateCount: 0, lastHeadingLogTick: -Infinity };
+    const session: Session = { id: `p-${crypto.randomUUID().slice(0, 12)}`, ws: server, name: "Player", skin: "cyan", wasAlive: true, joined: false, rateAt: Date.now(), rateCount: 0, lastOrientationLogTick: -Infinity };
     this.connections += 1;
     this.sessions.set(server, session); this.saveAttachment(session); this.ctx.acceptWebSocket(server);
     if (!this.booted) { this.booted = true; this.emitEvent("room-boot", this.roomName); this.persist(); }
@@ -105,9 +105,12 @@ export class Room implements DurableObject {
     const session = this.sessions.get(ws) ?? this.restoreSession(ws); if (!session) return this.close(ws, 1008, "missing session");
     if (typeof message !== "string" || message.length > MAX_MESSAGE_BYTES || !this.allowInput(session)) return this.close(ws, 1008, "invalid or excessive input");
     let parsed: unknown; try { parsed = JSON.parse(message) as unknown; } catch { return this.close(ws, 1007, "invalid JSON"); }
-    if (!parsed || typeof parsed !== "object" || typeof (parsed as { t?: unknown }).t !== "string") return this.close(ws, 1008, "invalid message");
-    if ((parsed as { t: string }).t === "debug") return;
-    const msg = parsed as ClientMessage;
+    if (parsed && typeof parsed === "object" && (parsed as { t?: unknown }).t === "debug") return;
+    const parsedMessage = parseRealtimeClientMessage(parsed);
+    if (!parsedMessage.ok) {
+      return this.close(ws, 1008, parsedMessage.reason === "stale-schema" ? "realtime schema mismatch" : "invalid message");
+    }
+    const msg = parsedMessage.message;
     if (msg.t === "hello") {
       if (session.joined) return;
       // Seats are taken here, not at the upgrade: a socket that has not said hello yet is
@@ -118,12 +121,11 @@ export class Room implements DurableObject {
       this.saveAttachment(session); this.applyAndLog({ type: "join", playerId: session.id, name: session.name, skin: session.skin });
       this.send(ws, { t: "welcome", youId: session.id, roomId: this.roomId, state: toNetState(this.room) }); this.reportToLobby(); this.emitEvent("join", session.name); this.ensureLoop(); return;
     }
-    if (msg.t === "ping" && Number.isFinite(msg.ts)) { this.send(ws, { t: "pong", ts: msg.ts }); return; }
+    if (msg.t === "ping") { this.send(ws, { t: "pong", ts: msg.ts }); return; }
     if (msg.t === "input" && session.joined) {
-      const action = safeAction(msg.action, session.id);
-      if (!action) return;
-      if (action.type === "setOrientation" && this.room.tick - session.lastHeadingLogTick < 5) applyAction(this.room, action);
-      else { this.applyAndLog(action); if (action.type === "setOrientation") session.lastHeadingLogTick = this.room.tick; }
+      const action = clientInputToAction(msg.action, session.id);
+      if (action.type === "setOrientation" && this.room.tick - session.lastOrientationLogTick < 5) applyAction(this.room, action);
+      else { this.applyAndLog(action); if (action.type === "setOrientation") session.lastOrientationLogTick = this.room.tick; }
     }
   }
   webSocketClose(ws: WebSocket): void { this.dropSession(ws); }
@@ -135,7 +137,7 @@ export class Room implements DurableObject {
     if (session.joined) { this.applyAndLog({ type: "leave", playerId: session.id }); this.reportToLobby(); this.emitEvent("leave", session.name); }
     if (![...this.sessions.values()].some((s) => s.joined)) { this.stopLoop(); this.persist(); }
   }
-  private restoreSession(ws: WebSocket): Session | null { const a = ws.deserializeAttachment() as SessionAttachment | null; if (!a?.id) return null; const s = { ws, ...a, lastHeadingLogTick: -Infinity }; this.sessions.set(ws, s); return s; }
+  private restoreSession(ws: WebSocket): Session | null { const a = ws.deserializeAttachment() as SessionAttachment | null; if (!a?.id) return null; const s = { ws, ...a, lastOrientationLogTick: -Infinity }; this.sessions.set(ws, s); return s; }
   private saveAttachment(s: Session): void { const { id, name, skin, wasAlive, joined, rateAt, rateCount } = s; s.ws.serializeAttachment({ id, name, skin, wasAlive, joined, rateAt, rateCount } satisfies SessionAttachment); }
   private full(): boolean { return [...this.sessions.values()].filter((s) => s.joined).length >= CAPACITY; }
   private allowInput(s: Session): boolean { const now = Date.now(); if (now - s.rateAt >= 1_000) { s.rateAt = now; s.rateCount = 0; } s.rateCount += 1; return s.rateCount <= INPUTS_PER_SECOND; }
@@ -156,8 +158,8 @@ export class Room implements DurableObject {
     if (this.room.tick % REPORT_EVERY === 0) this.reportToLobby();
     if (this.room.tick % SNAPSHOT_EVERY === 0) this.persist();
   }
-  private send(ws: WebSocket, msg: ServerMessage): void { try { ws.send(JSON.stringify(msg)); } catch { this.dropSession(ws); } }
-  private broadcast(msg: ServerMessage): void { const body = JSON.stringify(msg); for (const s of [...this.sessions.values()]) if (s.joined) { try { s.ws.send(body); } catch { this.dropSession(s.ws); } } }
+  private send(ws: WebSocket, msg: ServerMessagePayload): void { try { ws.send(JSON.stringify(withRealtimeProtocol(msg))); } catch { this.dropSession(ws); } }
+  private broadcast(msg: ServerMessagePayload): void { const body = JSON.stringify(withRealtimeProtocol(msg)); for (const s of [...this.sessions.values()]) if (s.joined) { try { s.ws.send(body); } catch { this.dropSession(s.ws); } } }
   private reportToLobby(): void { const top = leaderboard(this.room, 1)[0]; this.ctx.waitUntil(this.env.LOBBY.get(this.env.LOBBY.idFromName("global")).fetch("https://lobby/report", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ id: this.roomId, name: this.roomName, players: playerCount(this.room), bots: BOT_COUNT, capacity: CAPACITY, sharkCapacity: SHARK_CAPACITY, topScore: top?.score ?? 0, topName: top?.name ?? "—", activeDurationMs: this.activeMs + (this.activeSince ? Date.now() - this.activeSince : 0), wsMessages: this.wsMessages, connections: this.connections, storageWrites: this.storageWrites, storageRowsRead: this.storageRowsRead, storageRowsWritten: this.storageRowsWritten, storageBytes: this.ctx.storage.sql.databaseSize }) }).then(() => undefined)); }
   private emitEvent(type: "room-boot" | "join" | "leave" | "death", subject?: string, detail?: string): void { this.ctx.waitUntil(this.env.LOBBY.get(this.env.LOBBY.idFromName("global")).fetch("https://lobby/event", { method: "POST", headers: { "content-type": "application/json", "x-actor-id": `room:${this.roomId}` }, body: JSON.stringify({ ts: Date.now(), type, room: this.roomId, subject, detail }) }).then(() => undefined)); }
   private applyAndLog(action: Action): void { applyAction(this.room, action); this.trackSql("INSERT INTO game_log(ts,tick,action,language) VALUES(?,?,?,'ts')", Date.now(), this.room.tick, JSON.stringify(action)); this.storageWrites += 1; if (this.room.tick % 100 === 0) this.pruneGameLog(); }
@@ -169,13 +171,5 @@ export class Room implements DurableObject {
   private replayResponse(url: URL): Response { const toTick = Math.max(0, Math.min(this.room.tick, Math.trunc(Number(url.searchParams.get("tick") ?? this.room.tick)))); if (toTick > 100_000) return roomJson({ ok: false, error: "replay tick exceeds safety limit" }, 422); const logs = this.logs(); if (logs.length && logs[0].tick > 0) return roomJson({ ok: false, error: "complete replay history has expired" }, 410); const state = replay({ seed: this.room.seed, id: this.roomId, botCount: BOT_COUNT }, logs, toTick); return roomJson({ ok: true, roomId: this.roomId, schemaVersion: GAME_LOG_SCHEMA_VERSION, tick: toTick, state: toNetState(state) }); }
 }
 
-function safeAction(action: ClientInputAction, playerId: string): Action | null {
-  if (!action || typeof action !== "object" || typeof action.type !== "string") return null;
-  if (action.type === "setHeading") return legacyPlanarHeadingToOrientation(playerId, action.angle);
-  if (action.type === "setBoost" && typeof action.on === "boolean") return { type: "setBoost", playerId, on: action.on };
-  if (action.type === "rocket") return { type: "rocket", playerId };
-  if (action.type === "respawn") return { type: "respawn", playerId };
-  return null;
-}
 function cleanRoomName(value: string): string { return value.replace(/[^a-zA-Z0-9 '-]/g, "").slice(0, 32) || "Tank"; }
 function roomJson(data: unknown, status = 200): Response { return new Response(JSON.stringify(data), { status, headers: { "content-type": "application/json; charset=utf-8", "cache-control": "no-store", "x-content-type-options": "nosniff" } }); }

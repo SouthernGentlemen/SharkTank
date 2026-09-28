@@ -6,7 +6,7 @@ import type { RocketProjectile } from "../../protocol/index.js";
 import type { RoomSocket } from "../net/useRoomSocket.js";
 import type { Settings } from "../settings/SettingsContext.js";
 import type { CameraFollowTarget } from "./CameraRig.js";
-import { resolveSceneQuality } from "./sceneMath.js";
+import { interpolateOrientedPose, resolveSceneQuality, type OrientedScenePose } from "./sceneMath.js";
 
 const MAX_ROCKETS = 64;
 const MAX_BURST_PARTICLES = 512;
@@ -50,6 +50,7 @@ export function FxLayer({
   const frenzyMaterialRef = useRef<THREE.MeshBasicMaterial>(null);
   const dummy = useMemo(() => new THREE.Object3D(), []);
   const tempColor = useMemo(() => new THREE.Color(), []);
+  const rocketPose = useMemo<OrientedScenePose>(() => ({ x: 0, y: 0, z: 0, yaw: 0, pitch: 0 }), []);
   const prevRocketById = useMemo(() => new Map<string, RocketProjectile>(), []);
   const quality = resolveSceneQuality(settings.graphics.quality);
 
@@ -74,11 +75,9 @@ export function FxLayer({
     for (const rocket of state.rockets ?? []) {
       if (rocketCount >= MAX_ROCKETS) break;
       const prior = prevRocketById.get(rocket.id) ?? rocket;
-      const x = prior.x + (rocket.x - prior.x) * alpha;
-      const y = prior.y + (rocket.y - prior.y) * alpha;
-      const z = prior.z + (rocket.z - prior.z) * alpha;
-      dummy.position.set(x, y, z);
-      dummy.rotation.set(0, -rocket.yaw, rocket.pitch);
+      interpolateOrientedPose(prior, rocket, alpha, rocketPose);
+      dummy.position.set(rocketPose.x, rocketPose.y, rocketPose.z);
+      dummy.rotation.set(0, -rocketPose.yaw, rocketPose.pitch);
       dummy.scale.set(1.05, 1, 1);
       dummy.updateMatrix();
       rockets.setMatrixAt(rocketCount, dummy.matrix);
