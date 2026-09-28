@@ -27,11 +27,19 @@ const retiredOperatorAliases = [
   "/audit/game/room-1.jsonl",
   "/audit/replay/room-1",
   "/audit/replay/room-1.json",
+  "/admin/security-report",
+  "/admin/security-resolve",
+  "/admin/test-alert",
 ];
 const isRetiredTarget = (path) =>
   retiredHumanPaths.includes(path) ||
   retiredGamePaths.includes(path) ||
   path === "/api/lobby" ||
+  path === "/api/leaderboard" ||
+  path === "/api/security-report" ||
+  path === "/docs" || path === "/docs/" ||
+  path === "/openapi.json" || path === "/docs/openapi.json" ||
+  path === "/incidents.json" || path === "/logs.json" ||
   path === "/inquiry.json" ||
   path === "/audit.json" ||
   path === "/audit.jsonl" ||
@@ -204,17 +212,22 @@ async function main() {
   const healthBody = await health.json().catch(() => null);
   if (!healthBody?.ok || healthBody.module !== "module-react3fiber") fail("/api/health response shape changed");
 
-  for (const [path, arrayField] of [["/api/tank", "rooms"], ["/api/leaderboard", "entries"]]) {
-    const response = await request(path);
-    if (response.status !== 200) { fail(`${path} expected 200, got ${response.status}`); continue; }
-    const body = await response.json().catch(() => null);
-    if (!body?.ok || !Array.isArray(body?.[arrayField])) fail(`${path} response shape changed`);
-  }
+  const tank = await request("/api/tank");
+  if (tank.status !== 200) fail(`/api/tank expected 200, got ${tank.status}`);
+  const tankBody = await tank.json().catch(() => null);
+  if (!tankBody?.ok || !Array.isArray(tankBody?.rooms)) fail("/api/tank response shape changed");
 
   const profile = await request("/api/profile");
   if (profile.status !== 200) fail(`/api/profile expected 200, got ${profile.status}`);
   const profileBody = await profile.json().catch(() => null);
   if (!profileBody?.ok || !profileBody?.profile) fail("/api/profile response shape changed");
+
+  const publicStatus = await request("/status.json");
+  if (publicStatus.status !== 200) fail(`/status.json expected 200, got ${publicStatus.status}`);
+  const publicStatusBody = await publicStatus.json().catch(() => null);
+  if (!publicStatusBody?.ok) fail("/status.json response shape changed");
+  if (publicStatusBody && Object.prototype.hasOwnProperty.call(publicStatusBody, "instance")) fail("/status.json still publishes instance");
+  if (publicStatusBody && Object.prototype.hasOwnProperty.call(publicStatusBody, "global")) fail("/status.json still publishes global");
 
   const roomWithoutUpgrade = await request("/room/room-1/ws");
   if (roomWithoutUpgrade.status !== 426) fail(`non-upgraded room route expected 426, got ${roomWithoutUpgrade.status}`);
@@ -226,16 +239,19 @@ async function main() {
   const unknownApiBody = await unknownApi.json().catch(() => null);
   if (unknownApiBody?.error !== "unknown endpoint") fail("unknown API response body changed");
 
-  const retiredLobbyAlias = await request("/api/lobby");
-  if (retiredLobbyAlias.status !== 404) fail(`/api/lobby expected 404, got ${retiredLobbyAlias.status}`);
-  if (!(retiredLobbyAlias.headers.get("content-type") || "").startsWith("application/json")) fail("/api/lobby must use the normal JSON/API 404");
-  const retiredLobbyBody = await retiredLobbyAlias.json().catch(() => null);
-  if (retiredLobbyBody?.error !== "unknown endpoint") fail("/api/lobby did not use the normal unknown-endpoint body");
+  for (const retiredApi of ["/api/lobby", "/api/leaderboard", "/api/security-report"]) {
+    const retired = await request(retiredApi);
+    if (retired.status !== 404) fail(`${retiredApi} expected 404, got ${retired.status}`);
+    if (!(retired.headers.get("content-type") || "").startsWith("application/json")) fail(`${retiredApi} must use the normal JSON/API 404`);
+    const body = await retired.json().catch(() => null);
+    if (body?.error !== "unknown endpoint") fail(`${retiredApi} did not use the normal unknown-endpoint body`);
+  }
 
   for (const retiredPath of [
     ...retiredHumanPaths,
     ...retiredGamePaths,
     "/inquiry.json",
+    "/docs", "/docs/", "/openapi.json", "/docs/openapi.json", "/incidents.json", "/logs.json",
     "/controls", "/controls/",
     "/iso-27001", "/iso-27001/",
     "/iso-42001", "/iso-42001/",
@@ -320,6 +336,16 @@ async function main() {
   assertStrictPresentation("/admin/", admin, adminHtml);
   if (!adminHtml.includes("<h1>Admin</h1>")) fail("authenticated /admin/ lost its control-room content");
   if (adminHtml.includes('href="/controls/')) fail("authenticated /admin/ still links to the retired register");
+  for (const retiredControl of ["/admin/security-report", "/admin/security-resolve", "/admin/test-alert", "admin-security-report", "test-alert-form"]) {
+    if (adminHtml.includes(retiredControl)) fail(`authenticated /admin/ still exposes retired control ${retiredControl}`);
+  }
+
+  const adminStatus = await fetch(`${base}/admin/status.json`, { redirect: "manual", headers: { authorization: `Basic ${auth}`, "cache-control": "no-cache" } });
+  if (adminStatus.status !== 200) fail(`authenticated /admin/status.json expected 200, got ${adminStatus.status}`);
+  const adminStatusBody = await adminStatus.json().catch(() => null);
+  if (!adminStatusBody?.instance?.bootId) fail("/admin/status.json lost operator instance status");
+  if (!Array.isArray(adminStatusBody?.rooms)) fail("/admin/status.json lost room status");
+  if (!adminStatusBody?.billingWindow) fail("/admin/status.json lost billing status");
 
   for (const retiredPath of retiredOperatorAliases) {
     const retired = await fetch(`${base}${retiredPath}`, {
@@ -343,13 +369,6 @@ async function main() {
   const retiredSwitchHtml = await retiredSwitch.text();
   assertStrictPresentation("/admin/switch", retiredSwitch, retiredSwitchHtml);
   assertNotGameDocument("/admin/switch", retiredSwitchHtml);
-
-  const docs = await request("/docs/");
-  if (docs.status !== 200) fail(`/docs/ expected 200, got ${docs.status}`);
-  if (!(docs.headers.get("content-type") || "").startsWith("text/html")) fail("/docs/ must remain HTML");
-  const docsHtml = await docs.text();
-  assertStrictPresentation("/docs/", docs, docsHtml);
-  if (!docsHtml.includes("OpenAPI")) fail("/docs/ lost its OpenAPI presentation");
 
     const home = pages.get("/") || "";
   const headerNav = home.match(/<header[\s\S]*?<nav aria-label="Primary">([\s\S]*?)<\/nav>/)?.[1] || "";
@@ -405,7 +424,7 @@ async function main() {
   if (robots.status !== 200) fail(`robots.txt expected 200, got ${robots.status}`);
   const robotsBody = await robots.text();
   const disallowed = [...robotsBody.matchAll(/^Disallow: (.+)$/gm)].map((match) => match[1]);
-  const expectedDisallowed = ["/admin/", "/docs/", "/logs/game/", "/*.json$", "/*.jsonl$"];
+  const expectedDisallowed = ["/admin/", "/logs/game/", "/*.json$", "/*.jsonl$"];
   if (JSON.stringify(disallowed) !== JSON.stringify(expectedDisallowed)) fail(`robots.txt references an unexpected route set: ${JSON.stringify(disallowed)}`);
 
   const sitemap = await (await request("/sitemap.xml")).text();
@@ -417,7 +436,7 @@ async function main() {
     console.error(`\n${failures.length} public IA check(s) failed.`);
     process.exit(1);
   }
-  console.log(`Verified ${canonical.length} canonical pages, strict no-unsafe-inline CSP/generated-HTML contracts, explicit /play/ Static Assets routing with hashed/lazy Vite assets, application/index/asset misses that cannot fall back to the game document, OpenAPI/admin/404 HTML, health/tank/profile/leaderboard APIs, a live Room Durable Object WebSocket welcome plus 426 non-upgrade behavior, primary navigation, unique IDs, internal anchors, assets, ${Object.keys(slashRedirects).length} canonical slash redirects, retired compatibility/API/operator aliases, surviving robots.txt entries, and canonical sitemap.`);
+  console.log(`Verified ${canonical.length} canonical pages, strict no-unsafe-inline CSP/generated-HTML contracts, explicit /play/ Static Assets routing with hashed/lazy Vite assets, application/index/asset misses that cannot fall back to the game document, admin/404 HTML, health/tank/profile APIs and retired-endpoint 404s, a live Room Durable Object WebSocket welcome plus 426 non-upgrade behavior, primary navigation, unique IDs, internal anchors, assets, ${Object.keys(slashRedirects).length} canonical slash redirects, retired compatibility/API/operator aliases, surviving robots.txt entries, and canonical sitemap.`);
 }
 
 main().catch((error) => { console.error(error); process.exit(1); });

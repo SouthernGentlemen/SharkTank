@@ -19,12 +19,11 @@ const PRIMARY_NAV = [
 
 const ESTATE_FOOTER = [
   ["Public", [["/", "Overview"], ["/evidence/", "Evidence"], ["/play/", "Play"]]],
-  ["Machine evidence", [["/status.json", "Status JSON"], ["/incidents.json", "Incidents JSON"], ["/spend.json", "Spend JSON"], ["/logs.json", "Logs JSON"]]],
-  ["Technical", [["/docs/", "Developer API"], ["/openapi.json", "OpenAPI JSON"], ["https://github.com/Wizard-Gang/SharkTank", "GitHub source"]]],
-
+  ["Machine evidence", [["/status.json", "Status JSON"], ["/spend.json", "Spend JSON"], ["/version.json", "Version JSON"]]],
+  ["Technical", [["https://github.com/Wizard-Gang/SharkTank", "GitHub source"]]],
 ] as const;
 
-type AuditedRawArtifactKind = "openapi" | "evidence" | "admin";
+type AuditedRawArtifactKind = "evidence" | "admin";
 
 interface DocumentMetadata {
   title: string;
@@ -49,7 +48,7 @@ interface GeneratedMainProps {
 /**
  * The only raw-HTML bridge in the React Worker presentation.
  *
- * These three inputs are pre-existing, first-party generators whose contracts are already
+ * These inputs are pre-existing, first-party generators whose contracts are already
  * exercised by public-copy, accessibility, and local HTTP acceptance tests.
  * New Worker presentation must use React elements instead of adding another raw insertion
  * site or another artifact kind here.
@@ -297,10 +296,6 @@ export function renderEvidenceDocument(...args: Parameters<typeof evidenceDashbo
 
 export function renderAdminDocument(): string {
   return renderGeneratedDocument({ title: "Shark — Admin" }, "admin", adminViewerHtml());
-}
-
-export function renderOpenApiDocument(openApiHtml: string): string {
-  return renderGeneratedDocument({ title: "Shark — API Docs" }, "openapi", openApiHtml);
 }
 
 

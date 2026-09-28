@@ -1,12 +1,11 @@
 // Local host Worker: serves the built R3F client (via ASSETS), a small JSON API
-// (lobby / profile / global leaderboard) backed by the Lobby DO, and
+// (tank / profile / audit) backed by the Lobby DO, and
 // upgrades /room/:id/ws WebSockets into the Room Durable Object.
 //
 // Imports ONLY the server-safe entry points of module-react3fiber (never the client),
 // so no browser libs leak into the Worker/DO bundle.
 
 import { API } from "module-react3fiber/protocol";
-import { OPENAPI, openApiToHtml } from "./openapi.js";
 
 export { Room } from "./room-do.js";
 export { Lobby } from "./lobby-do.js";
@@ -16,7 +15,6 @@ import { CANONICAL_HUMAN_ROUTES, isGameShellPath, isOpsPath, isStaticAssetPath, 
 import { numberValue, publicBillingWindow, publicStatusProjection, recordValue } from "./presentation-data.js";
 import {
   AUDIT_ROOMS,
-  AUDIT_ROOM_NAMES,
   CAPTURE_WINDOW_MS,
   INCIDENTS,
   LOG_FETCH_CAPTURES,
@@ -40,7 +38,6 @@ import {
   renderDowntimeDocument,
   renderEvidenceDocument,
   renderNotFoundDocument,
-  renderOpenApiDocument,
   renderOverviewDocument,
 } from "./presentation-react.js";
 
@@ -205,53 +202,21 @@ const METERED_PUBLIC_WRITES = new Set<string>([API.profile, "/api/audit"]);
  * with it — exempting all of `/api/*` meant the ceiling stopped the game while leaving the
  * two unauthenticated write paths taking Durable Object writes at full rate.
  *
- * Reads stay up: the evidence pages, the JSON behind them and `GET /api/*` are how anyone
+ * Reads stay up: the evidence pages, surviving JSON/text evidence and `GET /api/*` are how anyone
  * finds out *why* the service stopped, and a transparency estate that goes dark at exactly
- * the moment it has something to explain is worth nothing. `/api/security-report` stays up
- * for the same reason — the white-hat intake must never be closed by a spend event.
+ * the moment it has something to explain is worth nothing.
  */
 function maintenanceBypass(path: string, method: string): boolean {
   if (METERED_PUBLIC_WRITES.has(path) && method !== "GET" && method !== "HEAD") return false;
   // The stylesheet and enhancement script used by the surviving Worker-rendered pages.
   if (path.startsWith("/styles/") || path === "/assets/human-docs.js") return true;
   return path === "/" || path === "/robots.txt" || path === "/sitemap.xml" ||
-    path === API.health || path === API.tank || path === API.profile || path === API.leaderboard ||
-    path === "/api/audit" || path === "/api/security-report" ||
-    path === "/docs" || path.startsWith("/docs/") || path === "/openapi.json" ||
-    path === "/status.json" || path === "/incidents.json" || path === "/spend.json" ||
+    path === API.health || path === API.tank || path === API.profile ||
+    path === "/api/audit" ||
+    path === "/status.json" || path === "/spend.json" ||
     path === "/evidence" || path === "/evidence/" ||
-    path === "/logs.json" || path.startsWith("/logs/game/") ||
+    path.startsWith("/logs/game/") ||
     path === "/admin" || path.startsWith("/admin/");
-}
-
-
-/**
- * Record a white-hat security report. Whether it also takes the game down is decided by the
- * route that called this — never by the request — so the unauthenticated public intake can
- * only ever append a report, an audit event, and a control receipt. Only the ops-gated
- * /admin/security-report passes `lockdown`, which enables maintenance and closes tank sockets.
- */
-async function securityReport(request: Request, url: URL, env: Env, lockdown: boolean): Promise<Response> {
-  const report = {
-    id: `white-hat-${crypto.randomUUID()}`,
-    reportedAt: new Date().toISOString(),
-    environment: env.ENVIRONMENT ?? "unknown",
-    deploymentVersion: env.CF_VERSION_METADATA?.id ?? "local",
-    route: url.pathname,
-    colo: request.cf?.colo ?? null,
-    country: request.cf?.country ?? null,
-    userAgent: (request.headers.get("user-agent") ?? "unknown").slice(0, 160),
-    lockdown,
-  };
-  const reportResponse = await lobbyStub(env).fetch("https://lobby/security-report", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify(report) });
-  if (reportResponse.status === 429) return json({ ok: false, error: "a security report was accepted moments ago; please wait before sending another" }, 429);
-  if (!reportResponse.ok) return json({ ok: false, error: lockdown ? "report and lockdown could not be persisted" : "report could not be persisted" }, 502);
-  const receipt = (await reportResponse.json()) as Record<string, unknown> & { maintenance?: MaintenanceState };
-  if (!lockdown) return json(receipt);
-  if (receipt.maintenance) maintenanceCache = { state: receipt.maintenance, expiresAt: Date.now() + 1_000 };
-  const roomResults = await Promise.allSettled(AUDIT_ROOMS.map((roomId) => roomFetch(env, roomId, "/maintenance?enabled=1", { method: "POST" })));
-  const disconnectedRooms = roomResults.filter((result) => result.status === "fulfilled" && result.value.ok).length;
-  return json({ ...receipt, disconnectedRooms, roomCount: AUDIT_ROOMS.length });
 }
 
 
@@ -486,7 +451,7 @@ export default {
 
       if (path === "/play") return movedTo(url, "/play/");
       if (path === "/favicon.ico") return new Response(null, { status: 404, headers: { "cache-control": "public, max-age=3600", ...SECURITY_HEADERS } });
-      if (path === "/robots.txt") return new Response("User-agent: *\nAllow: /\nDisallow: /admin/\nDisallow: /docs/\nDisallow: /logs/game/\nDisallow: /*.json$\nDisallow: /*.jsonl$\nSitemap: https://sharktank.wizardgang.ai/sitemap.xml\n", { headers: { "content-type": "text/plain; charset=utf-8", "cache-control": "public, max-age=3600", ...SECURITY_HEADERS } });
+      if (path === "/robots.txt") return new Response("User-agent: *\nAllow: /\nDisallow: /admin/\nDisallow: /logs/game/\nDisallow: /*.json$\nDisallow: /*.jsonl$\nSitemap: https://sharktank.wizardgang.ai/sitemap.xml\n", { headers: { "content-type": "text/plain; charset=utf-8", "cache-control": "public, max-age=3600", ...SECURITY_HEADERS } });
       if (path === "/sitemap.xml") {
         const routes = CANONICAL_HUMAN_ROUTES;
         const body = `<?xml version="1.0" encoding="UTF-8"?><urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">${routes.map((route) => `<url><loc>https://sharktank.wizardgang.ai${route}</loc></url>`).join("")}</urlset>`;
@@ -522,11 +487,6 @@ export default {
       if (path === API.tank) {
         const stub = env.LOBBY.get(env.LOBBY.idFromName("global"));
         return stub.fetch("https://lobby/list");
-      }
-
-      if (path === API.leaderboard) {
-        const stub = env.LOBBY.get(env.LOBBY.idFromName("global"));
-        return stub.fetch("https://lobby/leaderboard");
       }
 
       // Profile read/write. The write is unauthenticated by design — one GET mints a
@@ -585,16 +545,6 @@ export default {
         return response;
       }
 
-      // Public white-hat intake. Records the report and raises it to operations; it must
-      // never change service state, because nothing here is authenticated — the origin and
-      // x-wg-security-report headers are CSRF defence, not authorization, and both are
-      // trivially set by a non-browser client. Taking the game offline is an operator
-      // decision made at /admin/security-report below, behind ops auth.
-      if (path === "/api/security-report" && request.method === "POST") {
-        if (request.headers.get("origin") !== url.origin || request.headers.get("x-wg-security-report") !== "white-hat") return json({ ok: false, error: "same-origin report required" }, 403);
-        return securityReport(request, url, env, false);
-      }
-
       if (path.startsWith("/api/")) return json({ ok: false, error: "unknown endpoint" }, 404);
 
       // ── Ops pages: docs / status / audit ─────────────────────────────────────
@@ -615,15 +565,6 @@ export default {
         maintenanceCache = { state: data.maintenance, expiresAt: Date.now() + 1_000 };
         return json({ ok: true, maintenance: data.maintenance, history: data.history ?? null, message: data.message ?? "Maintenance state updated.", openSecurityReports: data.openSecurityReports ?? 0 });
       }
-      if (path === "/admin/security-resolve") {
-        if (request.method !== "POST") return json({ ok: false, error: "method not allowed" }, 405);
-        if (request.headers.get("origin") !== url.origin || request.headers.get("x-wg-ops-action") !== "security-resolve") return json({ ok: false, error: "same-origin operation required" }, 403);
-        let body: { ownerConfirmed?: boolean; dryRun?: boolean; note?: string };
-        try { body = await request.json() as { ownerConfirmed?: boolean; dryRun?: boolean; note?: string }; } catch { return json({ ok: false, error: "invalid JSON" }, 400); }
-        if (!body.ownerConfirmed || !body.dryRun) return json({ ok: false, error: "owner confirmation and dry-run flag required" }, 400);
-        const res = await lobbyStub(env).fetch("https://lobby/security-report/resolve", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify(body) });
-        return new Response(res.body, { status: res.status, headers: { "content-type": "application/json; charset=utf-8", "cache-control": "no-store" } });
-      }
       if (path === "/admin/billing-reset") {
         if (request.method !== "POST") return json({ ok: false, error: "method not allowed" }, 405);
         if (request.headers.get("origin") !== url.origin || request.headers.get("x-wg-ops-action") !== "billing-reset") return json({ ok: false, error: "same-origin operation required" }, 403);
@@ -631,33 +572,6 @@ export default {
         if (!res.ok) return json({ ok: false, error: "unable to reset billing counter" }, 502);
         return new Response(res.body, { status: res.status, headers: { "content-type": "application/json; charset=utf-8", "cache-control": "no-store" } });
       }
-      if (path === "/admin/security-report") {
-        if (request.method !== "POST") return json({ ok: false, error: "method not allowed" }, 405);
-        if (request.headers.get("origin") !== url.origin || request.headers.get("x-wg-ops-action") !== "security-report") return json({ ok: false, error: "same-origin operation required" }, 403);
-        return securityReport(request, url, env, true);
-      }
-      if (path === "/admin/test-alert") {
-        if (request.method !== "POST") return json({ ok: false, error: "method not allowed" }, 405);
-        if (request.headers.get("origin") !== url.origin || request.headers.get("x-wg-ops-action") !== "test-alert") return json({ ok: false, error: "same-origin operation required" }, 403);
-        let body: { code?: string };
-        try { body = await request.json() as { code?: string }; } catch { return json({ ok: false, error: "invalid JSON" }, 400); }
-        const code = typeof body.code === "string" ? body.code.toUpperCase() : "";
-        if (!/^[A-Z][0-9]{3}$/.test(code)) return json({ ok: false, error: "code must be exactly one ASCII letter followed by three digits" }, 400);
-        const event = await lobbyStub(env).fetch("https://lobby/test-alert", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ code }) });
-        if (!event.ok) return json({ ok: false, error: "unable to record test alert" }, 502);
-        return new Response(event.body, { status: event.status, headers: { "content-type": "application/json; charset=utf-8", "cache-control": "no-store" } });
-      }
-      if (path === "/docs/openapi.json" || path === "/openapi.json") {
-        return json(OPENAPI);
-      }
-      if (path === "/docs" || path === "/docs/") {
-        const response = html(renderOpenApiDocument(openApiToHtml(OPENAPI)));
-        response.headers.set("x-robots-tag", "noindex");
-        return response;
-      }
-
-
-
       if (path === "/evidence") return movedTo(url, "/evidence/");
       if (path === "/evidence/") {
         const [statusRes, incidentRecord, logs] = await Promise.all([
@@ -668,8 +582,6 @@ export default {
         const data = (await statusRes.json()) as PublicEvidenceStatus;
         return html(renderEvidenceDocument(data, incidentRecord, logs));
       }
-
-      if (path === "/incidents.json") { const data = await incidentData(env); return json({ ok: true, summary: incidentSummary(data.incidents), ...data }); }
 
       if (path === "/spend.json") {
         const res = await lobbyStub(env).fetch("https://lobby/status");
@@ -684,11 +596,6 @@ export default {
         const data = (await res.json()) as { events?: GameLogWireEvent[] };
         const cutoff = Date.now() - CAPTURE_WINDOW_MS;
         return gameLogText(roomId, (data.events ?? []).filter((event) => event.ts >= cutoff));
-      }
-      if (path === "/logs.json") {
-        const { service, tanks, caps } = await publicLogData(env);
-        const gameTanks = AUDIT_ROOMS.map((room, index) => ({ tankId: room, tank: AUDIT_ROOM_NAMES[room] ?? room, download: `/logs/game/${room}.txt`, records: tanks[index].records }));
-        return json({ ok: true, retention: { serviceDays: 90, captureHours: 24, serviceRecords: service.length, capturesPerTankLimit: LOG_FETCH_CAPTURES, truncated: caps }, serviceFormat: ["timestamp", "reasonCode", "action", "subject", "details"], captureFormat: ["timestamp", "reasonCode", "tick", "action", "name", "details"], events: service, gameTanks });
       }
       // ── MVP overview ─────────────────────────────────────────────────────────
       // One Lobby status read supplies incident-derived availability, billing,

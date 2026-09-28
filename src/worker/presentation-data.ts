@@ -24,7 +24,7 @@ export function numberValue(value: unknown): number {
 }
 
 export function publicStatusProjection(data: Record<string, unknown> & { usage?: Record<string, unknown> }) {
-  const { billingWindow: _billing, usage = {}, ...publicData } = data;
+  const { billingWindow: _billing, instance: _instance, global: _global, usage = {}, ...publicData } = data;
   const { tankRequests: _requests, auditEvents: _auditEvents, storage: _storage, durableObjects: rawDurableObjects, ...publicUsageRest } = usage;
   const durableObjects = recordValue(rawDurableObjects);
   return {

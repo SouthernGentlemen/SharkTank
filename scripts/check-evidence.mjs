@@ -32,6 +32,7 @@ const retiredHtml = [
   "/inquiry", "/inquiry/",
   "/arena", "/arena/legacy", "/uno", "/x4", "/21", "/game", "/checkers", "/battleship", "/3d", "/shark-run", "/sharkrun",
   "/inquiry.json",
+  "/docs", "/docs/", "/openapi.json", "/docs/openapi.json", "/incidents.json", "/logs.json",
   "/audit.json", "/audit.jsonl", "/audit/status.json",
   "/audit/game/room-1", "/audit/game/room-1.jsonl",
   "/audit/replay/room-1", "/audit/replay/room-1.json",
@@ -83,11 +84,13 @@ async function main() {
     fail("unauthenticated /admin/ lost its Basic authentication challenge");
   }
 
-  const retiredLobby = await request("/api/lobby");
-  if (retiredLobby.status !== 404) fail(`/api/lobby expected 404, got ${retiredLobby.status}`);
-  if (!(retiredLobby.headers.get("content-type") || "").startsWith("application/json")) fail("/api/lobby must use the normal JSON/API 404");
-  const retiredLobbyBody = await retiredLobby.json().catch(() => null);
-  if (retiredLobbyBody?.error !== "unknown endpoint") fail("/api/lobby did not use the normal unknown-endpoint body");
+  for (const path of ["/api/lobby", "/api/leaderboard", "/api/security-report"]) {
+    const response = await request(path);
+    if (response.status !== 404) fail(`${path} expected 404, got ${response.status}`);
+    if (!(response.headers.get("content-type") || "").startsWith("application/json")) fail(`${path} must use the normal JSON/API 404`);
+    const body = await response.json().catch(() => null);
+    if (body?.error !== "unknown endpoint") fail(`${path} did not use the normal unknown-endpoint body`);
+  }
 
   for (const path of retiredHtml) {
     const response = await request(path);
@@ -104,7 +107,7 @@ async function main() {
     process.exit(1);
   }
 
-  console.log(`Verified ${publicPages.length} canonical pages, ${publicJson.length} public JSON snapshots, unauthenticated Admin denial, the retired /api/lobby alias, and ${retiredHtml.length} retired HTML compatibility/alias routes.`);
+  console.log(`Verified ${publicPages.length} canonical pages, ${publicJson.length} public JSON snapshots, unauthenticated Admin denial, retired JSON/API endpoints, and ${retiredHtml.length} retired HTML compatibility/alias routes.`);
 }
 
 main().catch((error) => {
