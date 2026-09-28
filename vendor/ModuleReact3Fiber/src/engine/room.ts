@@ -3,8 +3,20 @@
 // so the exact same code runs in the browser (bots/preview) and in the authoritative
 // Room Durable Object. RNG state lives in the snapshot, so the whole thing is replayable.
 
+import {
+  clampPitch,
+  clampToOceanVolume,
+  distance3,
+  distancePointToSegmentSquared3,
+  distanceSquared3,
+  forwardFromYawPitch,
+  horizontalRadiusSquared,
+  isInsideOceanVolume,
+  normalizeYaw,
+  yawPitchToward,
+} from "./geometry3d.js";
 import { nextRandom, seedToNumber } from "./rng.js";
-import type { Action, Food, RocketProjectile, RoomState, ScoreEntry, Snake, Vec2 } from "./types.js";
+import type { Action, Food, RocketProjectile, RoomState, ScoreEntry, Snake, Vec3 } from "./types.js";
 
 // ── Tuning ────────────────────────────────────────────────────────────────────
 // Ticking at 30Hz (vs 20) means fresher snapshots → less perceived lag. Per-tick speeds
@@ -13,7 +25,10 @@ import type { Action, Food, RocketProjectile, RoomState, ScoreEntry, Snake, Vec2
 export const TICKS_PER_SECOND = 20; // responsive authority; shark snapshots contain only one body point
 // 32 sharks share a tank, so the arena grew with the population — enough water that a
 // full lobby is dense rather than a permanent scrum at the wall.
-const ARENA_RADIUS = 82;
+export const ROOM_SCHEMA_VERSION = 8 as const;
+const OCEAN_RADIUS = 82;
+export const DEFAULT_SEABED_Y = -12;
+export const DEFAULT_SURFACE_Y = 12;
 const BASE_SPEED = 0.556; // world units / tick (~11 u/s)
 const BOOST_SPEED = 1.42; // (~28 u/s) — short, high-impact chomp dash
 const TURN_RATE = 0.22; // max radians / tick (~4.4 rad/s)
@@ -91,18 +106,28 @@ const BOT_NAMES = [
 export interface CreateRoomOptions {
   id?: string;
   seed?: string;
-  arenaRadius?: number;
+  oceanRadius?: number;
+  seabedY?: number;
+  surfaceY?: number;
 }
 
 export function createRoom(opts: CreateRoomOptions = {}): RoomState {
   const seed = opts.seed ?? "seed-fixed";
+  const radius = Number.isFinite(opts.oceanRadius) && (opts.oceanRadius as number) >= 8
+    ? (opts.oceanRadius as number)
+    : OCEAN_RADIUS;
+  const requestedFloor = Number.isFinite(opts.seabedY) ? (opts.seabedY as number) : DEFAULT_SEABED_Y;
+  const requestedSurface = Number.isFinite(opts.surfaceY) ? (opts.surfaceY as number) : DEFAULT_SURFACE_Y;
+  const validVerticalBounds = requestedSurface - requestedFloor >= 4;
+  const seabedY = validVerticalBounds ? requestedFloor : DEFAULT_SEABED_Y;
+  const surfaceY = validVerticalBounds ? requestedSurface : DEFAULT_SURFACE_Y;
   const state: RoomState = {
-    schemaVersion: 7,
+    schemaVersion: ROOM_SCHEMA_VERSION,
     id: opts.id ?? "room-local",
     seed,
     tick: 0,
     rngState: seedToNumber(seed),
-    arena: { radius: opts.arenaRadius ?? ARENA_RADIUS },
+    ocean: { radius, seabedY, surfaceY },
     snakes: {},
     food: [],
     rockets: [],
@@ -119,32 +144,36 @@ function rand(state: RoomState): number {
   state.rngState = next;
   return v;
 }
+
 function randRange(state: RoomState, min: number, max: number): number {
   return min + rand(state) * (max - min);
 }
 
-/** A uniform random point inside the arena disc. */
-function randomPointInArena(state: RoomState): Vec2 {
-  const r = Math.sqrt(rand(state)) * (state.arena.radius - 2);
-  const a = rand(state) * Math.PI * 2;
-  return { x: Math.cos(a) * r, z: Math.sin(a) * r };
+function randomY(state: RoomState, margin = 2): number {
+  return randRange(state, state.ocean.seabedY + margin, state.ocean.surfaceY - margin);
 }
 
-/** A uniform random point inside the middle of the arena. */
-function randomPointNearCenter(state: RoomState): Vec2 {
-  const r = Math.sqrt(rand(state)) * state.arena.radius * CENTER_FOOD_RADIUS;
+/** A uniform random point inside the playable ocean cylinder. */
+function randomPointInOcean(state: RoomState): Vec3 {
+  const r = Math.sqrt(rand(state)) * (state.ocean.radius - 2);
   const a = rand(state) * Math.PI * 2;
-  return { x: Math.cos(a) * r, z: Math.sin(a) * r };
+  return { x: Math.cos(a) * r, y: randomY(state), z: Math.sin(a) * r };
+}
+
+/** A random point inside the central horizontal region and water column. */
+function randomPointNearCenter(state: RoomState): Vec3 {
+  const r = Math.sqrt(rand(state)) * state.ocean.radius * CENTER_FOOD_RADIUS;
+  const a = rand(state) * Math.PI * 2;
+  return { x: Math.cos(a) * r, y: randomY(state), z: Math.sin(a) * r };
 }
 
 function spawnAmbientFood(state: RoomState): void {
-  // Most dots land in the middle so the centre of the tank is worth contesting; the
-  // rest scatter across the whole disc so the outer water is never barren.
   const middle = rand(state) < CENTER_FOOD_SHARE;
-  const p = middle ? randomPointNearCenter(state) : randomPointInArena(state);
+  const p = middle ? randomPointNearCenter(state) : randomPointInOcean(state);
   state.food.push({
     id: `f-${state.tick}-${Math.floor(rand(state) * 1e9).toString(36)}`,
     x: p.x,
+    y: p.y,
     z: p.z,
     value: 1,
     r: 0.45,
@@ -152,32 +181,32 @@ function spawnAmbientFood(state: RoomState): void {
 }
 
 // ── Snake construction ──────────────────────────────────────────────────────────
-/** Pick a spawn in the inner arena, as far as possible from any snake body segment. */
-function safeSpawn(state: RoomState): Vec2 {
-  // Spread spawns across most of the disc: at 32 sharks a tight inner circle produced a
-  // permanent scrum in the middle instead of an arena. Still clear of the lethal wall.
-  const inner = state.arena.radius * 0.72;
-  // Sample of all occupied points (every 3rd segment keeps this cheap for long bots).
-  // Weight each occupied point by how dangerous its owner is: landing beside a minnow
-  // is survivable, landing beside the tank's biggest shark is not.
-  const occupied: Array<{ p: Vec2; weight: number }> = [];
+/** Pick a spawn in the inner ocean volume, as far as possible from living shark segments. */
+function safeSpawn(state: RoomState): Vec3 {
+  const inner = state.ocean.radius * 0.72;
+  const occupied: Array<{ p: Vec3; weight: number }> = [];
   for (const s of Object.values(state.snakes)) {
     if (!s.alive) continue;
     const weight = 1 + Math.min(3, s.length / (START_LENGTH * 2));
     for (let i = 0; i < s.segments.length; i += 3) occupied.push({ p: s.segments[i], weight });
   }
-  let best: Vec2 = { x: 0, z: 0 };
+
+  let best: Vec3 = {
+    x: 0,
+    y: (state.ocean.seabedY + state.ocean.surfaceY) / 2,
+    z: 0,
+  };
   let bestDist = -1;
   for (let attempt = 0; attempt < 24; attempt += 1) {
     const r = Math.sqrt(rand(state)) * inner;
     const a = rand(state) * Math.PI * 2;
-    const p = { x: Math.cos(a) * r, z: Math.sin(a) * r };
+    const p: Vec3 = { x: Math.cos(a) * r, y: randomY(state), z: Math.sin(a) * r };
     let nearest = Infinity;
-    for (const o of occupied) nearest = Math.min(nearest, Math.hypot(o.p.x - p.x, o.p.z - p.z) / o.weight);
+    for (const o of occupied) nearest = Math.min(nearest, distance3(o.p, p) / o.weight);
     if (nearest > bestDist) {
       bestDist = nearest;
       best = p;
-      if (nearest > 12 || occupied.length === 0) break; // good enough
+      if (nearest > 12 || occupied.length === 0) break;
     }
   }
   return best;
@@ -202,41 +231,56 @@ export const MOVE = {
  *  arc-length steps (interpolating between breadcrumbs). Pure — reused by the server
  *  simulation and by client-side prediction. `fallbackHeading` extends the tail when the
  *  trail is too short (fresh spawn). Returns points head-first. */
-export function sampleTrail(path: Vec2[], count: number, fallbackHeading: number): Vec2[] {
-  const out: Vec2[] = [{ x: path[0].x, z: path[0].z }];
+export function sampleTrail(
+  path: Vec3[],
+  count: number,
+  fallbackYaw: number,
+  fallbackPitch = 0,
+): Vec3[] {
+  const out: Vec3[] = [{ x: path[0].x, y: path[0].y, z: path[0].z }];
   let seg = 1;
-  let acc = 0; // distance accumulated along the current path edge budget
+  let acc = 0;
   for (let i = 0; i < path.length - 1 && seg < count; i += 1) {
     const a = path[i];
     const b = path[i + 1];
-    const edge = Math.hypot(b.x - a.x, b.z - a.z);
+    const edge = distance3(a, b);
     if (edge <= 1e-6) continue;
     let along = 0;
     while (acc + (edge - along) >= SEGMENT_SPACING && seg < count) {
       const need = SEGMENT_SPACING - acc;
       along += need;
       const f = along / edge;
-      out.push({ x: a.x + (b.x - a.x) * f, z: a.z + (b.z - a.z) * f });
+      out.push({
+        x: a.x + (b.x - a.x) * f,
+        y: a.y + (b.y - a.y) * f,
+        z: a.z + (b.z - a.z) * f,
+      });
       seg += 1;
       acc = 0;
     }
     acc += edge - along;
   }
-  // Pad a too-short trail by extending straight back from the tail.
+
+  const fallback = forwardFromYawPitch(fallbackYaw, fallbackPitch);
   while (out.length < count) {
     const last = out[out.length - 1];
-    const prev = out[out.length - 2] ?? last;
-    const dx = last.x - prev.x || Math.cos(fallbackHeading + Math.PI);
-    const dz = last.z - prev.z || Math.sin(fallbackHeading + Math.PI);
-    const d = Math.hypot(dx, dz) || 1;
-    out.push({ x: last.x + (dx / d) * SEGMENT_SPACING, z: last.z + (dz / d) * SEGMENT_SPACING });
+    const prev = out[out.length - 2];
+    const back = prev
+      ? { x: last.x - prev.x, y: last.y - prev.y, z: last.z - prev.z }
+      : { x: -fallback.x, y: -fallback.y, z: -fallback.z };
+    const length = Math.sqrt(back.x * back.x + back.y * back.y + back.z * back.z) || 1;
+    out.push({
+      x: last.x + (back.x / length) * SEGMENT_SPACING,
+      y: last.y + (back.y / length) * SEGMENT_SPACING,
+      z: last.z + (back.z / length) * SEGMENT_SPACING,
+    });
   }
   return out;
 }
 
 /** Rebuild a snake's body segments from its head trail (server-side). */
 function resampleSegments(snake: Snake): void {
-  snake.segments = sampleTrail(snake.path, segmentCount(snake.length), snake.heading);
+  snake.segments = sampleTrail(snake.path, segmentCount(snake.length), snake.yaw, snake.pitch);
 }
 
 /** Median length across living sharks — the yardstick a fresh spawn is sized against. */
@@ -254,13 +298,17 @@ function spawnLength(state: RoomState): number {
 function makeSnake(state: RoomState, id: string, name: string, skin: string, isBot: boolean): Snake {
   const spawn = safeSpawn(state);
   const length = spawnLength(state);
-  // Face toward arena center (+ slight jitter) so a still snake drifts inward, not into a wall.
-  const heading = Math.atan2(-spawn.z, -spawn.x) + randRange(state, -0.5, 0.5);
-  // Seed the trail heading backwards from the spawn so the body extends behind the head.
-  const path: Vec2[] = [];
-  const step = SEGMENT_SPACING;
-  for (let i = 0; i < START_LENGTH + 3; i += 1) {  // trail seed only; body size comes from `length`
-    path.push({ x: spawn.x - Math.cos(heading) * i * step, z: spawn.z - Math.sin(heading) * i * step });
+  const yaw = normalizeYaw(Math.atan2(-spawn.z, -spawn.x) + randRange(state, -0.5, 0.5));
+  const pitch = 0;
+  const backward = forwardFromYawPitch(yaw, pitch);
+  const path: Vec3[] = [];
+  const trailStep = SEGMENT_SPACING;
+  for (let i = 0; i < START_LENGTH + 3; i += 1) {
+    path.push({
+      x: spawn.x - backward.x * i * trailStep,
+      y: spawn.y - backward.y * i * trailStep,
+      z: spawn.z - backward.z * i * trailStep,
+    });
   }
   const snake: Snake = {
     id,
@@ -268,8 +316,10 @@ function makeSnake(state: RoomState, id: string, name: string, skin: string, isB
     skin: validSkin(skin),
     path,
     segments: [],
-    heading,
-    targetHeading: heading,
+    yaw,
+    pitch,
+    targetYaw: yaw,
+    targetPitch: pitch,
     length,
     boosting: false,
     chargeTicks: 0,
@@ -315,19 +365,30 @@ export function frenzyTicksLeft(state: { tick: number; frenzyUntilTick?: number 
 
 /** Fat, high-value chum shower dropped in the middle when a frenzy opens. */
 function dropChum(state: RoomState): void {
+  const centerY = (state.ocean.seabedY + state.ocean.surfaceY) / 2;
+  const halfDepth = (state.ocean.surfaceY - state.ocean.seabedY) * 0.18;
   for (let i = 0; i < FRENZY_CHUM; i += 1) {
     const angle = (i / FRENZY_CHUM) * Math.PI * 2 + randRange(state, -0.3, 0.3);
-    const radius = randRange(state, 0.8, state.arena.radius * CENTER_FOOD_RADIUS * 0.9);
+    const radius = randRange(state, 0.8, state.ocean.radius * CENTER_FOOD_RADIUS * 0.9);
     state.food.push({
       id: `chum-${state.tick}-${i}`,
       x: Math.cos(angle) * radius,
+      y: randRange(state, centerY - halfDepth, centerY + halfDepth),
       z: Math.sin(angle) * radius,
       value: i % 3 === 0 ? 5 : 3,
       r: i % 3 === 0 ? 0.95 : 0.72,
     });
   }
   state.explosions ??= [];
-  state.explosions.push({ id: `chum-burst-${state.tick}`, x: 0, z: 0, tick: state.tick, skin: "gold", kind: "rocket" });
+  state.explosions.push({
+    id: `chum-burst-${state.tick}`,
+    x: 0,
+    y: centerY,
+    z: 0,
+    tick: state.tick,
+    skin: "gold",
+    kind: "rocket",
+  });
 }
 
 /** Open a frenzy on schedule. Purely tick-driven so replays reproduce it exactly. */
@@ -359,9 +420,12 @@ export function applyAction(state: RoomState, action: Action): RoomState {
       delete state.snakes[action.playerId];
       return state;
     }
-    case "setHeading": {
+    case "setOrientation": {
       const s = state.snakes[action.playerId];
-      if (s && s.alive) s.targetHeading = action.angle;
+      if (s && s.alive && Number.isFinite(action.yaw) && Number.isFinite(action.pitch)) {
+        s.targetYaw = normalizeYaw(action.yaw);
+        s.targetPitch = clampPitch(action.pitch);
+      }
       return state;
     }
     case "setBoost": {
@@ -383,17 +447,19 @@ export function applyAction(state: RoomState, action: Action): RoomState {
     }
     case "rocket": {
       const s = state.snakes[action.playerId];
-      // Rockets are a player-only ability. Bot AI never fires one; this makes that a rule
-      // rather than an accident of `steerBot`, so bots stay non-lethal at range.
       if (s?.alive && !s.isBot && s.segments[0] && state.tick >= (s.rocketCooldownTick ?? 0)) {
-        const head = s.segments[0], lead = 2.5;
+        const head = s.segments[0];
+        const lead = 2.5;
+        const forward = forwardFromYawPitch(s.yaw, s.pitch);
         state.rockets ??= [];
         state.rockets.push({
           id: `rocket-${s.id}-${state.tick}`,
           ownerId: s.id,
-          x: head.x + Math.cos(s.heading) * lead,
-          z: head.z + Math.sin(s.heading) * lead,
-          heading: s.heading,
+          x: head.x + forward.x * lead,
+          y: head.y + forward.y * lead,
+          z: head.z + forward.z * lead,
+          yaw: s.yaw,
+          pitch: s.pitch,
           expiresTick: state.tick + ROCKET_LIFETIME_TICKS,
         });
         s.rocketTicks = 6;
@@ -430,7 +496,7 @@ export function step(state: RoomState): RoomState {
     spawnAmbientFood(state);
   }
 
-  // Bots choose a heading before movement.
+  // Bots choose their current compatibility orientation before movement.
   for (const s of Object.values(state.snakes)) {
     if (s.alive && s.isBot) steerBot(state, s);
   }
@@ -474,10 +540,9 @@ export function step(state: RoomState): RoomState {
 }
 
 function moveSnake(state: RoomState, s: Snake): void {
-  // Rotate heading toward targetHeading, clamped by TURN_RATE.
-  s.heading = rotateToward(s.heading, s.targetHeading, TURN_RATE);
+  s.yaw = rotateYawToward(s.yaw, s.targetYaw, TURN_RATE);
+  s.pitch = clampPitch(moveToward(s.pitch, s.targetPitch, TURN_RATE));
 
-  // Holding charges a lunge and makes the shark glow; releasing launches it forward.
   let speed = BASE_SPEED;
   s.chargeTicks ??= 0;
   s.lungeTicks ??= 0;
@@ -492,39 +557,41 @@ function moveSnake(state: RoomState, s: Snake): void {
   if (s.rocketTicks > 0) s.rocketTicks -= 1;
   if (isFrenzy(state)) speed *= FRENZY_SPEED;
 
-  // Advance the head and drop a fresh breadcrumb at the front of the trail.
   const head = s.path[0];
-  const nx = head.x + Math.cos(s.heading) * speed;
-  const nz = head.z + Math.sin(s.heading) * speed;
-  s.path.unshift({ x: nx, z: nz });
+  const forward = forwardFromYawPitch(s.yaw, s.pitch);
+  const rawY = head.y + forward.y * speed;
+  const y = Math.max(state.ocean.seabedY, Math.min(state.ocean.surfaceY, rawY));
+  if (y !== rawY) {
+    s.pitch = 0;
+    s.targetPitch = 0;
+  }
+  s.path.unshift({
+    x: head.x + forward.x * speed,
+    y,
+    z: head.z + forward.z * speed,
+  });
 
-  // Trim the trail by ARC LENGTH (not point count) so the body always has enough trail
-  // to sample — otherwise long snakes get a straight, janky padded tail. Tick-rate
-  // independent, so raising the tick rate can't starve the trail.
   const needLen = segmentCount(s.length) * SEGMENT_SPACING + TAIL_MARGIN;
   let acc = 0;
   let cut = s.path.length;
   for (let i = 1; i < s.path.length; i += 1) {
-    acc += Math.hypot(s.path[i].x - s.path[i - 1].x, s.path[i].z - s.path[i - 1].z);
+    acc += distance3(s.path[i], s.path[i - 1]);
     if (acc >= needLen) {
       cut = i + 1;
       break;
     }
   }
   if (s.path.length > cut) s.path.length = cut;
-
-  // Rebuild evenly-spaced body discs from the smooth trail (no wobble).
   resampleSegments(s);
 }
 
 function eat(state: RoomState, s: Snake): void {
   const head = s.segments[0];
-  // Bots get one pellet per tick. Human players may sweep two, which keeps the
-  // arena lively without letting the always-on AI vacuum a corpse instantly.
   const maxChomps = s.isBot ? 1 : MAX_CHOMPS_PER_TICK;
   let chomps = 0;
   state.food = state.food.filter((f) => {
-    if (chomps < maxChomps && Math.hypot(f.x - head.x, f.z - head.z) <= EAT_RADIUS + f.r) {
+    const foodPosition: Vec3 = { x: f.x, y: f.y, z: f.z };
+    if (chomps < maxChomps && distance3(foodPosition, head) <= EAT_RADIUS + f.r) {
       chomps += 1;
       s.score += f.value;
       s.length += Math.min(0.6, f.value * 0.18);
@@ -536,29 +603,40 @@ function eat(state: RoomState, s: Snake): void {
 
 function resolveSharkCollisions(state: RoomState): void {
   const living = Object.values(state.snakes).filter((shark) => shark.alive && shark.segments[0]);
+  const radiusSq = state.ocean.radius * state.ocean.radius;
   for (const shark of living) {
-    if (shark.alive && Math.hypot(shark.segments[0].x, shark.segments[0].z) >= state.arena.radius) killSnake(state, shark);
+    const head = shark.segments[0];
+    if (shark.alive && horizontalRadiusSquared(head) >= radiusSq) killSnake(state, shark);
   }
+
   for (let i = 0; i < living.length; i += 1) {
     const a = living[i];
     if (!a.alive) continue;
     for (let j = i + 1; j < living.length; j += 1) {
       const b = living[j];
       if (!b.alive || state.tick < a.invulnTick || state.tick < b.invulnTick) continue;
-      const radiusA = HEAD_RADIUS + Math.min(1.15, Math.sqrt(a.length) * .075);
-      const radiusB = HEAD_RADIUS + Math.min(1.15, Math.sqrt(b.length) * .075);
-      if (Math.hypot(a.segments[0].x - b.segments[0].x, a.segments[0].z - b.segments[0].z) > radiusA + radiusB) continue;
+      const radiusA = HEAD_RADIUS + Math.min(1.15, Math.sqrt(a.length) * 0.075);
+      const radiusB = HEAD_RADIUS + Math.min(1.15, Math.sqrt(b.length) * 0.075);
+      const headA = a.segments[0];
+      const headB = b.segments[0];
+      if (distanceSquared3(headA, headB) > (radiusA + radiusB) ** 2) continue;
+
       const difference = a.length - b.length;
       const consumeAdvantage = Math.max(3, Math.min(a.length, b.length) * 0.2);
       if (Math.abs(difference) <= consumeAdvantage) {
-        // Peers deflect instead of instantly deleting one another. This keeps dense
-        // starting shoals playable while retaining a clear size hierarchy.
-        const apart = Math.atan2(a.segments[0].z - b.segments[0].z, a.segments[0].x - b.segments[0].x);
-        a.heading = a.targetHeading = apart;
-        b.heading = b.targetHeading = apart + Math.PI;
+        const apartA = distanceSquared3(headA, headB) > 1e-9
+          ? yawPitchToward(headB, headA)
+          : { yaw: a.yaw, pitch: 0 };
+        const apartB = { yaw: normalizeYaw(apartA.yaw + Math.PI), pitch: -apartA.pitch };
+        a.yaw = a.targetYaw = apartA.yaw;
+        a.pitch = a.targetPitch = apartA.pitch;
+        b.yaw = b.targetYaw = apartB.yaw;
+        b.pitch = b.targetPitch = apartB.pitch;
         continue;
       }
-      const winner = difference > 0 ? a : b, smaller = difference > 0 ? b : a;
+
+      const winner = difference > 0 ? a : b;
+      const smaller = difference > 0 ? b : a;
       winner.score += Math.max(3, Math.round(smaller.length * 0.15));
       winner.length += Math.min(1.5, Math.max(0.5, smaller.length * 0.035));
       killSnake(state, smaller);
@@ -571,7 +649,15 @@ function killSnake(state: RoomState, s: Snake): void {
   const head = s.segments[0] ?? s.path[0];
   if (head) {
     state.explosions ??= [];
-    state.explosions.push({ id: `shark-burst-${s.id}-${state.tick}`, x: head.x, z: head.z, tick: state.tick, skin: s.skin, kind: "shark" });
+    state.explosions.push({
+      id: `shark-burst-${s.id}-${state.tick}`,
+      x: head.x,
+      y: head.y,
+      z: head.z,
+      tick: state.tick,
+      skin: s.skin,
+      kind: "shark",
+    });
   }
   scatterAsFood(state, s);
   s.alive = false;
@@ -589,12 +675,20 @@ function scatterAsFood(state: RoomState, s: Snake): void {
   if (!head) return;
   const count = Math.min(42, 24 + Math.floor(Math.sqrt(Math.max(0, s.length)) * 2));
   for (let i = 0; i < count; i += 1) {
-    const angle = (i / count) * Math.PI * 2 + randRange(state, -0.16, 0.16);
+    const yaw = (i / count) * Math.PI * 2 + randRange(state, -0.16, 0.16);
+    const pitch = randRange(state, -0.55, 0.55);
     const radius = randRange(state, 0.6, 5.6);
+    const direction = forwardFromYawPitch(yaw, pitch);
+    const point = clampToOceanVolume({
+      x: head.x + direction.x * radius,
+      y: head.y + direction.y * radius,
+      z: head.z + direction.z * radius,
+    }, state.ocean, 0.25);
     state.food.push({
       id: `d-${s.id}-${state.tick}-${i}`,
-      x: head.x + Math.cos(angle) * radius,
-      z: head.z + Math.sin(angle) * radius,
+      x: point.x,
+      y: point.y,
+      z: point.z,
       value: i % 6 === 0 ? 2 : 1,
       r: i % 6 === 0 ? 0.72 : 0.4,
     });
@@ -604,73 +698,88 @@ function scatterAsFood(state: RoomState, s: Snake): void {
 function stepRockets(state: RoomState): void {
   const active: RocketProjectile[] = [];
   for (const rocket of state.rockets) {
-    const fromX = rocket.x, fromZ = rocket.z;
-    const toX = fromX + Math.cos(rocket.heading) * ROCKET_SPEED;
-    const toZ = fromZ + Math.sin(rocket.heading) * ROCKET_SPEED;
+    const from: Vec3 = { x: rocket.x, y: rocket.y, z: rocket.z };
+    const forward = forwardFromYawPitch(rocket.yaw, rocket.pitch);
+    const to: Vec3 = {
+      x: from.x + forward.x * ROCKET_SPEED,
+      y: from.y + forward.y * ROCKET_SPEED,
+      z: from.z + forward.z * ROCKET_SPEED,
+    };
+
     let hit: Snake | null = null;
     for (const shark of Object.values(state.snakes)) {
       if (!shark.alive || shark.id === rocket.ownerId || !shark.segments[0]) continue;
-      const head = shark.segments[0];
       const hitRadius = 1.25 + Math.min(1.35, Math.sqrt(shark.length) * 0.1);
-      if (distanceToSegment(head.x, head.z, fromX, fromZ, toX, toZ) <= hitRadius) { hit = shark; break; }
+      if (distancePointToSegmentSquared3(shark.segments[0], from, to) <= hitRadius * hitRadius) {
+        hit = shark;
+        break;
+      }
     }
+
     if (hit) {
       const owner = state.snakes[rocket.ownerId];
       if (owner?.alive) owner.score += 10;
       killSnake(state, hit);
       continue;
     }
-    rocket.x = toX;
-    rocket.z = toZ;
-    const expired = state.tick >= rocket.expiresTick || Math.hypot(toX, toZ) >= state.arena.radius;
+
+    rocket.x = to.x;
+    rocket.y = to.y;
+    rocket.z = to.z;
+    const expired = state.tick >= rocket.expiresTick || !isInsideOceanVolume(to, state.ocean);
     if (expired) {
-      state.explosions.push({ id: `rocket-burst-${rocket.id}-${state.tick}`, x: toX, z: toZ, tick: state.tick, skin: "orange", kind: "rocket" });
-    } else active.push(rocket);
+      state.explosions.push({
+        id: `rocket-burst-${rocket.id}-${state.tick}`,
+        x: to.x,
+        y: to.y,
+        z: to.z,
+        tick: state.tick,
+        skin: "orange",
+        kind: "rocket",
+      });
+    } else {
+      active.push(rocket);
+    }
   }
   state.rockets = active;
-}
-
-function distanceToSegment(px: number, pz: number, ax: number, az: number, bx: number, bz: number): number {
-  const dx = bx - ax, dz = bz - az, lengthSq = dx * dx + dz * dz;
-  const t = lengthSq ? Math.max(0, Math.min(1, ((px - ax) * dx + (pz - az) * dz) / lengthSq)) : 0;
-  return Math.hypot(px - (ax + dx * t), pz - (az + dz * t));
 }
 
 // ── Bot AI ───────────────────────────────────────────────────────────────────────
 function steerBot(state: RoomState, s: Snake): void {
   const head = s.segments[0];
-  const distFromCenter = Math.hypot(head.x, head.z);
+  const radiusSq = horizontalRadiusSquared(head);
 
-  // Near the wall? Steer back toward center (survival first).
-  if (distFromCenter > state.arena.radius * 0.8) {
-    s.targetHeading = Math.atan2(-head.z, -head.x);
+  if (radiusSq > (state.ocean.radius * 0.8) ** 2) {
+    s.targetYaw = Math.atan2(-head.z, -head.x);
+    s.targetPitch = 0;
     s.boosting = false;
     s.chargeTicks = 0;
     return;
   }
 
-  // Otherwise head for the nearest food within sight. Sight widens during a frenzy so
-  // bots actually commit to the chum drop instead of ignoring the event.
   const sight = isFrenzy(state) ? 34 : 22;
   let best: Food | null = null;
   let bestD = Infinity;
   for (const f of state.food) {
-    const d = Math.hypot(f.x - head.x, f.z - head.z);
+    const d = distance3({ x: f.x, y: f.y, z: f.z }, head);
     if (d < bestD && d < sight) {
       bestD = d;
       best = f;
     }
   }
   if (best) {
-    s.targetHeading = Math.atan2(best.z - head.z, best.x - head.x);
+    s.targetYaw = Math.atan2(best.z - head.z, best.x - head.x);
+    // ST-121 owns full volumetric bot flight. ST-112 keeps bot steering behavior
+    // intentionally planar while all positions and collision geometry are truly 3D.
+    s.targetPitch = 0;
   } else if (isFrenzy(state)) {
-    s.targetHeading = Math.atan2(-head.z, -head.x); // swim to the chum in the middle
+    s.targetYaw = Math.atan2(-head.z, -head.x);
+    s.targetPitch = 0;
   } else if ((state.tick + botPhase(s.id)) % 20 === 0) {
-    // Wander: occasional random turn. Offset per shark so a whole tank of bots does not
-    // pivot in unison on the same tick — with 24 of them that reads as a glitch.
-    s.targetHeading = randRange(state, -Math.PI, Math.PI);
+    s.targetYaw = randRange(state, -Math.PI, Math.PI);
+    s.targetPitch = 0;
   }
-  // Charge briefly, then lunge toward close high-value food.
+
   s.dashCooldownTick ??= 0;
   const wantsLunge = best !== null && bestD < 8 && best.value >= 2;
   if (wantsLunge && state.tick >= s.dashCooldownTick && !s.boosting && s.lungeTicks === 0) s.boosting = true;
@@ -743,12 +852,17 @@ export function replay(opts: ReplayOptions, events: GameLogEntry[], toTick: numb
 }
 
 // ── Math helpers ───────────────────────────────────────────────────────────────
-function rotateToward(current: number, target: number, maxStep: number): number {
-  let diff = target - current;
+function rotateYawToward(current: number, target: number, maxStep: number): number {
+  let diff = normalizeYaw(target) - normalizeYaw(current);
   while (diff > Math.PI) diff -= Math.PI * 2;
   while (diff < -Math.PI) diff += Math.PI * 2;
-  if (Math.abs(diff) <= maxStep) return target;
-  return current + Math.sign(diff) * maxStep;
+  if (Math.abs(diff) <= maxStep) return normalizeYaw(target);
+  return normalizeYaw(current + Math.sign(diff) * maxStep);
+}
+
+function moveToward(current: number, target: number, maxStep: number): number {
+  const delta = target - current;
+  return Math.abs(delta) <= maxStep ? target : current + Math.sign(delta) * maxStep;
 }
 
 /** Deep clone a snapshot (structured, JSON-safe). Handy for React state updates. */

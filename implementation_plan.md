@@ -82,39 +82,6 @@ These are acceptance targets, not permission to fake authority:
 
 ## Open tasks
 
-### ST-112 — [REFACTOR] Extend authoritative world state from planar to volumetric
-
-**Goal**
-
-Make the deterministic engine understand true X/Y/Z positions and yaw/pitch orientation while keeping a safe compatibility path for clients until control/network work catches up.
-
-**Scope**
-
-- Replace gameplay `Vec2` position semantics with a serializable 3D vector shape.
-- Add authoritative vertical position to shark paths/segments, food/prey positions, explosions and any remaining position-bearing gameplay entity.
-- Replace single planar heading semantics with yaw + pitch or an equivalent normalized 3D forward vector that round-trips deterministically.
-- Keep roll out of authoritative state; derive visual bank later.
-- Replace circular-only bounds with an ocean volume that preserves the radial X/Z boundary and adds explicit floor/surface Y bounds.
-- Make spawn selection sample safe positions throughout the playable volume.
-- Convert movement, boundary death/clamping, distance checks and collision helpers to 3D geometry.
-- Keep a temporary mapping from old planar input to yaw with neutral pitch so the game remains playable during the transition.
-- Increment the engine room schema version.
-
-**Non-goals**
-
-- No client control redesign yet.
-- No combat redesign.
-- No final fish behavior.
-
-**Acceptance**
-
-- A shark can exist, move, collide and spawn at different Y values in deterministic engine tests.
-- Equal seeded simulations with equal actions still produce byte-equivalent state.
-- Planar compatibility input produces the same horizontal intent with pitch zero.
-- No 2D distance helper remains authoritative for 3D actors.
-
----
-
 ### ST-113 — [DB] Upgrade persisted Room snapshots safely for the 3D schema
 
 **Goal**

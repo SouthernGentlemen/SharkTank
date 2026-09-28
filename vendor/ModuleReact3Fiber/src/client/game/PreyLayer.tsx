@@ -21,7 +21,7 @@ export function PreyLayer({ socket }: { socket: RoomSocket }) {
     let foodCount = 0;
     for (let i = 0; i < frame.newer.food.length && foodCount < MAX_FOOD; i += 1) {
       const pellet = frame.newer.food[i];
-      dummy.position.set(pellet.x, 0.4, pellet.z);
+      dummy.position.set(pellet.x, pellet.y, pellet.z);
       dummy.rotation.set(0, 0, 0);
       dummy.scale.setScalar(Math.max(0.22, pellet.r * 0.85));
       dummy.updateMatrix();

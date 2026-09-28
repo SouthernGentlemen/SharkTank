@@ -1,26 +1,28 @@
-// Client-side prediction for the LOCAL snake only. The server is authoritative and
-// runs at 20Hz behind an interpolation delay, which makes remote snakes smooth but would
-// make your OWN steering feel laggy. So we predict the local head forward from live input
-// using the exact server movement model (imported from the engine), render it at zero
-// delay, and gently reconcile toward the authoritative state each time a snapshot lands.
-//
-// Only the local snake is predicted; everyone else stays server-interpolated.
+// Client-side prediction for the local shark only. The server remains authoritative.
+// ST-112 intentionally keeps the existing planar input surface: targetHeading maps to
+// authoritative yaw while pitch stays neutral until the later 3D control task.
 
-import { MOVE, TICKS_PER_SECOND, sampleTrail, segmentCount } from "../../engine/index.js";
-import type { Vec2 } from "../../engine/index.js";
+import {
+  MOVE,
+  TICKS_PER_SECOND,
+  distance3,
+  forwardFromYawPitch,
+  sampleTrail,
+  segmentCount,
+} from "../../engine/index.js";
+import type { Vec3 } from "../../engine/index.js";
 import type { NetSnake } from "../../protocol/index.js";
 import type { LocalInput } from "./useLocalInput.js";
 
-// Per-second rates derived from the per-tick model, so we can advance by real dt.
 const SPEED = MOVE.BASE_SPEED * TICKS_PER_SECOND;
 const BOOST = MOVE.BOOST_SPEED * TICKS_PER_SECOND;
 const TURN = MOVE.TURN_RATE * TICKS_PER_SECOND;
-const CRUMB_STEP = MOVE.SEGMENT_SPACING * 0.5; // drop a breadcrumb every half-spacing
+const CRUMB_STEP = MOVE.SEGMENT_SPACING * 0.5;
 const RECONCILE_PER_SECOND = 5;
 const MAX_RECONCILE_SPEED = SPEED * 0.65;
 const TELEPORT_ERROR = 8;
 
-function rotateToward(cur: number, target: number, maxStep: number): number {
+function rotateYawToward(cur: number, target: number, maxStep: number): number {
   let d = target - cur;
   while (d > Math.PI) d -= Math.PI * 2;
   while (d < -Math.PI) d += Math.PI * 2;
@@ -28,17 +30,23 @@ function rotateToward(cur: number, target: number, maxStep: number): number {
   return cur + Math.sign(d) * maxStep;
 }
 
-export interface PredictionResult {
-  segments: Vec2[];
-  head: Vec2;
-  heading: number;
+function moveToward(cur: number, target: number, maxStep: number): number {
+  const d = target - cur;
+  return Math.abs(d) <= maxStep ? target : cur + Math.sign(d) * maxStep;
 }
 
-/** Holds the predicted local snake between frames. One per game screen. */
+export interface PredictionResult {
+  segments: Vec3[];
+  head: Vec3;
+  yaw: number;
+  pitch: number;
+}
+
 export class LocalPredictor {
-  private head: Vec2 = { x: 0, z: 0 };
-  private crumbs: Vec2[] = []; // head-first breadcrumbs behind the head
-  private heading = 0;
+  private head: Vec3 = { x: 0, y: 0, z: 0 };
+  private crumbs: Vec3[] = [];
+  private yaw = 0;
+  private pitch = 0;
   private length: number = MOVE.MIN_LENGTH;
   private alive = false;
 
@@ -47,20 +55,15 @@ export class LocalPredictor {
     this.crumbs = [];
   }
 
-  /** Seed prediction from the authoritative snake (spawn / first packet / respawn). */
   private seed(auth: NetSnake): void {
-    this.head = { x: auth.segments[0].x, z: auth.segments[0].z };
-    this.crumbs = auth.segments.slice(1).map((s) => ({ x: s.x, z: s.z }));
-    this.heading = auth.heading;
+    this.head = { ...auth.segments[0] };
+    this.crumbs = auth.segments.slice(1).map((s) => ({ ...s }));
+    this.yaw = auth.yaw;
+    this.pitch = auth.pitch;
     this.length = auth.length;
     this.alive = true;
   }
 
-  /**
-   * Advance one frame. `auth` is the newest authoritative local snake (or null/dead),
-   * `staleness` is seconds since that snapshot arrived. Returns the predicted body to
-   * render, or null when there's nothing to predict (dead / no data).
-   */
   step(auth: NetSnake | null | undefined, input: LocalInput, dt: number, staleness: number): PredictionResult | null {
     if (!auth || !auth.alive || auth.segments.length === 0) {
       this.alive = false;
@@ -71,64 +74,59 @@ export class LocalPredictor {
       return this.build();
     }
 
-    // Sharks grow visually by scale; eating must not teleport the predicted head.
     this.length = auth.length;
-    const step = Math.min(dt, 0.05); // clamp long frames (tab was backgrounded)
-
-    // Turn toward the player's live target. The shark accelerates only during its
-    // own dash; rockets are independent server-authoritative projectiles.
-    this.heading = rotateToward(this.heading, input.targetHeading, TURN * step);
+    const frameStep = Math.min(dt, 0.05);
+    this.yaw = rotateYawToward(this.yaw, input.targetHeading, TURN * frameStep);
+    this.pitch = moveToward(this.pitch, 0, TURN * frameStep);
     const speed = auth.lungeTicks > 0 ? BOOST : SPEED;
-    let nx = this.head.x + Math.cos(this.heading) * speed * step;
-    let nz = this.head.z + Math.sin(this.heading) * speed * step;
+    const forward = forwardFromYawPitch(this.yaw, this.pitch);
+    const next: Vec3 = {
+      x: this.head.x + forward.x * speed * frameStep,
+      y: this.head.y + forward.y * speed * frameStep,
+      z: this.head.z + forward.z * speed * frameStep,
+    };
 
-    // Reconcile toward where the server head actually is *now* — the authoritative head
-    // extrapolated forward by its own motion over the snapshot's staleness. Soft, so
-    // small mispredictions ease out instead of snapping (no rubber-banding).
     const authSpeed = auth.lungeTicks > 0 ? BOOST : SPEED;
-    const authNowX = auth.segments[0].x + Math.cos(auth.heading) * authSpeed * staleness;
-    const authNowZ = auth.segments[0].z + Math.sin(auth.heading) * authSpeed * staleness;
-    const errorX = authNowX - nx, errorZ = authNowZ - nz;
-    const error = Math.hypot(errorX, errorZ);
+    const authForward = forwardFromYawPitch(auth.yaw, auth.pitch);
+    const authNow: Vec3 = {
+      x: auth.segments[0].x + authForward.x * authSpeed * staleness,
+      y: auth.segments[0].y + authForward.y * authSpeed * staleness,
+      z: auth.segments[0].z + authForward.z * authSpeed * staleness,
+    };
+    const error = distance3(authNow, next);
     if (error > TELEPORT_ERROR) {
       this.seed(auth);
       return this.build();
     }
     if (error > 0.001) {
-      // Time-based and velocity-capped reconciliation avoids the packet-rate sawtooth
-      // caused by correcting a fixed fraction on every display frame.
-      const eased = 1 - Math.exp(-RECONCILE_PER_SECOND * step);
-      const correction = Math.min(eased, MAX_RECONCILE_SPEED * step / error);
-      nx += errorX * correction;
-      nz += errorZ * correction;
+      const eased = 1 - Math.exp(-RECONCILE_PER_SECOND * frameStep);
+      const correction = Math.min(eased, MAX_RECONCILE_SPEED * frameStep / error);
+      next.x += (authNow.x - next.x) * correction;
+      next.y += (authNow.y - next.y) * correction;
+      next.z += (authNow.z - next.z) * correction;
     }
 
-    this.head = { x: nx, z: nz };
-
-    // Drop a breadcrumb when the head has moved far enough (fps-independent density).
+    this.head = next;
     const lead = this.crumbs[0];
-    if (!lead || Math.hypot(nx - lead.x, nz - lead.z) >= CRUMB_STEP) {
-      this.crumbs.unshift({ x: nx, z: nz });
-    }
-    // Trim breadcrumbs to just longer than the body needs (by arc length).
+    if (!lead || distance3(next, lead) >= CRUMB_STEP) this.crumbs.unshift({ ...next });
+
     const needLen = (segmentCount(this.length) + 2) * MOVE.SEGMENT_SPACING;
     let acc = 0;
     let cut = this.crumbs.length;
     for (let i = 1; i < this.crumbs.length; i += 1) {
-      acc += Math.hypot(this.crumbs[i].x - this.crumbs[i - 1].x, this.crumbs[i].z - this.crumbs[i - 1].z);
+      acc += distance3(this.crumbs[i], this.crumbs[i - 1]);
       if (acc >= needLen) {
         cut = i + 1;
         break;
       }
     }
     if (this.crumbs.length > cut) this.crumbs.length = cut;
-
     return this.build();
   }
 
   private build(): PredictionResult {
     const path = [this.head, ...this.crumbs];
-    const segments = sampleTrail(path, segmentCount(this.length), this.heading);
-    return { segments, head: this.head, heading: this.heading };
+    const segments = sampleTrail(path, segmentCount(this.length), this.yaw, this.pitch);
+    return { segments, head: this.head, yaw: this.yaw, pitch: this.pitch };
   }
 }

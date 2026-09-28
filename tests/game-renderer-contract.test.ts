@@ -54,10 +54,14 @@ describe("R3F-only gameplay renderer", () => {
     }
   });
 
-  it("keeps planar gameplay parity inside the modular R3F layers until authority changes", () => {
+  it("renders the volumetric authoritative shape through the same modular R3F layers", () => {
     expect(actors).toContain("LocalPredictor");
-    expect(fx).toContain("state.rockets");
-    expect(fx).toContain("state.explosions");
+    expect(actors).toContain("shark.pitch");
+    expect(actors).toContain("predicted.head.y");
+    expect(prey).toContain("pellet.y");
+    expect(fx).toContain("rocket.y");
+    expect(fx).toContain("rocket.pitch");
+    expect(fx).toContain("burst.y");
     expect(fx).toContain("frenzyUntilTick");
     expect(fx).toContain("arenaRadius");
     expect(actors).toContain("colorblindLabels");

@@ -1,7 +1,7 @@
 import { useFrame, useThree } from "@react-three/fiber";
 import { useMemo, useRef } from "react";
 import * as THREE from "three";
-import { SKINS } from "../../engine/index.js";
+import { SKINS, forwardFromYawPitch } from "../../engine/index.js";
 import type { NetSnake } from "../../protocol/index.js";
 import type { RoomSocket } from "../net/useRoomSocket.js";
 import type { Settings } from "../settings/SettingsContext.js";
@@ -34,7 +34,7 @@ function lerpHead(prev: NetSnake | undefined, cur: NetSnake, alpha: number, out:
   const prior = prev?.segments[0] ?? current;
   out.set(
     prior.x + (current.x - prior.x) * alpha,
-    0.5,
+    prior.y + (current.y - prior.y) * alpha,
     prior.z + (current.z - prior.z) * alpha,
   );
 }
@@ -105,14 +105,15 @@ export function ActorLayer({
       const sharkScale = Math.min(2.5, 0.72 + Math.sqrt(shark.length) * 0.12);
 
       if (usePrediction) {
-        position.set(predicted.head.x, 0.5, predicted.head.z);
+        position.set(predicted.head.x, predicted.head.y, predicted.head.z);
       } else {
         lerpHead(previousShark, shark, alpha, position);
       }
-      const heading = usePrediction ? predicted.heading : shark.heading;
+      const yaw = usePrediction ? predicted.yaw : shark.yaw;
+      const pitch = usePrediction ? predicted.pitch : shark.pitch;
 
       dummy.position.copy(position);
-      dummy.rotation.set(0, -heading, 0);
+      dummy.rotation.set(0, -yaw, pitch);
       dummy.scale.set(sharkScale * 1.75, sharkScale * 0.62, sharkScale * 0.82);
       dummy.updateMatrix();
       sharks.setMatrixAt(sharkCount, dummy.matrix);
@@ -127,22 +128,25 @@ export function ActorLayer({
       sharkCount += 1;
 
       if (eyeCount <= MAX_EYES - 2) {
-        const forwardX = Math.cos(heading);
-        const forwardZ = Math.sin(heading);
-        const sideX = -forwardZ;
-        const sideZ = forwardX;
+        const forward = forwardFromYawPitch(yaw, pitch);
+        const forwardX = forward.x;
+        const forwardY = forward.y;
+        const forwardZ = forward.z;
+        const sideX = -Math.sin(yaw);
+        const sideZ = Math.cos(yaw);
         for (const sign of [-1, 1] as const) {
           const eyeX = position.x + forwardX * 0.34 + sideX * sign * 0.34;
+          const eyeY = position.y + 0.65 + forwardY * 0.34;
           const eyeZ = position.z + forwardZ * 0.34 + sideZ * sign * 0.34;
 
-          dummy.position.set(eyeX, 1.15, eyeZ);
+          dummy.position.set(eyeX, eyeY, eyeZ);
           dummy.rotation.set(0, 0, 0);
           dummy.scale.setScalar(0.26 * sharkScale);
           dummy.updateMatrix();
           eyes.setMatrixAt(eyeCount, dummy.matrix);
           eyes.setColorAt(eyeCount, EYE_WHITE);
 
-          dummy.position.set(eyeX + forwardX * 0.16, 1.24, eyeZ + forwardZ * 0.16);
+          dummy.position.set(eyeX + forwardX * 0.16, eyeY + 0.09 + forwardY * 0.16, eyeZ + forwardZ * 0.16);
           dummy.scale.setScalar(0.2);
           dummy.updateMatrix();
           pupils.setMatrixAt(eyeCount, dummy.matrix);
@@ -153,7 +157,7 @@ export function ActorLayer({
 
       if (wantLabels) {
         projected.copy(position);
-        projected.y = 2;
+        projected.y += 1.5;
         projected.project(camera);
         if (projected.z < 1) {
           const x = (projected.x * 0.5 + 0.5) * size.width;
@@ -202,18 +206,18 @@ export function ActorLayer({
     if (predicted) {
       followRef.current.active = true;
       followRef.current.position.x = predicted.head.x;
-      followRef.current.position.y = 0.5;
+      followRef.current.position.y = predicted.head.y;
       followRef.current.position.z = predicted.head.z;
-      followRef.current.yaw = predicted.heading;
-      followRef.current.pitch = 0;
+      followRef.current.yaw = predicted.yaw;
+      followRef.current.pitch = predicted.pitch;
     } else if (interpolatedMe?.segments[0]) {
       lerpHead(prevById.get(interpolatedMe.id), interpolatedMe, alpha, position);
       followRef.current.active = true;
       followRef.current.position.x = position.x;
       followRef.current.position.y = position.y;
       followRef.current.position.z = position.z;
-      followRef.current.yaw = interpolatedMe.heading;
-      followRef.current.pitch = 0;
+      followRef.current.yaw = interpolatedMe.yaw;
+      followRef.current.pitch = interpolatedMe.pitch;
     } else {
       followRef.current.active = false;
     }

@@ -75,9 +75,10 @@ export function FxLayer({
       if (rocketCount >= MAX_ROCKETS) break;
       const prior = prevRocketById.get(rocket.id) ?? rocket;
       const x = prior.x + (rocket.x - prior.x) * alpha;
+      const y = prior.y + (rocket.y - prior.y) * alpha;
       const z = prior.z + (rocket.z - prior.z) * alpha;
-      dummy.position.set(x, 0.7, z);
-      dummy.rotation.set(0, -rocket.heading, 0);
+      dummy.position.set(x, y, z);
+      dummy.rotation.set(0, -rocket.yaw, rocket.pitch);
       dummy.scale.set(1.05, 1, 1);
       dummy.updateMatrix();
       rockets.setMatrixAt(rocketCount, dummy.matrix);
@@ -103,7 +104,7 @@ export function FxLayer({
         const rise = reducedMotion ? 0.15 : life * (((seed >>> 15) % 11) - 5) * 0.09;
         dummy.position.set(
           burst.x + Math.cos(angle) * travel,
-          0.7 + rise,
+          burst.y + rise,
           burst.z + Math.sin(angle) * travel,
         );
         dummy.rotation.set(0, 0, 0);
