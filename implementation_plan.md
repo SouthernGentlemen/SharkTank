@@ -82,35 +82,6 @@ These are acceptance targets, not permission to fake authority:
 
 ## Open tasks
 
-### ST-111 — [BUILD] Establish the 3D ocean-world rendering skeleton
-
-**Goal**
-
-Turn the new R3F viewport into a real scene graph prepared for volumetric gameplay before changing authority.
-
-**Scope**
-
-- Split the scene into clear render responsibilities such as world/environment, actor layer, prey layer, FX layer and camera rig.
-- Establish a world-space convention: X/Z horizontal, Y vertical, forward direction derived from yaw/pitch.
-- Add a perspective chase-camera rig with bounded near/far planes and a stable follow target.
-- Add neutral placeholder surface/seabed/depth cues so Y movement can be debugged in later tasks without waiting for final art.
-- Add scene-level lighting/fog hooks and quality-setting plumbing without committing to final visuals.
-- Keep all per-frame actor transforms imperative/ref-driven rather than pushing socket frames through React state.
-
-**Non-goals**
-
-- No authoritative Y movement.
-- No final ocean environment or production shark art.
-- No combat redesign.
-
-**Acceptance**
-
-- Scene ownership is modular enough that later tasks can change movement, actors and environment independently.
-- Camera and scene math have deterministic/pure helpers where possible and focused tests.
-- No second renderer or hidden 2D world is reintroduced.
-
----
-
 ### ST-112 — [REFACTOR] Extend authoritative world state from planar to volumetric
 
 **Goal**
