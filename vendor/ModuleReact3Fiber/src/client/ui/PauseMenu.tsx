@@ -9,10 +9,12 @@ export function PauseMenu({
   onResume,
   onSettings,
   onQuit,
+  pauseLabel = "Esc",
 }: {
   onResume: () => void;
   onSettings: () => void;
   onQuit: () => void;
+  pauseLabel?: string;
 }) {
   const ref = useRef<HTMLDivElement>(null);
   useFocusTrap(ref, true, onResume);
@@ -33,7 +35,7 @@ export function PauseMenu({
           <button className="btn btn--block" onClick={onQuit}>Quit to tank</button>
         </div>
         <p className="dialog-note">
-          Press <kbd>Esc</kbd> to resume.
+          Press <kbd>{pauseLabel}</kbd> to resume.
         </p>
       </div>
     </div>

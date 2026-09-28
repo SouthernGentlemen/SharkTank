@@ -4,7 +4,13 @@
 // focus); every control has a programmatic name and current value.
 
 import { useId, useRef, useState } from "react";
-import { keyLabel, useSettings, type Keybinds } from "../settings/SettingsContext.js";
+import {
+  isBindableKeyCode,
+  keyLabel,
+  rebindKeybinds,
+  useSettings,
+  type Keybinds,
+} from "../settings/SettingsContext.js";
 import { useFocusTrap } from "../a11y/useFocusTrap.js";
 
 type Tab = "graphics" | "audio" | "controls" | "accessibility";
@@ -154,34 +160,46 @@ function AudioPanel() {
 }
 
 const REBINDABLE: Array<{ key: keyof Keybinds; label: string }> = [
-  { key: "left", label: "Turn left" },
-  { key: "right", label: "Turn right" },
-  { key: "boost", label: "Chomp dash" },
+  { key: "pitchUp", label: "Pitch up / climb" },
+  { key: "pitchDown", label: "Pitch down / dive" },
+  { key: "yawLeft", label: "Yaw left" },
+  { key: "yawRight", label: "Yaw right" },
+  { key: "lookUp", label: "Look up" },
+  { key: "lookDown", label: "Look down" },
+  { key: "lookLeft", label: "Look left" },
+  { key: "lookRight", label: "Look right" },
+  { key: "boost", label: "Burst" },
+  { key: "bite", label: "Bite / primary attack" },
 ];
 
 function ControlsPanel() {
   const { settings, update } = useSettings();
   const [listening, setListening] = useState<keyof Keybinds | null>(null);
+  const [conflict, setConflict] = useState<string | null>(null);
 
   const capture = (which: keyof Keybinds, e: React.KeyboardEvent) => {
     e.preventDefault();
     if (e.key === "Escape") {
       setListening(null);
+      setConflict(null);
       return;
     }
     const code = e.code === "Space" ? "Space" : e.code;
-    // Ignore keys with no physical code and lone modifiers — keep listening instead of
-    // binding a control to nothing (which would leave it unusable).
-    const MODIFIERS = ["ShiftLeft", "ShiftRight", "ControlLeft", "ControlRight", "AltLeft", "AltRight", "MetaLeft", "MetaRight"];
-    if (!code || MODIFIERS.includes(code)) return;
-    update("controls", { keybinds: { ...settings.controls.keybinds, [which]: code } });
+    if (!isBindableKeyCode(code)) return;
+    const next = rebindKeybinds(settings.controls.keybinds, which, code);
+    if (!next) {
+      setConflict(`${keyLabel(code)} is already assigned. Choose another key.`);
+      return;
+    }
+    update("controls", { keybinds: next });
+    setConflict(null);
     setListening(null);
   };
 
   return (
     <div className="stack">
       <p className="settings-note">
-        Both pointer and keyboard fully control the game. Click a binding, then press a key. Press Esc to cancel.
+        Keyboard is complete: WASD flies, arrows look, and mouse look is optional. Click a binding, then press a unique key. Press Esc to cancel.
       </p>
       <ul className="settings-keybind-list">
         {REBINDABLE.map(({ key, label }) => (
@@ -190,7 +208,7 @@ function ControlsPanel() {
             <button
               className={listening === key ? "btn btn--primary" : "btn"}
               aria-label={`${label}: currently ${keyLabel(settings.controls.keybinds[key])}. Activate to rebind.`}
-              onClick={() => setListening(key)}
+              onClick={() => { setListening(key); setConflict(null); }}
               onKeyDown={(e) => listening === key && capture(key, e)}
             >
               {listening === key ? "Press a key…" : keyLabel(settings.controls.keybinds[key])}
@@ -198,8 +216,9 @@ function ControlsPanel() {
           </li>
         ))}
       </ul>
+      {conflict && <p className="settings-note" role="alert">{conflict}</p>}
       <Toggle label="Turn assist" hint="Gentler, slower steering." checked={settings.controls.turnAssist} onChange={(v) => update("controls", { turnAssist: v })} />
-      <Toggle label="Invert steering" checked={settings.controls.invertSteer} onChange={(v) => update("controls", { invertSteer: v })} />
+      <Toggle label="Invert yaw steering" checked={settings.controls.invertSteer} onChange={(v) => update("controls", { invertSteer: v })} />
       <Toggle label="Single-key shortcuts" hint="Press ? to open help. Turn off if a speech or switch device sends stray keys." checked={settings.controls.singleKeyShortcuts} onChange={(v) => update("controls", { singleKeyShortcuts: v })} />
       <Choice
         label="On-screen controls"

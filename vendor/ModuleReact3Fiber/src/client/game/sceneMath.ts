@@ -28,6 +28,18 @@ export const SWIM_STEERING: SwimSteeringRates = {
   pitchRate: 2.4,
 };
 
+export const CAMERA_LOOK_LIMITS = {
+  yaw: Math.PI * 0.42,
+  pitch: 0.65,
+} as const;
+
+export function clampCameraLookOffsets(yaw: number, pitch: number): { yaw: number; pitch: number } {
+  return {
+    yaw: Math.max(-CAMERA_LOOK_LIMITS.yaw, Math.min(CAMERA_LOOK_LIMITS.yaw, Number.isFinite(yaw) ? yaw : 0)),
+    pitch: Math.max(-CAMERA_LOOK_LIMITS.pitch, Math.min(CAMERA_LOOK_LIMITS.pitch, Number.isFinite(pitch) ? pitch : 0)),
+  };
+}
+
 export interface ChaseCameraOptions {
   sharkScale?: number;
   speed?: number;
@@ -37,6 +49,8 @@ export interface ChaseCameraOptions {
   seabedY?: number;
   surfaceY?: number;
   reducedMotion?: boolean;
+  lookYawOffset?: number;
+  lookPitchOffset?: number;
 }
 
 export function interpolateOrientedPose(
@@ -205,15 +219,17 @@ export function chaseCameraPose(
   options: ChaseCameraOptions = {},
 ): ChaseCameraPose {
   const forward = forwardFromYawPitch(yaw, pitch);
+  const look = clampCameraLookOffsets(options.lookYawOffset ?? 0, options.lookPitchOffset ?? 0);
+  const cameraForward = forwardFromYawPitch(yaw + look.yaw, pitch + look.pitch);
   const size = Math.max(0.7, Math.min(2.8, options.sharkScale ?? 1));
   const speed = speedRatio(options);
   const distance = 13.5 + size * 3.2 + speed * 3.5;
   const lift = 3.8 + size * 1.4;
   const lookAhead = 4.5 + size * 0.65 + speed * 3.2;
 
-  out.position.x = target.x - forward.x * distance;
-  out.position.y = target.y - forward.y * distance + lift;
-  out.position.z = target.z - forward.z * distance;
+  out.position.x = target.x - cameraForward.x * distance;
+  out.position.y = target.y - cameraForward.y * distance + lift;
+  out.position.z = target.z - cameraForward.z * distance;
   out.lookAt.x = target.x + forward.x * lookAhead;
   out.lookAt.y = target.y + forward.y * lookAhead + 0.65;
   out.lookAt.z = target.z + forward.z * lookAhead;

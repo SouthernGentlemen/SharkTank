@@ -12,7 +12,7 @@ import { GameViewport } from "../game/GameViewport.js";
 import type { SnakeLabel } from "../game/Scene.js";
 import type { StickState } from "../game/useLocalInput.js";
 import { useRoomSocket } from "../net/useRoomSocket.js";
-import { useSettings } from "../settings/SettingsContext.js";
+import { keyLabel, useSettings } from "../settings/SettingsContext.js";
 import { useAnnouncer } from "../a11y/announcer.js";
 import { useGameAudio } from "../audio/useGameAudio.js";
 import { Hud } from "./Hud.js";
@@ -22,6 +22,7 @@ import { DeathOverlay } from "./DeathOverlay.js";
 import { Settings } from "./Settings.js";
 import { QuickA11y } from "./QuickA11y.js";
 import { HelpOverlay } from "./HelpOverlay.js";
+import { PauseMenu } from "./PauseMenu.js";
 import { SnakeLabels } from "./SnakeLabels.js";
 import { Captions } from "./Captions.js";
 import { TouchControls, useTouchControls } from "./TouchControls.js";
@@ -41,6 +42,7 @@ export function GameScreen({ room, identity, onQuit }: GameScreenProps) {
   const stickRef = useRef<StickState>({ active: false, angle: 0 });
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [helpOpen, setHelpOpen] = useState(false);
+  const [paused, setPaused] = useState(false);
   const touch = useTouchControls(settings);
   const stickSide = settings.controls.stickSide;
 
@@ -60,30 +62,33 @@ export function GameScreen({ room, identity, onQuit }: GameScreenProps) {
   const openSettings = useCallback(() => setSettingsOpen(true), []);
   const openHelp = useCallback(() => setHelpOpen(true), []);
 
-  // Help is keyboard-addressable; Escape closes a tool first, then exits the tank.
+  // Help remains a switchable single-character shortcut. The remappable pause key opens
+  // a real dialog instead of immediately quitting the tank.
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
       const target = e.target as HTMLElement | null;
-      const typing = !!target && (target.isContentEditable
-        || ["INPUT", "TEXTAREA", "SELECT"].includes(target.tagName));
-      if (e.key === "?" && settings.controls.singleKeyShortcuts && !typing) {
+      const interactive = !!target && Boolean(target.closest("button, a, input, select, textarea, [contenteditable='true'], [role='button']"));
+      if (e.key === "?" && settings.controls.singleKeyShortcuts && !interactive) {
         e.preventDefault();
         setHelpOpen((h) => !h);
         return;
       }
-      if (e.code === "Escape") {
-        if (settingsOpen) return;
-        if (helpOpen) { e.preventDefault(); setHelpOpen(false); }
-        else { e.preventDefault(); handleQuit(); }
-      }
+      if (e.code !== settings.controls.keybinds.pause || interactive || settingsOpen) return;
+      e.preventDefault();
+      if (helpOpen) setHelpOpen(false);
+      else if (!socket.death) setPaused((value) => !value);
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  }, [settingsOpen, helpOpen, handleQuit]);
+  }, [settings.controls.keybinds.pause, settings.controls.singleKeyShortcuts, settingsOpen, helpOpen, socket.death]);
 
-  // A dialog owns input; death does not — the respawn card is deliberately non-modal so
-  // the tools rail (exit, audio, settings) stays reachable while you wait to come back.
-  const dialogOpen = settingsOpen || helpOpen;
+  useEffect(() => {
+    if (socket.death) setPaused(false);
+  }, [socket.death]);
+
+  // Every modal ownership transition disables gameplay input, which also releases held
+  // flight/look/ability state in useLocalInput.
+  const dialogOpen = settingsOpen || helpOpen || paused;
   const inputEnabled = !dialogOpen && !socket.death;
 
   return (
@@ -102,8 +107,8 @@ export function GameScreen({ room, identity, onQuit }: GameScreenProps) {
       <MinimapSummary socket={socket} />
       <QuickA11y onQuit={handleQuit} onHelp={openHelp} onSettings={openSettings} collapsed={touch} />
       <div className="ability-rail">
-        <DashButton socket={socket} compact={touch} />
-        <RocketButton socket={socket} compact={touch} />
+        <DashButton socket={socket} compact={touch} keyName={keyLabel(settings.controls.keybinds.boost)} />
+        <RocketButton socket={socket} compact={touch} keyName={keyLabel(settings.controls.keybinds.bite)} />
       </div>
       {touch && <TouchControls stickRef={stickRef} side={stickSide} enabled={inputEnabled} />}
       {settings.audio.captions && <Captions caption={caption} />}
@@ -117,21 +122,29 @@ export function GameScreen({ room, identity, onQuit }: GameScreenProps) {
         <DeathOverlay death={socket.death} onRespawn={socket.respawn} onQuit={handleQuit} />
       )}
 
+      {paused && !settingsOpen && !helpOpen && (
+        <PauseMenu
+          onResume={() => setPaused(false)}
+          onSettings={() => setSettingsOpen(true)}
+          onQuit={handleQuit}
+          pauseLabel={keyLabel(settings.controls.keybinds.pause)}
+        />
+      )}
       {settingsOpen && <Settings onClose={closeSettings} />}
       {helpOpen && <HelpOverlay onClose={closeHelp} />}
     </main>
   );
 }
 
-function DashButton({ socket, compact }: { socket: ReturnType<typeof useRoomSocket>; compact: boolean }) {
+function DashButton({ socket, compact, keyName }: { socket: ReturnType<typeof useRoomSocket>; compact: boolean; keyName: string }) {
   const cooldown = useAbilityCooldown(socket, "dashCooldownTick");
   const dash = () => { socket.setBoost(true); socket.setBoost(false); };
-  return <button type="button" className="ability-button dash-button" disabled={cooldown > 0} onClick={dash} aria-label={cooldown ? `Dash cooling down, ${cooldown} seconds` : "Dash"} title={cooldown ? `Dash: ${cooldown}s` : "Dash · Space"}><DashIcon /><span>{cooldown ? `${cooldown}s` : "DASH"}</span>{!compact && <small>SPACE</small>}</button>;
+  return <button type="button" className="ability-button dash-button" disabled={cooldown > 0} onClick={dash} aria-label={cooldown ? `Dash cooling down, ${cooldown} seconds` : "Dash"} title={cooldown ? `Dash: ${cooldown}s` : `Dash · ${keyName}`}><DashIcon /><span>{cooldown ? `${cooldown}s` : "DASH"}</span>{!compact && <small>{keyName}</small>}</button>;
 }
 
-function RocketButton({ socket, compact }: { socket: ReturnType<typeof useRoomSocket>; compact: boolean }) {
+function RocketButton({ socket, compact, keyName }: { socket: ReturnType<typeof useRoomSocket>; compact: boolean; keyName: string }) {
   const cooldown = useAbilityCooldown(socket, "rocketCooldownTick");
-  return <button type="button" className="ability-button rocket-button" disabled={cooldown > 0} onClick={socket.rocket} aria-label={cooldown ? `Rocket cooling down, ${cooldown} seconds` : "Fire rocket"} title={cooldown ? `Rocket: ${cooldown}s` : "Fire rocket · Shift"}><RocketIcon /><span>{cooldown ? `${cooldown}s` : "ROCKET"}</span>{!compact && <small>SHIFT</small>}</button>;
+  return <button type="button" className="ability-button rocket-button" disabled={cooldown > 0} onClick={socket.rocket} aria-label={cooldown ? `Rocket cooling down, ${cooldown} seconds` : "Fire rocket"} title={cooldown ? `Rocket: ${cooldown}s` : `Current primary attack · ${keyName}`}><RocketIcon /><span>{cooldown ? `${cooldown}s` : "ROCKET"}</span>{!compact && <small>{keyName}</small>}</button>;
 }
 
 function useAbilityCooldown(socket: ReturnType<typeof useRoomSocket>, field: "dashCooldownTick" | "rocketCooldownTick") {

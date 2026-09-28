@@ -6,10 +6,65 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 
 export interface Keybinds {
-  left: string;
-  right: string;
+  pitchUp: string;
+  pitchDown: string;
+  yawLeft: string;
+  yawRight: string;
+  lookUp: string;
+  lookDown: string;
+  lookLeft: string;
+  lookRight: string;
   boost: string;
+  bite: string;
   pause: string;
+}
+
+export const DEFAULT_KEYBINDS: Keybinds = {
+  pitchUp: "KeyW",
+  pitchDown: "KeyS",
+  yawLeft: "KeyA",
+  yawRight: "KeyD",
+  lookUp: "ArrowUp",
+  lookDown: "ArrowDown",
+  lookLeft: "ArrowLeft",
+  lookRight: "ArrowRight",
+  boost: "Space",
+  bite: "KeyF",
+  pause: "Escape",
+};
+
+const KEYBIND_KEYS = Object.keys(DEFAULT_KEYBINDS) as Array<keyof Keybinds>;
+const MODIFIER_CODES = new Set([
+  "ShiftLeft", "ShiftRight", "ControlLeft", "ControlRight",
+  "AltLeft", "AltRight", "MetaLeft", "MetaRight",
+]);
+
+export function isBindableKeyCode(code: string): boolean {
+  return code.trim().length > 0 && !MODIFIER_CODES.has(code);
+}
+
+export function normalizeKeybinds(saved: Partial<Keybinds> | Record<string, unknown> | null | undefined): Keybinds {
+  const merged: Keybinds = { ...DEFAULT_KEYBINDS };
+  if (saved && typeof saved === "object") {
+    for (const key of KEYBIND_KEYS) {
+      const value = saved[key];
+      if (typeof value === "string" && isBindableKeyCode(value)) merged[key] = value;
+    }
+  }
+  const seen = new Set<string>();
+  for (const key of KEYBIND_KEYS) {
+    if (seen.has(merged[key])) return { ...DEFAULT_KEYBINDS };
+    seen.add(merged[key]);
+  }
+  return merged;
+}
+
+export function rebindKeybinds(current: Keybinds, key: keyof Keybinds, code: string): Keybinds | null {
+  if (!isBindableKeyCode(code)) return null;
+  for (const other of KEYBIND_KEYS) {
+    if (other !== key && current[other] === code) return null;
+  }
+  return { ...current, [key]: code };
 }
 
 export interface Settings {
@@ -53,7 +108,7 @@ export const DEFAULT_SETTINGS: Settings = {
   // BGM is opt-in (0) so nothing autoplays unexpectedly; SFX are brief + event-driven.
   audio: { master: 0.8, sfx: 0.9, music: 0, captions: false },
   controls: {
-    keybinds: { left: "ArrowLeft", right: "ArrowRight", boost: "Space", pause: "Escape" },
+    keybinds: { ...DEFAULT_KEYBINDS },
     turnAssist: false,
     invertSteer: false,
     touchControls: "auto",
@@ -102,11 +157,10 @@ function load(): Settings {
     // value falls through to the media query.
     if (!raw) return { ...DEFAULT_SETTINGS, a11y: { ...DEFAULT_SETTINGS.a11y, motion: systemMotion() } };
     const parsed = JSON.parse(raw) as Partial<Settings>;
-    // Drop any empty/blank stored keybinds so a corrupted value can't leave a control
-    // permanently unbound — the default takes over instead.
-    const savedBinds = parsed.controls?.keybinds ?? {};
-    const cleanBinds = Object.fromEntries(
-      Object.entries(savedBinds).filter(([, v]) => typeof v === "string" && v.trim().length > 0),
+    // Old or malformed control blobs are allowed to load, but the active desktop map
+    // must always remain complete and conflict-free.
+    const cleanBinds = normalizeKeybinds(
+      (parsed.controls?.keybinds ?? {}) as Partial<Keybinds> | Record<string, unknown>,
     );
     // Deep-ish merge so new fields in future versions get defaults.
     return {
@@ -115,7 +169,7 @@ function load(): Settings {
       controls: {
         ...DEFAULT_SETTINGS.controls,
         ...parsed.controls,
-        keybinds: { ...DEFAULT_SETTINGS.controls.keybinds, ...cleanBinds },
+        keybinds: cleanBinds,
       },
       a11y: { ...DEFAULT_SETTINGS.a11y, motion: parsed.a11y?.motion ?? systemMotion(), ...parsed.a11y },
     };
