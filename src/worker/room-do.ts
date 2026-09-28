@@ -1,10 +1,11 @@
 import { applyAction, createRoom, leaderboard, playerCount, replay, SKINS, spawnBots, step, TICKS_PER_SECOND, type Action, type GameLogEntry, type RoomState } from "module-react3fiber/engine";
 import { legacyPlanarHeadingToOrientation, sanitizeDisplayName, toNetState, type ClientInputAction, type ClientMessage, type ServerMessage } from "module-react3fiber/protocol";
+import { GAME_LOG_SCHEMA_VERSION, bootstrapRoomSnapshot, shouldRotateGameLogSchema } from "./room-state-schema.js";
 
 // A tank holds 32 sharks: up to SHARK_CAPACITY - BOT_COUNT humans, with bots making up
 // the rest so a lightly-populated tank still feels like a full lobby.
 const SHARK_CAPACITY = 32, CAPACITY = 8, BOT_COUNT = SHARK_CAPACITY - CAPACITY;
-const MAX_FOOD = 620, OCEAN_RADIUS = 82, SCHEMA_VERSION = 8;
+const MAX_FOOD = 620, OCEAN_RADIUS = 82;
 const LEADERBOARD_EVERY = TICKS_PER_SECOND * 2, REPORT_EVERY = TICKS_PER_SECOND * 30;
 const STATE_BROADCAST_EVERY = 2; // 20Hz authoritative simulation, 10Hz snapshots.
 // Tank captures are a rolling 24-hour record: anything older is pruned, so the public
@@ -41,18 +42,21 @@ export class Room implements DurableObject {
     void this.ctx.blockConcurrencyWhile(async () => {
       const generation = this.env.GAME_LOG_GENERATION ?? this.env.AUDIT_GENERATION;
       const storedGeneration = await this.ctx.storage.get<string>("gameLogGeneration"); this.storageRowsRead += 1;
-      if (generation && storedGeneration !== generation) {
-        this.trackSql("DELETE FROM game_log");
-        this.storageRowsWritten += 1;
-        await this.ctx.storage.put("gameLogGeneration", generation);
-      }
+      const storedLogSchema = await this.ctx.storage.get<number>("gameLogSchemaVersion"); this.storageRowsRead += 1;
       const storedRoom = await this.ctx.storage.get<unknown>("snapshot"); this.storageRowsRead += 1;
-      if (storedRoom) {
-        const storedVersion = (storedRoom as { schemaVersion?: unknown }).schemaVersion;
-        // ST-113 owns persisted v7 -> v8 migration. Refuse to misread an old shape as
-        // volumetric state; this task only defines and persists fresh/current v8 state.
-        if (storedVersion !== SCHEMA_VERSION) throw new Error(`room snapshot schema ${String(storedVersion)} requires ST-113 migration`);
-        this.room = storedRoom as RoomState;
+      const snapshotBoot = bootstrapRoomSnapshot(storedRoom, this.room);
+      this.room = snapshotBoot.room;
+
+      const generationChanged = Boolean(generation && storedGeneration !== generation);
+      const replaySchemaChanged = shouldRotateGameLogSchema(storedLogSchema) || snapshotBoot.source === "schema-7-reset";
+      if (generationChanged || replaySchemaChanged) this.trackSql("DELETE FROM game_log");
+      if (generationChanged && generation) {
+        await this.ctx.storage.put("gameLogGeneration", generation);
+        this.storageRowsWritten += 1;
+      }
+      if (storedLogSchema !== GAME_LOG_SCHEMA_VERSION) {
+        await this.ctx.storage.put("gameLogSchemaVersion", GAME_LOG_SCHEMA_VERSION);
+        this.storageRowsWritten += 1;
       }
       for (const id of Object.keys(this.room.snakes)) {
         const botIndex = /^bot-(\d+)$/.exec(id);
@@ -60,6 +64,7 @@ export class Room implements DurableObject {
       }
       spawnBots(this.room, BOT_COUNT);
       if (this.room.food.length > MAX_FOOD) this.room.food.splice(0, this.room.food.length - MAX_FOOD);
+      if (snapshotBoot.persistSnapshot) { await this.ctx.storage.put("snapshot", this.room); this.storageRowsWritten += 1; }
       const bootRowsRead = this.storageRowsRead, bootRowsWritten = this.storageRowsWritten;
       const meta = await this.ctx.storage.get<RoomMeta>("meta");
       if (meta) { this.roomId = meta.roomId; this.roomName = meta.roomName; this.booted = meta.booted; this.maintenance = meta.maintenance ?? false; this.activeMs = meta.activeMs ?? 0; this.activeSince = null; this.wsMessages = meta.wsMessages ?? 0; this.connections = meta.connections ?? 0; this.storageWrites = meta.storageWrites ?? 0; this.storageRowsRead = (meta.storageRowsRead ?? 0) + bootRowsRead + 1; this.storageRowsWritten = (meta.storageRowsWritten ?? meta.storageWrites ?? 0) + bootRowsWritten; }
@@ -160,8 +165,8 @@ export class Room implements DurableObject {
   private persist(): void { this.storageWrites += 2; this.storageRowsWritten += 2; this.ctx.waitUntil(this.ctx.storage.put({ snapshot: this.room, meta: { roomId: this.roomId, roomName: this.roomName, booted: this.booted, maintenance: this.maintenance, activeMs: this.activeMs + (this.activeSince ? Date.now() - this.activeSince : 0), activeSince: null, wsMessages: this.wsMessages, connections: this.connections, storageWrites: this.storageWrites, storageRowsRead: this.storageRowsRead, storageRowsWritten: this.storageRowsWritten } satisfies RoomMeta })); }
   private logs(limit?: number): StoredLog[] { const cursor = limit ? this.ctx.storage.sql.exec<{ ts: number; tick: number; action: string }>("SELECT ts,tick,action FROM game_log ORDER BY id DESC LIMIT ?", limit) : this.ctx.storage.sql.exec<{ ts: number; tick: number; action: string }>("SELECT ts,tick,action FROM game_log ORDER BY id"); const rows = cursor.toArray(); this.storageRowsRead += cursor.rowsRead; this.storageRowsWritten += cursor.rowsWritten; const ordered = limit ? rows.reverse() : rows; return ordered.map((r) => ({ ts: r.ts, tick: r.tick, action: JSON.parse(r.action) as Action })); }
   private trackSql(query: string, ...bindings: unknown[]): void { const cursor = this.ctx.storage.sql.exec(query, ...bindings); cursor.toArray(); this.storageRowsRead += cursor.rowsRead; this.storageRowsWritten += cursor.rowsWritten; }
-  private gameLogResponse(url?: URL): Response { this.pruneGameLog(); const requested = Number(url?.searchParams.get("limit") ?? 0); const limit = Number.isFinite(requested) && requested > 0 ? Math.min(GAME_LOG_CAP, Math.trunc(requested)) : undefined; return roomJson({ ok: true, roomId: this.roomId, seed: this.room.seed, botCount: BOT_COUNT, tick: this.room.tick, events: this.logs(limit), retentionHours: 24, maxEvents: GAME_LOG_CAP }); }
-  private replayResponse(url: URL): Response { const toTick = Math.max(0, Math.min(this.room.tick, Math.trunc(Number(url.searchParams.get("tick") ?? this.room.tick)))); if (toTick > 100_000) return roomJson({ ok: false, error: "replay tick exceeds safety limit" }, 422); const logs = this.logs(); if (logs.length && logs[0].tick > 0) return roomJson({ ok: false, error: "complete replay history has expired" }, 410); const state = replay({ seed: this.room.seed, id: this.roomId, botCount: BOT_COUNT }, logs, toTick); return roomJson({ ok: true, roomId: this.roomId, tick: toTick, state: toNetState(state) }); }
+  private gameLogResponse(url?: URL): Response { this.pruneGameLog(); const requested = Number(url?.searchParams.get("limit") ?? 0); const limit = Number.isFinite(requested) && requested > 0 ? Math.min(GAME_LOG_CAP, Math.trunc(requested)) : undefined; return roomJson({ ok: true, roomId: this.roomId, seed: this.room.seed, botCount: BOT_COUNT, schemaVersion: GAME_LOG_SCHEMA_VERSION, tick: this.room.tick, events: this.logs(limit), retentionHours: 24, maxEvents: GAME_LOG_CAP }); }
+  private replayResponse(url: URL): Response { const toTick = Math.max(0, Math.min(this.room.tick, Math.trunc(Number(url.searchParams.get("tick") ?? this.room.tick)))); if (toTick > 100_000) return roomJson({ ok: false, error: "replay tick exceeds safety limit" }, 422); const logs = this.logs(); if (logs.length && logs[0].tick > 0) return roomJson({ ok: false, error: "complete replay history has expired" }, 410); const state = replay({ seed: this.room.seed, id: this.roomId, botCount: BOT_COUNT }, logs, toTick); return roomJson({ ok: true, roomId: this.roomId, schemaVersion: GAME_LOG_SCHEMA_VERSION, tick: toTick, state: toNetState(state) }); }
 }
 
 function safeAction(action: ClientInputAction, playerId: string): Action | null {
