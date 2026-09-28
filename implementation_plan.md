@@ -82,35 +82,6 @@ These are acceptance targets, not permission to fake authority:
 
 ## Open tasks
 
-### ST-113 — [DB] Upgrade persisted Room snapshots safely for the 3D schema
-
-**Goal**
-
-Move long-lived Durable Object rooms onto the new gameplay schema without changing Durable Object identity or pretending old snapshots/logs are new-state data.
-
-**Scope**
-
-- Teach `Room` bootstrapping to recognize the previous schema and the new 3D schema explicitly.
-- Reset or forward-convert transient gameplay state only where conversion is safe and deterministic.
-- Preserve Room identity, room name, operational counters, maintenance state and other non-gameplay metadata that must survive.
-- Ensure old persisted sharks/food/projectiles cannot retain missing Y/orientation fields.
-- Define replay-log compatibility. If old action history cannot reproduce the new schema safely, rotate the gameplay-log generation or reject cross-schema replay explicitly instead of silently replaying invalid history.
-- Do not rename Durable Object classes or migration tag `v1`.
-
-**Non-goals**
-
-- No provider-side manual storage migration.
-- No R2/binding rename.
-- No new database product.
-
-**Acceptance**
-
-- Tests cover boot from a representative schema-7 snapshot and prove the resulting room is valid new-schema state.
-- Fresh rooms and upgraded rooms both pass replay/serialization checks.
-- The worker can never operate on a mixed old/new room representation.
-
----
-
 ### ST-114 — [API] Carry 3D movement through protocol, prediction and interpolation
 
 **Goal**
