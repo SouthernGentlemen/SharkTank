@@ -2,6 +2,7 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import {
   CONTROLLED_TYPES,
+  IMMUTABLE_HISTORY_BODY_EXCEPTIONS,
   LEGACY_TYPE_EXCEPTIONS,
   validateHistoryRecords,
   validatePullRequestContext,
@@ -26,6 +27,28 @@ function controlledRecord(number, type = "BUILD") {
     body,
     authorName: "WizardGangAI",
     authorEmail: "jacob@wizardgang.ai",
+  };
+}
+
+function maintenanceRecord(number, type = "FIX") {
+  return {
+    ...controlledRecord(number, type),
+    body: `${body}\n\nPortfolio-Plan-Maintenance: true`,
+  };
+}
+
+function immutableSt116Record(overrides = {}) {
+  return {
+    sha: "79c1054361d8229d70da8a106809fc70d1cb5c59",
+    subject: "[ST-116] [FEAT] Rebuild desktop controls for full-3D play",
+    body: [
+      "Change:\nvalue",
+      "Validation:\nvalue",
+      "Release:\nNone.",
+    ].join("\n\n"),
+    authorName: "WizardGangAI",
+    authorEmail: "jacob@wizardgang.ai",
+    ...overrides,
   };
 }
 
@@ -185,4 +208,54 @@ test("verified Dependabot commits do not consume an ST sequence number", () => {
     controlledRecord(2),
   ];
   assert.deepEqual(validateHistoryRecords(records).failures, []);
+});
+
+test("the known immutable ST-116 squash-body defect is accepted only as recorded", () => {
+  const records = Array.from({ length: 115 }, (_, index) => controlledRecord(index + 1));
+  records.push(immutableSt116Record());
+  const result = validateHistoryRecords(records);
+  assert.deepEqual(result.failures, []);
+  assert.equal(result.lastId, "ST-116");
+  assert.equal(IMMUTABLE_HISTORY_BODY_EXCEPTIONS.size, 1);
+});
+
+test("the ST-116 exception is bound to its exact immutable commit SHA", () => {
+  const records = Array.from({ length: 115 }, (_, index) => controlledRecord(index + 1));
+  records.push(immutableSt116Record({ sha: "f".repeat(40) }));
+  const result = validateHistoryRecords(records);
+  assert.match(result.failures.join("\n"), /missing Reason: heading/);
+  assert.match(result.failures.join("\n"), /missing Notes: or Source: provenance field/);
+});
+
+test("a different body defect is not accepted even when a test record spoofs the ST-116 SHA", () => {
+  const records = Array.from({ length: 115 }, (_, index) => controlledRecord(index + 1));
+  records.push(immutableSt116Record({
+    body: ["Change:\nvalue", "Reason:\nvalue", "Validation:\nvalue"].join("\n\n"),
+  }));
+  assert.match(validateHistoryRecords(records).failures.join("\n"), /missing Impact: heading/);
+});
+
+test("future controlled changes still require the full structured body", () => {
+  const records = Array.from({ length: 116 }, (_, index) => controlledRecord(index + 1));
+  records.push({
+    ...controlledRecord(117, "FEAT"),
+    body: "Change:\nvalue\n\nValidation:\nvalue",
+  });
+  const failures = validateHistoryRecords(records).failures.join("\n");
+  assert.match(failures, /missing Reason: heading/);
+  assert.match(failures, /missing Evidence: heading/);
+  assert.match(failures, /missing Notes: or Source: provenance field/);
+});
+
+test("early maintenance does not consume or reorder the next product ID", () => {
+  const records = Array.from({ length: 116 }, (_, index) => controlledRecord(index + 1));
+  records.push(maintenanceRecord(133));
+  const maintenanceOnly = validateHistoryRecords(records);
+  assert.deepEqual(maintenanceOnly.failures, []);
+  assert.equal(maintenanceOnly.lastId, "ST-116");
+
+  records.push(controlledRecord(117, "FEAT"));
+  const afterProduct = validateHistoryRecords(records);
+  assert.deepEqual(afterProduct.failures, []);
+  assert.equal(afterProduct.lastId, "ST-117");
 });

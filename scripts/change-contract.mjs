@@ -14,6 +14,16 @@ export const LEGACY_TYPE_EXCEPTIONS = Object.freeze(new Map([
   ["ST-027", "GOV"],
 ]));
 
+export const IMMUTABLE_HISTORY_BODY_EXCEPTIONS = Object.freeze(new Map([
+  ["79c1054361d8229d70da8a106809fc70d1cb5c59", Object.freeze({
+    id: "ST-116",
+    subject: "[ST-116] [FEAT] Rebuild desktop controls for full-3D play",
+    missingHeadings: Object.freeze(["Reason", "Impact", "Risk", "Controls", "Evidence"]),
+    missingProvenance: true,
+    reason: "The protected ST-116 PR head carried the complete structured body, but its published GitHub squash merge body was shortened after exact-head CI. Published main is immutable, so only that exact commit and known body defect are accepted.",
+  })],
+]));
+
 const controlledTypeSet = new Set(CONTROLLED_TYPES);
 const titlePattern = /^\[(ST-(\d{3}))\] \[([A-Z][A-Z0-9-]*)\] ([^\r\n]+)$/;
 const branchPattern = /^st-(\d{3})-[a-z0-9]+(?:-[a-z0-9]+)*$/;
@@ -59,6 +69,23 @@ function validateHistoricalType(id, type, failures, label) {
   failures.push(`${label}: ${id} uses unsupported type ${type}`);
 }
 
+function structuredBodyDefect(body) {
+  return {
+    missingHeadings: requiredHeadings.filter(
+      (heading) => !new RegExp(`(?:^|\\n)${heading}:\\n`).test(body),
+    ),
+    missingProvenance: !/(?:^|\n)(?:Notes|Source):(?:\n| )/.test(body),
+  };
+}
+
+function matchesImmutableHistoryBodyException(record, parsed, defect) {
+  const exception = IMMUTABLE_HISTORY_BODY_EXCEPTIONS.get(record.sha);
+  if (!exception || parsed.id !== exception.id || record.subject !== exception.subject) return false;
+  if (defect.missingProvenance !== exception.missingProvenance) return false;
+  if (defect.missingHeadings.length !== exception.missingHeadings.length) return false;
+  return defect.missingHeadings.every((heading, index) => heading === exception.missingHeadings[index]);
+}
+
 export function validateHistoryRecords(records) {
   const failures = [];
   let expectedNumber = 1;
@@ -89,13 +116,14 @@ export function validateHistoryRecords(records) {
 
     validateHistoricalType(parsed.id, parsed.type, failures, label);
 
-    for (const heading of requiredHeadings) {
-      if (!new RegExp(`(?:^|\\n)${heading}:\\n`).test(record.body)) {
+    const defect = structuredBodyDefect(record.body);
+    if (!matchesImmutableHistoryBodyException(record, parsed, defect)) {
+      for (const heading of defect.missingHeadings) {
         failures.push(`${label}: missing ${heading}: heading`);
       }
-    }
-    if (!/(?:^|\n)(?:Notes|Source):(?:\n| )/.test(record.body)) {
-      failures.push(`${label}: missing Notes: or Source: provenance field`);
+      if (defect.missingProvenance) {
+        failures.push(`${label}: missing Notes: or Source: provenance field`);
+      }
     }
   }
 
