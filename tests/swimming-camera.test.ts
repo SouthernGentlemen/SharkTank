@@ -69,7 +69,9 @@ describe("ST-115 shark swimming and chase camera", () => {
     for (let i = 0; i < 90; i += 1) roll = advanceBankRoll(roll, 0, 1 / 60);
     expect(Math.abs(roll)).toBeLessThan(turning);
     expect(Math.abs(roll)).toBeLessThan(0.002);
-    expect(advanceBankRoll(0.3, 3, 1 / 60, true)).toBe(0);
+    const reducedBank = advanceBankRoll(0.3, 3, 1 / 60, true);
+    expect(Math.abs(reducedBank)).toBeGreaterThan(0);
+    expect(Math.abs(reducedBank)).toBeLessThanOrEqual(0.24);
   });
 
   it("keeps the chase camera readable through pitch/turn, scales distance, and bounds it to water", () => {

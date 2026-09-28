@@ -82,35 +82,6 @@ These are acceptance targets, not permission to fake authority:
 
 ## Open tasks
 
-### ST-119 — [FEAT] Replace primitive actors with animated shark models
-
-**Goal**
-
-Make every player/rival visibly read as a shark with a strong silhouette and responsive animation.
-
-**Scope**
-
-- Add one optimized local shark mesh/GLB pipeline with an appropriate license/provenance record.
-- Support skin palette/material variation without duplicating whole model payloads.
-- Add animation states for cruise, hard turn/bank, burst, bite, hit/death and spawn where the asset supports them.
-- If the chosen asset does not contain every clip, layer procedural fin/tail/body motion rather than blocking the task on a huge animation library.
-- Scale model presence with gameplay size while keeping hit geometry owned by the engine, not by arbitrary mesh triangles.
-- Keep name/colorblind labels projected from the actual head/actor position.
-- Keep meshes/animations out of server-safe imports.
-
-**Non-goals**
-
-- No character creator.
-- No species roster yet.
-- No realistic gore.
-
-**Acceptance**
-
-- Direction, pitch and speed are visually legible from shark pose.
-- Skin colors remain distinguishable against the ocean at supported quality levels.
-- The actor remains performant at the full 32-shark tank target.
-
----
 
 ### ST-120 — [FEAT] Replace abstract pellets with authoritative fish and prey schools
 
