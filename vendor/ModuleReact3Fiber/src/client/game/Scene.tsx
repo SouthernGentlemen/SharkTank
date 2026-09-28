@@ -28,7 +28,7 @@ export function Scene({
 
   return (
     <>
-      <WorldEnvironment settings={settings} />
+      <WorldEnvironment socket={socket} settings={settings} />
       <ActorLayer
         socket={socket}
         settings={settings}
