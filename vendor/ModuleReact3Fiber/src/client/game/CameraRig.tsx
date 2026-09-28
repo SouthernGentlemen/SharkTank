@@ -1,6 +1,7 @@
 import { useFrame, useThree } from "@react-three/fiber";
 import { useEffect, useMemo } from "react";
 import * as THREE from "three";
+import type { LocalInput } from "./useLocalInput.js";
 import {
   CAMERA_PROJECTION,
   cameraFovForSpeed,
@@ -43,9 +44,11 @@ export function makeCameraFollowTarget(): CameraFollowTarget {
 export function CameraRig({
   followRef,
   reducedMotion,
+  inputRef,
 }: {
   followRef: React.MutableRefObject<CameraFollowTarget>;
   reducedMotion: boolean;
+  inputRef?: React.MutableRefObject<LocalInput>;
 }) {
   const { camera } = useThree();
   const goal = useMemo(() => makeChaseCameraPose(), []);
@@ -71,6 +74,8 @@ export function CameraRig({
         seabedY: follow.seabedY,
         surfaceY: follow.surfaceY,
         reducedMotion,
+        lookYawOffset: inputRef?.current.cameraLookYaw ?? 0,
+        lookPitchOffset: inputRef?.current.cameraLookPitch ?? 0,
       });
     } else {
       goal.position.x = 0;

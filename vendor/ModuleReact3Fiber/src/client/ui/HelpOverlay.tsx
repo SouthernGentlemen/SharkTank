@@ -36,10 +36,11 @@ export function HelpOverlay({ onClose }: { onClose: () => void }) {
           </div>
         ) : (
           <div className="control-grid">
-            <Control icon="steer" label="Steer"><Key>{keyLabel(k.left)}</Key><Key>{keyLabel(k.right)}</Key><span>Pointer</span></Control>
-            <Control icon="dash" label="Dash"><Key>{keyLabel(k.boost)}</Key><span>Click</span><small>2s cooldown · half that during a frenzy</small></Control>
-            <Control icon="rocket" label="Rocket"><Key>Shift</Key><small>Lethal · 3s cooldown</small></Control>
-            <Control icon="menu" label="Tools"><Key>Esc</Key><Key>?</Key><small>Exit and settings rail</small></Control>
+            <Control icon="steer" label="Fly"><Key>{keyLabel(k.pitchUp)}</Key><Key>{keyLabel(k.pitchDown)}</Key><Key>{keyLabel(k.yawLeft)}</Key><Key>{keyLabel(k.yawRight)}</Key><small>W/S pitch · A/D yaw by default</small></Control>
+            <Control icon="steer" label="Look"><Key>{keyLabel(k.lookUp)}</Key><Key>{keyLabel(k.lookDown)}</Key><Key>{keyLabel(k.lookLeft)}</Key><Key>{keyLabel(k.lookRight)}</Key><span>Mouse optional</span><small>Camera only; shark direction is unchanged</small></Control>
+            <Control icon="dash" label="Burst"><Key>{keyLabel(k.boost)}</Key><small>2s cooldown · half that during a frenzy</small></Control>
+            <Control icon="rocket" label="Bite / attack"><Key>{keyLabel(k.bite)}</Key><small>Uses the current primary attack until the 3D combat rewrite</small></Control>
+            <Control icon="menu" label="Tools"><Key>{keyLabel(k.pause)}</Key><Key>?</Key><small>Pause, help, exit and settings</small></Control>
           </div>
         )}
         <p className="help-note">

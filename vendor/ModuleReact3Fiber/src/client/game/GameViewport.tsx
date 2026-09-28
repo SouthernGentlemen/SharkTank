@@ -31,14 +31,20 @@ export function GameViewport({
   touchControls = false,
 }: GameViewportProps) {
   const surfaceRef = useRef<HTMLDivElement>(null);
-  const inputRef = useRef<LocalInput>({ targetYaw: 0, targetPitch: 0, boosting: false });
+  const inputRef = useRef<LocalInput>({
+    targetYaw: 0,
+    targetPitch: 0,
+    boosting: false,
+    cameraLookYaw: 0,
+    cameraLookPitch: 0,
+  });
   const quality = resolveSceneQuality(settings.graphics.quality);
 
   useLocalInput(socket, settings, inputEnabled, inputRef, surfaceRef, stickRef, touchControls);
 
   const label = touchControls
     ? "Shark Tank. Hold the on-screen stick to swim. The dash and rocket pads sit under your other thumb."
-    : "Shark Tank. Steer with the pointer or arrow keys. Space or click dashes. Shift fires a rocket.";
+    : "Shark Tank. W and S climb or dive; A and D turn. Arrow keys look around. Space bursts, F uses the current primary attack, Escape pauses, and mouse look is optional.";
 
   return (
     <div

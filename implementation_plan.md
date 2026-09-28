@@ -82,50 +82,6 @@ These are acceptance targets, not permission to fake authority:
 
 ## Open tasks
 
-### ST-116 — [FEAT] Rebuild desktop controls for full-3D play
-
-**Goal**
-
-Make desktop control like flying a jet through water, using two keyboard directional clusters that map one-for-one to the two mobile sticks.
-
-**Owner-default desktop map**
-
-- `W` — pitch up / climb.
-- `S` — pitch down / dive.
-- `A` — yaw left.
-- `D` — yaw right.
-- `Arrow Up` / `Arrow Down` — look camera up/down around the shark.
-- `Arrow Left` / `Arrow Right` — look camera left/right around the shark.
-- Bite and burst use separate remappable action keys; choose defaults during implementation that do not conflict with the two directional clusters.
-- The shark maintains forward swim; burst temporarily increases forward speed. Visual roll/bank follows yaw rate rather than consuming another key axis.
-
-**Scope**
-
-- Implement the WASD flight stick as the authoritative player pitch/yaw intent source.
-- Implement arrow keys as an independent chase-camera look stick with bounded yaw/pitch offsets and smooth recenter when released.
-- Keep mouse look optional as a mirror for the camera-look stick, never as a requirement for steering or full gameplay.
-- Keep keyboard-only play complete: climb, dive, turn, look, bite, burst, pause, respawn and exit must all be possible without a pointer.
-- Preserve remappable keybind infrastructure and extend it for pitch/look/action controls without blank or conflicting bindings.
-- Prevent menus/forms/dialogs from leaking gameplay input and clear held-key state on blur/visibility/focus transitions.
-- Keep the existing single-key-shortcut accessibility switch effective.
-- Update help text and control captions to describe the jet-like control model.
-
-**Non-goals**
-
-- No gamepad requirement.
-- No mobile implementation yet.
-- No combat semantics change beyond wiring placeholder actions.
-
-**Acceptance**
-
-- WASD alone can continuously fly the shark through yaw + pitch in full 3D while forward swim remains coherent.
-- Arrow keys can look around the shark independently without changing authoritative swim direction.
-- Mouse is optional, not required for full play.
-- Opening any dialog releases active steering/look/ability state.
-- Focus transitions do not leave the shark stuck turning, pitching, looking or bursting.
-
----
-
 ### ST-117 — [FEAT] Add dual-stick mobile pitch/yaw controls
 
 **Goal**
