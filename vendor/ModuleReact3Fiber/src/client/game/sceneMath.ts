@@ -1,4 +1,4 @@
-import { lerpYawShortest } from "../../engine/index.js";
+import { clampPitch, lerpYawShortest, normalizeYaw } from "../../engine/index.js";
 
 export type SceneQuality = "low" | "medium" | "high";
 
@@ -16,6 +16,27 @@ export interface ChaseCameraPose {
 export interface OrientedScenePose extends SceneVec3 {
   yaw: number;
   pitch: number;
+}
+
+export interface SwimSteeringRates {
+  turnRate: number;
+  pitchRate: number;
+}
+
+export const SWIM_STEERING: SwimSteeringRates = {
+  turnRate: 3.2,
+  pitchRate: 2.4,
+};
+
+export interface ChaseCameraOptions {
+  sharkScale?: number;
+  speed?: number;
+  baseSpeed?: number;
+  boostSpeed?: number;
+  arenaRadius?: number;
+  seabedY?: number;
+  surfaceY?: number;
+  reducedMotion?: boolean;
 }
 
 export function interpolateOrientedPose(
@@ -80,22 +101,63 @@ export function resolveSceneQuality(quality: SceneQuality) {
   return QUALITY[quality];
 }
 
+function unitAxis(value: number): number {
+  return Math.max(-1, Math.min(1, Number.isFinite(value) ? value : 0));
+}
+
+/**
+ * Camera-relative flight-stick steering. The chase rig follows the shark's current
+ * forward frame, so these relative axes stay intuitive through arbitrary yaw + pitch.
+ * ST-116/ST-117 own the final desktop/mobile sources that feed these axes.
+ */
+export function applyCameraRelativeSteering(
+  yaw: number,
+  pitch: number,
+  yawAxis: number,
+  pitchAxis: number,
+  dt: number,
+  rates: SwimSteeringRates = SWIM_STEERING,
+): { yaw: number; pitch: number } {
+  const frameStep = Math.max(0, Math.min(0.05, Number.isFinite(dt) ? dt : 0));
+  return {
+    yaw: normalizeYaw(yaw + unitAxis(yawAxis) * rates.turnRate * frameStep),
+    pitch: clampPitch(pitch + unitAxis(pitchAxis) * rates.pitchRate * frameStep),
+  };
+}
+
 /**
  * World convention for the full-3D rebuild:
  * X/Z are the horizontal plane, +Y is up, yaw rotates around +Y and pitch tilts
- * forward motion toward +Y. Yaw 0 points along +X to preserve the planar engine's
- * current heading convention until authority becomes volumetric in ST-112.
+ * forward motion toward +Y. Yaw 0 points along +X.
  */
 export function forwardFromYawPitch(
   yaw: number,
   pitch: number,
   out: SceneVec3 = { x: 0, y: 0, z: 0 },
 ): SceneVec3 {
-  const cosPitch = Math.cos(pitch);
-  out.x = Math.cos(yaw) * cosPitch;
-  out.y = Math.sin(pitch);
-  out.z = Math.sin(yaw) * cosPitch;
+  const safeYaw = normalizeYaw(yaw);
+  const safePitch = clampPitch(pitch);
+  const cosPitch = Math.cos(safePitch);
+  out.x = Math.cos(safeYaw) * cosPitch;
+  out.y = Math.sin(safePitch);
+  out.z = Math.sin(safeYaw) * cosPitch;
   return out;
+}
+
+export function advanceBankRoll(
+  currentRoll: number,
+  yawRate: number,
+  dt: number,
+  reducedMotion = false,
+): number {
+  if (reducedMotion) return 0;
+  const maxBank = 0.42;
+  const target = Math.max(-maxBank, Math.min(maxBank, -yawRate * 0.16));
+  const frameStep = Math.max(0, Math.min(0.05, Number.isFinite(dt) ? dt : 0));
+  const response = Math.abs(target) > 0.01 ? 9 : 6;
+  const blend = 1 - Math.exp(-response * frameStep);
+  const next = currentRoll + (target - currentRoll) * blend;
+  return Math.abs(next) < 0.0005 ? 0 : next;
 }
 
 export function makeChaseCameraPose(): ChaseCameraPose {
@@ -105,22 +167,87 @@ export function makeChaseCameraPose(): ChaseCameraPose {
   };
 }
 
+function speedRatio(options: ChaseCameraOptions): number {
+  if (options.reducedMotion) return 0;
+  const base = options.baseSpeed ?? 11;
+  const boost = Math.max(base + 0.001, options.boostSpeed ?? 28);
+  const speed = options.speed ?? base;
+  return Math.max(0, Math.min(1, (speed - base) / (boost - base)));
+}
+
+function clampCameraPoint(
+  point: SceneVec3,
+  options: ChaseCameraOptions,
+  verticalMargin: number,
+  radialMargin: number,
+): void {
+  if (typeof options.seabedY === "number" && Number.isFinite(options.seabedY)) {
+    point.y = Math.max(options.seabedY + verticalMargin, point.y);
+  }
+  if (typeof options.surfaceY === "number" && Number.isFinite(options.surfaceY)) {
+    point.y = Math.min(options.surfaceY - verticalMargin, point.y);
+  }
+  const radius = options.arenaRadius;
+  if (typeof radius !== "number" || !Number.isFinite(radius) || radius <= radialMargin) return;
+  const maxRadius = radius - radialMargin;
+  const radial = Math.hypot(point.x, point.z);
+  if (radial <= maxRadius || radial <= 1e-6) return;
+  const scale = maxRadius / radial;
+  point.x *= scale;
+  point.z *= scale;
+}
+
 export function chaseCameraPose(
   target: SceneVec3,
   yaw: number,
   pitch: number,
   out: ChaseCameraPose = makeChaseCameraPose(),
+  options: ChaseCameraOptions = {},
 ): ChaseCameraPose {
   const forward = forwardFromYawPitch(yaw, pitch);
-  const distance = 18;
-  const lift = 7;
-  const lookAhead = 5;
+  const size = Math.max(0.7, Math.min(2.8, options.sharkScale ?? 1));
+  const speed = speedRatio(options);
+  const distance = 13.5 + size * 3.2 + speed * 3.5;
+  const lift = 3.8 + size * 1.4;
+  const lookAhead = 4.5 + size * 0.65 + speed * 3.2;
 
   out.position.x = target.x - forward.x * distance;
-  out.position.y = target.y + lift - forward.y * 5;
+  out.position.y = target.y - forward.y * distance + lift;
   out.position.z = target.z - forward.z * distance;
   out.lookAt.x = target.x + forward.x * lookAhead;
-  out.lookAt.y = target.y + 1 + forward.y * lookAhead;
+  out.lookAt.y = target.y + forward.y * lookAhead + 0.65;
   out.lookAt.z = target.z + forward.z * lookAhead;
+
+  clampCameraPoint(out.position, options, 1.25, 1.5);
+  clampCameraPoint(out.lookAt, options, 0.35, 0.35);
   return out;
+}
+
+export function smoothChaseCameraPose(
+  current: ChaseCameraPose,
+  goal: ChaseCameraPose,
+  dt: number,
+  reducedMotion = false,
+  out: ChaseCameraPose = current,
+): ChaseCameraPose {
+  const frameStep = Math.max(0, Math.min(0.05, Number.isFinite(dt) ? dt : 0));
+  const positionBlend = reducedMotion ? 1 : 1 - Math.exp(-8 * frameStep);
+  const lookBlend = reducedMotion ? 1 : 1 - Math.exp(-10 * frameStep);
+  for (const axis of ["x", "y", "z"] as const) {
+    out.position[axis] = current.position[axis] + (goal.position[axis] - current.position[axis]) * positionBlend;
+    out.lookAt[axis] = current.lookAt[axis] + (goal.lookAt[axis] - current.lookAt[axis]) * lookBlend;
+  }
+  return out;
+}
+
+export function cameraFovForSpeed(
+  speed: number,
+  baseSpeed: number,
+  boostSpeed: number,
+  reducedMotion = false,
+): number {
+  if (reducedMotion) return CAMERA_PROJECTION.fov;
+  const span = Math.max(0.001, boostSpeed - baseSpeed);
+  const ratio = Math.max(0, Math.min(1, (speed - baseSpeed) / span));
+  return CAMERA_PROJECTION.fov + ratio * 3.5;
 }

@@ -12,14 +12,15 @@ import {
   rotateYawToward,
   sampleTrail,
   segmentCount,
+  swimSpeedForLungeTicks,
 } from "../../engine/index.js";
 import type { Vec3 } from "../../engine/index.js";
 import type { NetSnake } from "../../protocol/index.js";
 import type { LocalInput } from "./useLocalInput.js";
 
 const SPEED = MOVE.BASE_SPEED * TICKS_PER_SECOND;
-const BOOST = MOVE.BOOST_SPEED * TICKS_PER_SECOND;
 const TURN = MOVE.TURN_RATE * TICKS_PER_SECOND;
+const PITCH = MOVE.PITCH_RATE * TICKS_PER_SECOND;
 const CRUMB_STEP = MOVE.SEGMENT_SPACING * 0.5;
 const RECONCILE_PER_SECOND = 5;
 const MAX_RECONCILE_SPEED = SPEED * 0.65;
@@ -80,9 +81,9 @@ export class LocalPredictor {
     this.length = auth.length;
     const frameStep = Math.min(dt, 0.05);
     this.yaw = rotateYawToward(this.yaw, input.targetYaw, TURN * frameStep);
-    this.pitch = clampPitch(moveToward(this.pitch, input.targetPitch, TURN * frameStep));
+    this.pitch = clampPitch(moveToward(this.pitch, input.targetPitch, PITCH * frameStep));
     const frenzyMultiplier = world && world.frenzyUntilTick > world.tick ? MOVE.FRENZY_SPEED : 1;
-    const speed = (auth.lungeTicks > 0 ? BOOST : SPEED) * frenzyMultiplier;
+    const speed = swimSpeedForLungeTicks(auth.lungeTicks) * TICKS_PER_SECOND * frenzyMultiplier;
     const forward = forwardFromYawPitch(this.yaw, this.pitch);
     const next: Vec3 = {
       x: this.head.x + forward.x * speed * frameStep,
@@ -95,7 +96,7 @@ export class LocalPredictor {
       next.y = boundedY;
     }
 
-    const authSpeed = (auth.lungeTicks > 0 ? BOOST : SPEED) * frenzyMultiplier;
+    const authSpeed = swimSpeedForLungeTicks(auth.lungeTicks) * TICKS_PER_SECOND * frenzyMultiplier;
     const authForward = forwardFromYawPitch(auth.yaw, auth.pitch);
     const authNow: Vec3 = {
       x: auth.segments[0].x + authForward.x * authSpeed * staleness,

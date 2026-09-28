@@ -9,10 +9,10 @@
 
 import { useEffect, useRef } from "react";
 import { clampPitch, normalizeYaw } from "../../engine/index.js";
+import { applyCameraRelativeSteering } from "./sceneMath.js";
 import type { RoomSocket } from "../net/useRoomSocket.js";
 import type { Settings } from "../settings/SettingsContext.js";
 
-const KEY_TURN_RATE = 3.2; // radians per second while a turn key is held
 const POINTER_DEAD_ZONE = 18;
 
 /** The player's live intent, read by client-side prediction. */
@@ -52,6 +52,7 @@ export function useLocalInput(
   const boostRef = useRef(false);
   const pressed = useRef<Set<string>>(new Set());
   const usingPointer = useRef(false);
+  const pointerAxes = useRef({ yaw: 0, pitch: 0 });
   const orientationInitialized = useRef(false);
   const settingsRef = useRef(settings);
   settingsRef.current = settings;
@@ -64,6 +65,7 @@ export function useLocalInput(
       // steer the new shark back toward the wall.
       orientationInitialized.current = false;
       usingPointer.current = false;
+      pointerAxes.current = { yaw: 0, pitch: 0 };
       boostRef.current = false;
       setBoost(false);
       return;
@@ -108,7 +110,17 @@ export function useLocalInput(
       const cx = rect ? rect.left + rect.width / 2 : window.innerWidth / 2;
       const cy = rect ? rect.top + rect.height / 2 : window.innerHeight / 2;
       const dx = e.clientX - cx, dy = e.clientY - cy;
-      if (Math.hypot(dx, dy) >= POINTER_DEAD_ZONE) { yawRef.current = Math.atan2(dy, dx); orientationInitialized.current = true; }
+      const magnitude = Math.hypot(dx, dy);
+      if (magnitude < POINTER_DEAD_ZONE) {
+        pointerAxes.current = { yaw: 0, pitch: 0 };
+        return;
+      }
+      const xRange = Math.max(80, (rect?.width ?? window.innerWidth) * 0.32);
+      const yRange = Math.max(80, (rect?.height ?? window.innerHeight) * 0.32);
+      pointerAxes.current = {
+        yaw: Math.max(-1, Math.min(1, dx / xRange)),
+        pitch: Math.max(-1, Math.min(1, -dy / yRange)),
+      };
     };
     const onPointerDown = (e: PointerEvent) => {
       // Touch taps steer nothing and cost nothing — the thumbstick and the dash pad own
@@ -130,6 +142,11 @@ export function useLocalInput(
         setBoost(false);
       }
     };
+    const onPointerLeave = (e: PointerEvent) => {
+      if (touchControls && e.pointerType !== "mouse") return;
+      pointerAxes.current = { yaw: 0, pitch: 0 };
+      usingPointer.current = false;
+    };
 
     window.addEventListener("keydown", onKeyDown);
     window.addEventListener("keyup", onKeyUp);
@@ -138,6 +155,7 @@ export function useLocalInput(
     surface?.addEventListener("pointerdown", onPointerDown);
     surface?.addEventListener("pointerup", onPointerUp);
     surface?.addEventListener("pointercancel", onPointerUp);
+    surface?.addEventListener("pointerleave", onPointerLeave);
 
     let raf = 0, previousFrameAt = performance.now();
     const loop = (frameAt: number) => {
@@ -158,13 +176,17 @@ export function useLocalInput(
         orientationInitialized.current = true;
         usingPointer.current = false;
       }
-      if (pressed.current.has(b.left)) yawRef.current -= KEY_TURN_RATE * dt * assist * dir;
-      if (pressed.current.has(b.right)) yawRef.current += KEY_TURN_RATE * dt * assist * dir;
-      // Held turn keys accumulate without bound, and the server *clamps* an out-of-range
-      // heading to ±π rather than wrapping it — so turning past half a circle used to
-      // pin the shark due west. Wrap here, before anything reads or sends the angle.
-      yawRef.current = normalizeYaw(yawRef.current);
-      pitchRef.current = clampPitch(pitchRef.current);
+      let yawAxis = 0;
+      let pitchAxis = 0;
+      if (usingPointer.current) {
+        yawAxis += pointerAxes.current.yaw * assist * dir;
+        pitchAxis += pointerAxes.current.pitch * assist;
+      }
+      if (pressed.current.has(b.left)) yawAxis -= assist * dir;
+      if (pressed.current.has(b.right)) yawAxis += assist * dir;
+      const steered = applyCameraRelativeSteering(yawRef.current, pitchRef.current, yawAxis, pitchAxis, dt);
+      yawRef.current = normalizeYaw(steered.yaw);
+      pitchRef.current = clampPitch(steered.pitch);
       setOrientation(yawRef.current, pitchRef.current);
       syncInput();
       raf = requestAnimationFrame(loop);
@@ -179,6 +201,7 @@ export function useLocalInput(
       surface?.removeEventListener("pointerdown", onPointerDown);
       surface?.removeEventListener("pointerup", onPointerUp);
       surface?.removeEventListener("pointercancel", onPointerUp);
+      surface?.removeEventListener("pointerleave", onPointerLeave);
       setBoost(false);
     };
   }, [enabled, stateRef, youId, setOrientation, setBoost, rocket, surfaceRef, inputRef, stickRef, touchControls]);

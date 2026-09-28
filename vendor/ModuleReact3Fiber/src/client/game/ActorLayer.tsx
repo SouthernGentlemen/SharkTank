@@ -1,13 +1,25 @@
 import { useFrame, useThree } from "@react-three/fiber";
 import { useMemo, useRef } from "react";
 import * as THREE from "three";
-import { SKINS, forwardFromYawPitch } from "../../engine/index.js";
+import {
+  MOVE,
+  SKINS,
+  TICKS_PER_SECOND,
+  forwardFromYawPitch,
+  shortestYawDelta,
+  swimSpeedForLungeTicks,
+} from "../../engine/index.js";
 import type { NetSnake } from "../../protocol/index.js";
 import type { RoomSocket } from "../net/useRoomSocket.js";
 import type { Settings } from "../settings/SettingsContext.js";
 import type { CameraFollowTarget } from "./CameraRig.js";
 import { LocalPredictor } from "./prediction.js";
-import { interpolateOrientedPose, resolveSceneQuality, type OrientedScenePose } from "./sceneMath.js";
+import {
+  advanceBankRoll,
+  interpolateOrientedPose,
+  resolveSceneQuality,
+  type OrientedScenePose,
+} from "./sceneMath.js";
 import type { LocalInput } from "./useLocalInput.js";
 
 const MAX_SHARKS = 32;
@@ -53,6 +65,7 @@ export function ActorLayer({
   const projected = useMemo(() => new THREE.Vector3(), []);
   const tempColor = useMemo(() => new THREE.Color(), []);
   const prevById = useMemo(() => new Map<string, NetSnake>(), []);
+  const motionById = useMemo(() => new Map<string, { yaw: number; roll: number }>(), []);
 
   useFrame((_, dt) => {
     const sharks = sharkMesh.current;
@@ -76,7 +89,7 @@ export function ActorLayer({
 
     const authoritativeMe = socket.stateRef.current?.snakes.find((shark) => shark.id === socket.youId) ?? null;
     const staleness = Math.max(0, (performance.now() - socket.newestAtRef.current) / 1000);
-    const predicted = !reducedMotion && inputRef
+    const predicted = inputRef
       ? predictor.step(authoritativeMe, inputRef.current, dt, staleness, {
           seabedY: state.seabedY,
           surfaceY: state.surfaceY,
@@ -120,8 +133,14 @@ export function ActorLayer({
         pitch = interpolatedPose.pitch;
       }
 
+      const motion = motionById.get(shark.id) ?? { yaw, roll: 0 };
+      const yawRate = shortestYawDelta(motion.yaw, yaw) / Math.max(1 / 120, Math.min(0.05, dt));
+      motion.roll = advanceBankRoll(motion.roll, yawRate, dt, reducedMotion);
+      motion.yaw = yaw;
+      motionById.set(shark.id, motion);
+
       dummy.position.copy(position);
-      dummy.rotation.set(0, -yaw, pitch);
+      dummy.rotation.set(motion.roll, -yaw, pitch);
       dummy.scale.set(sharkScale * 1.75, sharkScale * 0.62, sharkScale * 0.82);
       dummy.updateMatrix();
       sharks.setMatrixAt(sharkCount, dummy.matrix);
@@ -236,6 +255,22 @@ export function ActorLayer({
       followRef.current.pitch = interpolatedPose.pitch;
     } else {
       followRef.current.active = false;
+    }
+
+    if (followRef.current.active) {
+      const local = authoritativeMe ?? interpolatedMe;
+      if (local) {
+        const baseSpeed = MOVE.BASE_SPEED * TICKS_PER_SECOND;
+        const boostSpeed = MOVE.BOOST_SPEED * TICKS_PER_SECOND;
+        const frenzy = state.frenzyUntilTick > state.tick ? MOVE.FRENZY_SPEED : 1;
+        followRef.current.sharkScale = Math.min(2.5, 0.72 + Math.sqrt(local.length) * 0.12);
+        followRef.current.speed = swimSpeedForLungeTicks(local.lungeTicks) * TICKS_PER_SECOND * frenzy;
+        followRef.current.baseSpeed = baseSpeed;
+        followRef.current.boostSpeed = boostSpeed * frenzy;
+        followRef.current.arenaRadius = state.arenaRadius;
+        followRef.current.seabedY = state.seabedY;
+        followRef.current.surfaceY = state.surfaceY;
+      }
     }
   });
 
