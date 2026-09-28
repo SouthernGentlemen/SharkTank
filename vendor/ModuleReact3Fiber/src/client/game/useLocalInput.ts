@@ -2,11 +2,9 @@
 //
 // Desktop owns WASD pitch/yaw plus an independent arrow-key camera-look cluster.
 // Mouse movement is an optional mirror for camera look only; it never authors shark
-// orientation. The current one-stick touch adapter is intentionally preserved until
-// ST-117 replaces it with the twin-stick mobile contract.
+// orientation. Mobile reads the same flight/look semantics from the twin-stick contract.
 
 import { useEffect, useRef } from "react";
-import { normalizeYaw } from "../../engine/index.js";
 import type { RoomSocket } from "../net/useRoomSocket.js";
 import type { Settings } from "../settings/SettingsContext.js";
 import {
@@ -16,6 +14,11 @@ import {
   type CameraLook,
 } from "./desktopControls.js";
 import { applyCameraRelativeSteering } from "./sceneMath.js";
+import {
+  releaseAllTouchInput,
+  touchAxesForState,
+  type TwinStickState,
+} from "./mobileControls.js";
 
 /** The player's live intent, read by prediction and the presentation camera. */
 export interface LocalInput {
@@ -24,13 +27,6 @@ export interface LocalInput {
   boosting: boolean;
   cameraLookYaw: number;
   cameraLookPitch: number;
-}
-
-/** Live legacy touch-stick state. ST-117 replaces this with the twin-stick contract. */
-export interface StickState {
-  active: boolean;
-  /** Absolute heading in the X/Z plane, same convention as authoritative Snake.yaw. */
-  angle: number;
 }
 
 function eventCode(e: KeyboardEvent): string {
@@ -49,7 +45,7 @@ export function useLocalInput(
   enabled: boolean,
   inputRef?: React.MutableRefObject<LocalInput>,
   surfaceRef?: React.RefObject<HTMLElement | null>,
-  stickRef?: React.MutableRefObject<StickState>,
+  touchInputRef?: React.MutableRefObject<TwinStickState>,
   touchControls = false,
 ): void {
   const { stateRef, youId, setOrientation, setBoost, rocket } = socket;
@@ -79,6 +75,7 @@ export function useLocalInput(
       pointerLook.current = null;
       cameraLook.current = { yaw: 0, pitch: 0 };
       boostRef.current = false;
+      releaseAllTouchInput(touchInputRef?.current);
       syncInput();
       setBoost(false);
     };
@@ -169,32 +166,38 @@ export function useLocalInput(
         }
       }
 
-      const axes = desktopAxesForPressed(
+      const desktop = desktopAxesForPressed(
         pressed.current,
         controls.keybinds,
         controls.turnAssist,
         controls.invertSteer,
       );
-      const stick = stickRef?.current;
-      let yawAxis = axes.yaw;
-      if (stick?.active) {
-        // ST-117 still owns touch pitch. Until then the legacy stick owns yaw only,
-        // without turning a touch gesture into the desktop mouse-look path.
-        yawRef.current = normalizeYaw(controls.invertSteer ? stick.angle + Math.PI : stick.angle);
-        orientationInitialized.current = true;
-        yawAxis = 0;
-      }
+      const touch = touchControls && touchInputRef
+        ? touchAxesForState(touchInputRef.current, controls.turnAssist, controls.invertSteer)
+        : { yaw: 0, pitch: 0, lookYaw: 0, lookPitch: 0 };
+      const axes = {
+        yaw: clampAxis(desktop.yaw + touch.yaw),
+        pitch: clampAxis(desktop.pitch + touch.pitch),
+        lookYaw: clampAxis(desktop.lookYaw + touch.lookYaw),
+        lookPitch: clampAxis(desktop.lookPitch + touch.lookPitch),
+      };
 
       const steered = applyCameraRelativeSteering(
         yawRef.current,
         pitchRef.current,
-        yawAxis,
+        axes.yaw,
         axes.pitch,
         dt,
       );
       yawRef.current = steered.yaw;
       pitchRef.current = steered.pitch;
-      cameraLook.current = advanceCameraLookOffsets(cameraLook.current, axes, dt, pointerLook.current);
+      const touchLookActive = touchControls && touchInputRef?.current.look.pointerId !== null;
+      cameraLook.current = advanceCameraLookOffsets(
+        cameraLook.current,
+        axes,
+        dt,
+        touchLookActive ? null : pointerLook.current,
+      );
 
       setOrientation(yawRef.current, pitchRef.current);
       syncInput();
@@ -215,5 +218,9 @@ export function useLocalInput(
       surface?.removeEventListener("lostpointercapture", clearPointerLook);
       releaseActiveInput();
     };
-  }, [enabled, stateRef, youId, setOrientation, setBoost, rocket, surfaceRef, inputRef, stickRef, touchControls]);
+  }, [enabled, stateRef, youId, setOrientation, setBoost, rocket, surfaceRef, inputRef, touchInputRef, touchControls]);
+}
+
+function clampAxis(value: number): number {
+  return Math.max(-1, Math.min(1, value));
 }

@@ -86,7 +86,7 @@ export interface Settings {
     invertSteer: boolean;
     /** On-screen thumbstick + ability pads. "auto" follows (pointer: coarse). */
     touchControls: "auto" | "on" | "off";
-    /** Which thumb drives. "right" puts the stick right and the ability pads left. */
+    /** Physical side of the flight stick. The look stick/actions mirror to the opposite side. */
     stickSide: "right" | "left";
     /**
      * Single-key shortcuts (currently "?" for help). WCAG 2.1.4 requires a single-character
@@ -112,7 +112,7 @@ export const DEFAULT_SETTINGS: Settings = {
     turnAssist: false,
     invertSteer: false,
     touchControls: "auto",
-    stickSide: "right",
+    stickSide: "left",
     singleKeyShortcuts: true,
   },
   a11y: { theme: "system", contrast: "normal", motion: "full", fontScale: 1, colorblindLabels: true },

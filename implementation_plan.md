@@ -82,48 +82,6 @@ These are acceptance targets, not permission to fake authority:
 
 ## Open tasks
 
-### ST-117 — [FEAT] Add dual-stick mobile pitch/yaw controls
-
-**Goal**
-
-Make mobile a first-class 3D control surface with two simultaneous analog inputs rather than adapting the old one-stick planar control.
-
-**Owner-default layout**
-
-- Left floating analog stick is the exact WASD equivalent: stick up/down drives shark pitch up/down and stick left/right drives shark yaw left/right.
-- Right floating analog stick is the exact arrow-key equivalent: stick up/down/left/right controls bounded chase-camera look offsets around the shark without changing authoritative swim direction.
-- The shark continuously swims forward like a jet through water; left-stick yaw produces visual banking and left-stick pitch controls climb/dive.
-- Releasing the right stick smoothly recenters the chase camera behind the shark rather than snapping.
-- Bite and burst use separate touch buttons positioned outside the stick travel circles, and the input system must allow ability touches while both stick pointers remain captured.
-- Handedness swaps the complete twin-stick/action layout, not just one stick.
-
-**Scope**
-
-- Track independent pointer IDs for left and right sticks and support both at the same time.
-- Use pointer capture defensively so fingers may leave their original zones without dropping control.
-- Give both sticks dead zones, radial normalization and bounded response curves.
-- Smooth camera recenter after the look stick releases.
-- Prevent touch gestures from scrolling/zooming the page while actively playing without breaking ordinary page accessibility outside the game.
-- Respect `env(safe-area-inset-*)`, browser chrome, orientation changes and coarse-pointer detection.
-- Ensure ability pads can be pressed while either/both sticks remain held.
-- Preserve forced on/off/auto touch-control settings.
-- Add left-handed layout support.
-- Add a landscape gameplay layout and an explicit portrait policy. If portrait cannot maintain safe dual-stick geometry, show a clear rotate-to-landscape affordance instead of rendering unusable controls.
-
-**Non-goals**
-
-- No decorative mobile redesign.
-- No native-app-only APIs.
-- No requirement for haptics, though later tasks may add them opportunistically.
-
-**Acceptance**
-
-- Automated control math tests cover two simultaneous pointers, cancellation, orientation change, safe-area layout and handedness.
-- A player can continuously yaw/pitch with the left stick, look independently with the right stick, and activate an ability without either stick pointer being cancelled.
-- No touch path falls back to mouse-click semantics from the old Canvas2D game.
-
----
-
 ### ST-118 — [FEAT] Build the stylized ocean arena
 
 **Goal**

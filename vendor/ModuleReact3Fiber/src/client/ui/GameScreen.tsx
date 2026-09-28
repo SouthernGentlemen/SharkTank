@@ -10,7 +10,12 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { TICKS_PER_SECOND } from "../../engine/index.js";
 import { GameViewport } from "../game/GameViewport.js";
 import type { SnakeLabel } from "../game/Scene.js";
-import type { StickState } from "../game/useLocalInput.js";
+import {
+  canUseAbilityPointer,
+  makeTwinStickState,
+  touchLayoutForFlightSide,
+  type TwinStickState,
+} from "../game/mobileControls.js";
 import { useRoomSocket } from "../net/useRoomSocket.js";
 import { keyLabel, useSettings } from "../settings/SettingsContext.js";
 import { useAnnouncer } from "../a11y/announcer.js";
@@ -25,7 +30,7 @@ import { HelpOverlay } from "./HelpOverlay.js";
 import { PauseMenu } from "./PauseMenu.js";
 import { SnakeLabels } from "./SnakeLabels.js";
 import { Captions } from "./Captions.js";
-import { TouchControls, useTouchControls } from "./TouchControls.js";
+import { TouchControls, useTouchControls, useTouchPortraitLock } from "./TouchControls.js";
 
 export interface GameScreenProps {
   room: { id: string; name: string };
@@ -39,12 +44,14 @@ export function GameScreen({ room, identity, onQuit }: GameScreenProps) {
   const socket = useRoomSocket(room.id, identity, room.name);
   const caption = useGameAudio(socket, settings);
   const labelsRef = useRef<SnakeLabel[]>([]);
-  const stickRef = useRef<StickState>({ active: false, angle: 0 });
+  const touchInputRef = useRef<TwinStickState>(makeTwinStickState());
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [helpOpen, setHelpOpen] = useState(false);
   const [paused, setPaused] = useState(false);
   const touch = useTouchControls(settings);
   const stickSide = settings.controls.stickSide;
+  const touchLayout = touchLayoutForFlightSide(stickSide);
+  const portraitLocked = useTouchPortraitLock(touch);
 
   useEffect(() => {
     announce(`Entered ${room.name}. Playing as ${identity.name}.`);
@@ -90,13 +97,16 @@ export function GameScreen({ room, identity, onQuit }: GameScreenProps) {
   // flight/look/ability state in useLocalInput.
   const dialogOpen = settingsOpen || helpOpen || paused;
   const inputEnabled = !dialogOpen && !socket.death;
+  const gameplayEnabled = inputEnabled && !portraitLocked;
 
   return (
     <main
       id="main"
-      className={touch ? `game-screen game-screen--touch game-screen--stick-${stickSide}` : "game-screen"}
+      className={touch
+        ? `game-screen game-screen--touch game-screen--flight-${touchLayout.flight} game-screen--actions-${touchLayout.actions}${portraitLocked ? " game-screen--portrait-lock" : ""}`
+        : "game-screen"}
     >
-      <GameViewport socket={socket} settings={settings} inputEnabled={inputEnabled} labelsRef={labelsRef} stickRef={stickRef} touchControls={touch} />
+      <GameViewport socket={socket} settings={settings} inputEnabled={gameplayEnabled} labelsRef={labelsRef} touchInputRef={touchInputRef} touchControls={touch} />
 
       {settings.a11y.colorblindLabels && <SnakeLabels labelsRef={labelsRef} />}
 
@@ -107,10 +117,10 @@ export function GameScreen({ room, identity, onQuit }: GameScreenProps) {
       <MinimapSummary socket={socket} />
       <QuickA11y onQuit={handleQuit} onHelp={openHelp} onSettings={openSettings} collapsed={touch} />
       <div className="ability-rail">
-        <DashButton socket={socket} compact={touch} keyName={keyLabel(settings.controls.keybinds.boost)} />
-        <RocketButton socket={socket} compact={touch} keyName={keyLabel(settings.controls.keybinds.bite)} />
+        <DashButton socket={socket} compact={touch} keyName={keyLabel(settings.controls.keybinds.boost)} touchInputRef={touchInputRef} enabled={gameplayEnabled} />
+        <RocketButton socket={socket} compact={touch} keyName={keyLabel(settings.controls.keybinds.bite)} touchInputRef={touchInputRef} enabled={gameplayEnabled} />
       </div>
-      {touch && <TouchControls stickRef={stickRef} side={stickSide} enabled={inputEnabled} />}
+      {touch && <TouchControls inputRef={touchInputRef} flightSide={stickSide} enabled={inputEnabled} portraitLocked={portraitLocked} />}
       {settings.audio.captions && <Captions caption={caption} />}
 
       {/* Connection banner. Always mounted — see conn-banner:empty in theme.css. */}
@@ -136,15 +146,102 @@ export function GameScreen({ room, identity, onQuit }: GameScreenProps) {
   );
 }
 
-function DashButton({ socket, compact, keyName }: { socket: ReturnType<typeof useRoomSocket>; compact: boolean; keyName: string }) {
-  const cooldown = useAbilityCooldown(socket, "dashCooldownTick");
-  const dash = () => { socket.setBoost(true); socket.setBoost(false); };
-  return <button type="button" className="ability-button dash-button" disabled={cooldown > 0} onClick={dash} aria-label={cooldown ? `Dash cooling down, ${cooldown} seconds` : "Dash"} title={cooldown ? `Dash: ${cooldown}s` : `Dash · ${keyName}`}><DashIcon /><span>{cooldown ? `${cooldown}s` : "DASH"}</span>{!compact && <small>{keyName}</small>}</button>;
+interface AbilityButtonProps {
+  socket: ReturnType<typeof useRoomSocket>;
+  compact: boolean;
+  keyName: string;
+  touchInputRef: React.MutableRefObject<TwinStickState>;
+  enabled: boolean;
 }
 
-function RocketButton({ socket, compact, keyName }: { socket: ReturnType<typeof useRoomSocket>; compact: boolean; keyName: string }) {
+function DashButton({ socket, compact, keyName, touchInputRef, enabled }: AbilityButtonProps) {
+  const cooldown = useAbilityCooldown(socket, "dashCooldownTick");
+  const pointerId = useRef<number | null>(null);
+  const lastTouchAt = useRef(-Infinity);
+
+  const release = useCallback(() => {
+    if (pointerId.current !== null) socket.setBoost(false);
+    pointerId.current = null;
+  }, [socket]);
+
+  useEffect(() => {
+    if (!enabled) release();
+    const onVisibility = () => {
+      if (document.visibilityState === "hidden") release();
+    };
+    window.addEventListener("blur", release);
+    document.addEventListener("visibilitychange", onVisibility);
+    return () => {
+      window.removeEventListener("blur", release);
+      document.removeEventListener("visibilitychange", onVisibility);
+      release();
+    };
+  }, [enabled, release]);
+
+  const pointerDown = (e: React.PointerEvent<HTMLButtonElement>) => {
+    if (!compact || e.pointerType === "mouse" || pointerId.current !== null || cooldown > 0 || !enabled) return;
+    if (!canUseAbilityPointer(touchInputRef.current, e.pointerId)) return;
+    e.preventDefault();
+    pointerId.current = e.pointerId;
+    lastTouchAt.current = performance.now();
+    try { e.currentTarget.setPointerCapture(e.pointerId); } catch { /* pointer ended */ }
+    socket.setBoost(true);
+  };
+  const pointerEnd = (e: React.PointerEvent<HTMLButtonElement>) => {
+    if (e.pointerId !== pointerId.current) return;
+    e.preventDefault();
+    release();
+  };
+  const click = () => {
+    if (performance.now() - lastTouchAt.current < 800) return;
+    if (!enabled || cooldown > 0) return;
+    socket.setBoost(true);
+    socket.setBoost(false);
+  };
+
+  return <button type="button" className="ability-button dash-button" disabled={cooldown > 0 || !enabled} onPointerDown={pointerDown} onPointerUp={pointerEnd} onPointerCancel={pointerEnd} onLostPointerCapture={pointerEnd} onClick={click} aria-label={cooldown ? `Dash cooling down, ${cooldown} seconds` : "Dash"} title={cooldown ? `Dash: ${cooldown}s` : `Dash · ${keyName}`}><DashIcon /><span>{cooldown ? `${cooldown}s` : "DASH"}</span>{!compact && <small>{keyName}</small>}</button>;
+}
+
+function RocketButton({ socket, compact, keyName, touchInputRef, enabled }: AbilityButtonProps) {
   const cooldown = useAbilityCooldown(socket, "rocketCooldownTick");
-  return <button type="button" className="ability-button rocket-button" disabled={cooldown > 0} onClick={socket.rocket} aria-label={cooldown ? `Rocket cooling down, ${cooldown} seconds` : "Fire rocket"} title={cooldown ? `Rocket: ${cooldown}s` : `Current primary attack · ${keyName}`}><RocketIcon /><span>{cooldown ? `${cooldown}s` : "ROCKET"}</span>{!compact && <small>{keyName}</small>}</button>;
+  const pointerId = useRef<number | null>(null);
+  const lastTouchAt = useRef(-Infinity);
+  const release = useCallback(() => { pointerId.current = null; }, []);
+
+  useEffect(() => {
+    if (!enabled) release();
+    const onVisibility = () => {
+      if (document.visibilityState === "hidden") release();
+    };
+    window.addEventListener("blur", release);
+    document.addEventListener("visibilitychange", onVisibility);
+    return () => {
+      window.removeEventListener("blur", release);
+      document.removeEventListener("visibilitychange", onVisibility);
+      release();
+    };
+  }, [enabled, release]);
+
+  const pointerDown = (e: React.PointerEvent<HTMLButtonElement>) => {
+    if (!compact || e.pointerType === "mouse" || pointerId.current !== null || cooldown > 0 || !enabled) return;
+    if (!canUseAbilityPointer(touchInputRef.current, e.pointerId)) return;
+    e.preventDefault();
+    pointerId.current = e.pointerId;
+    lastTouchAt.current = performance.now();
+    try { e.currentTarget.setPointerCapture(e.pointerId); } catch { /* pointer ended */ }
+    socket.rocket();
+  };
+  const pointerEnd = (e: React.PointerEvent<HTMLButtonElement>) => {
+    if (e.pointerId !== pointerId.current) return;
+    e.preventDefault();
+    release();
+  };
+  const click = () => {
+    if (performance.now() - lastTouchAt.current < 800) return;
+    if (enabled && cooldown <= 0) socket.rocket();
+  };
+
+  return <button type="button" className="ability-button rocket-button" disabled={cooldown > 0 || !enabled} onPointerDown={pointerDown} onPointerUp={pointerEnd} onPointerCancel={pointerEnd} onLostPointerCapture={pointerEnd} onClick={click} aria-label={cooldown ? `Rocket cooling down, ${cooldown} seconds` : "Fire rocket"} title={cooldown ? `Rocket: ${cooldown}s` : `Current primary attack · ${keyName}`}><RocketIcon /><span>{cooldown ? `${cooldown}s` : "ROCKET"}</span>{!compact && <small>{keyName}</small>}</button>;
 }
 
 function useAbilityCooldown(socket: ReturnType<typeof useRoomSocket>, field: "dashCooldownTick" | "rocketCooldownTick") {

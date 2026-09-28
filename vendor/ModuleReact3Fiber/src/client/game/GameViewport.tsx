@@ -4,15 +4,15 @@ import type { RoomSocket } from "../net/useRoomSocket.js";
 import type { Settings } from "../settings/SettingsContext.js";
 import { Scene, type SnakeLabel } from "./Scene.js";
 import { CAMERA_PROJECTION, resolveSceneQuality } from "./sceneMath.js";
-import { useLocalInput, type LocalInput, type StickState } from "./useLocalInput.js";
+import type { TwinStickState } from "./mobileControls.js";
+import { useLocalInput, type LocalInput } from "./useLocalInput.js";
 
 export interface GameViewportProps {
   socket: RoomSocket;
   settings: Settings;
   inputEnabled: boolean;
   labelsRef?: React.MutableRefObject<SnakeLabel[]>;
-  /** Current touch stick remains yaw-only until ST-117; the realtime intent is yaw+pitch. */
-  stickRef?: React.MutableRefObject<StickState>;
+  touchInputRef?: React.MutableRefObject<TwinStickState>;
   touchControls?: boolean;
 }
 
@@ -27,7 +27,7 @@ export function GameViewport({
   settings,
   inputEnabled,
   labelsRef,
-  stickRef,
+  touchInputRef,
   touchControls = false,
 }: GameViewportProps) {
   const surfaceRef = useRef<HTMLDivElement>(null);
@@ -40,10 +40,10 @@ export function GameViewport({
   });
   const quality = resolveSceneQuality(settings.graphics.quality);
 
-  useLocalInput(socket, settings, inputEnabled, inputRef, surfaceRef, stickRef, touchControls);
+  useLocalInput(socket, settings, inputEnabled, inputRef, surfaceRef, touchInputRef, touchControls);
 
   const label = touchControls
-    ? "Shark Tank. Hold the on-screen stick to swim. The dash and rocket pads sit under your other thumb."
+    ? "Shark Tank. The flight stick pitches and yaws. The opposite stick looks around. Dash and primary attack remain separate touch controls."
     : "Shark Tank. W and S climb or dive; A and D turn. Arrow keys look around. Space bursts, F uses the current primary attack, Escape pauses, and mouse look is optional.";
 
   return (
