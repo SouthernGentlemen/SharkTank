@@ -12,35 +12,34 @@
 
 ## Risk
 
-<!-- Rate the delivery risk. -->
+<!-- Delivery risk and failure modes. -->
 
 ## Controls
 
-<!-- Name the boundaries, safeguards, or rollback controls. -->
+<!-- Boundaries, safeguards, and rollback controls. -->
 
 ## Validation
 
 - [ ] `npm ci`
-- [ ] Focused tests for every touched area
+- [ ] Focused validation for every touched area
 - [ ] `npm run check`
 - [ ] `npm run audit:dependencies`
 - [ ] `git diff --check`
-- [ ] `npm run verify:github-settings` when repository settings or rulesets changed
-- [ ] `npm run check:evidence -- http://127.0.0.1:8787` when public evidence or MVP routes changed
+- [ ] Exact PR head passed protected `verify`
 - [ ] No credentials, production exports, or private identifiers were added
 
 ## Evidence
 
-<!-- Link or describe exact-head CI and focused acceptance evidence. -->
+<!-- Exact-head CI and focused acceptance evidence. -->
 
 ## Source
 
-<!-- List the plan task and authoritative files used. -->
+<!-- Plan task and authoritative sources. -->
 
 ## Release
 
-<!-- State whether this creates a tag or GitHub Release. -->
+<!-- Tag / GitHub Release effect. -->
 
 ## Release/deployment effect
 
-<!-- State the production deployment effect. -->
+<!-- Production deployment effect. -->
