@@ -3,6 +3,7 @@ import { useRef } from "react";
 import type { RoomSocket } from "../net/useRoomSocket.js";
 import type { Settings } from "../settings/SettingsContext.js";
 import { Scene, type SnakeLabel } from "./Scene.js";
+import { CAMERA_PROJECTION, resolveSceneQuality } from "./sceneMath.js";
 import { useLocalInput, type LocalInput, type StickState } from "./useLocalInput.js";
 
 export interface GameViewportProps {
@@ -18,9 +19,8 @@ export interface GameViewportProps {
 /**
  * The one production gameplay renderer.
  *
- * ST-110 deliberately keeps the existing planar engine/protocol/input model while moving
- * rendering, prediction and camera ownership onto React Three Fiber. Later tasks can now
- * change world dimensionality without carrying a second Canvas2D game beside the R3F one.
+ * Authority is still planar for ST-111, but the viewport now owns one modular R3F ocean
+ * scene with a perspective chase rig and explicit quality-scaled rendering boundaries.
  */
 export function GameViewport({
   socket,
@@ -32,6 +32,7 @@ export function GameViewport({
 }: GameViewportProps) {
   const surfaceRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<LocalInput>({ targetHeading: 0, boosting: false });
+  const quality = resolveSceneQuality(settings.graphics.quality);
 
   useLocalInput(socket, settings, inputEnabled, inputRef, surfaceRef, stickRef, touchControls);
 
@@ -49,9 +50,14 @@ export function GameViewport({
     >
       <Canvas
         className="game-webgl-canvas"
-        camera={{ position: [0, 42, 18], fov: 55, near: 0.1, far: 500 }}
-        dpr={[1, 2]}
-        gl={{ alpha: false, antialias: settings.graphics.quality !== "low" }}
+        camera={{
+          position: [0, 18, 24],
+          fov: CAMERA_PROJECTION.fov,
+          near: CAMERA_PROJECTION.near,
+          far: CAMERA_PROJECTION.far,
+        }}
+        dpr={quality.dpr}
+        gl={{ alpha: false, antialias: quality.antialias }}
       >
         <Scene socket={socket} settings={settings} labelsRef={labelsRef} inputRef={inputRef} />
       </Canvas>
