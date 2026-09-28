@@ -36,7 +36,7 @@ export function Scene({
         inputRef={inputRef}
         followRef={followRef}
       />
-      <PreyLayer socket={socket} />
+      <PreyLayer socket={socket} settings={settings} />
       <FxLayer socket={socket} settings={settings} followRef={followRef} />
       <CameraRig followRef={followRef} reducedMotion={settings.a11y.motion === "reduced"} inputRef={inputRef} />
     </>

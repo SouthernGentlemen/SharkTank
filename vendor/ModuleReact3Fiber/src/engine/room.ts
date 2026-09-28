@@ -18,7 +18,7 @@ import {
   yawPitchToward,
 } from "./geometry3d.js";
 import { nextRandom, seedToNumber } from "./rng.js";
-import type { Action, Food, OceanVolume, RocketProjectile, RoomState, ScoreEntry, Snake, Vec3 } from "./types.js";
+import type { Action, OceanVolume, Prey, PreyKind, RocketProjectile, RoomState, ScoreEntry, Snake, Vec3 } from "./types.js";
 
 // ── Tuning ────────────────────────────────────────────────────────────────────
 // Ticking at 30Hz (vs 20) means fresher snapshots → less perceived lag. Per-tick speeds
@@ -27,7 +27,7 @@ import type { Action, Food, OceanVolume, RocketProjectile, RoomState, ScoreEntry
 export const TICKS_PER_SECOND = 20; // responsive authority; shark snapshots contain only one body point
 // 32 sharks share a tank, so the arena grew with the population — enough water that a
 // full lobby is dense rather than a permanent scrum at the wall.
-export const ROOM_SCHEMA_VERSION = 8 as const;
+export const ROOM_SCHEMA_VERSION = 9 as const;
 const OCEAN_RADIUS = 82;
 export const DEFAULT_SEABED_Y = -12;
 export const DEFAULT_SURFACE_Y = 12;
@@ -51,9 +51,30 @@ const EAT_RADIUS = 1.2;
 const MAX_CHOMPS_PER_TICK = 2;
 const RESPAWN_DELAY = TICKS_PER_SECOND; // one second dead before respawn is allowed
 const SPAWN_GRACE = Math.round(TICKS_PER_SECOND * 6); // enough time to orient and use an ability before size combat starts
-const AMBIENT_FOOD = 240;
-const FOOD_SPAWN_PER_TICK = 6;
-const MAX_TOTAL_FOOD = 620;
+export const PREY_KINDS = ["bait", "reef", "chum", "carcass"] as const satisfies readonly PreyKind[];
+export const PREY_BUDGET = {
+  ambient: 200,
+  spawnPerTick: 4,
+  max: 360,
+  frenzyChum: 40,
+  schools: 12,
+  boundaryMargin: 1.5,
+  maxSharksForFlee: 32,
+} as const;
+export const PREY_SPECS: Record<PreyKind, {
+  value: number;
+  r: number;
+  speed: number;
+  turnRate: number;
+  pitchRate: number;
+  fleeRadius: number;
+  fleeMultiplier: number;
+}> = {
+  bait: { value: 1, r: 0.42, speed: 0.13, turnRate: 0.1, pitchRate: 0.055, fleeRadius: 9, fleeMultiplier: 1.65 },
+  reef: { value: 2, r: 0.58, speed: 0.105, turnRate: 0.075, pitchRate: 0.045, fleeRadius: 8, fleeMultiplier: 1.45 },
+  chum: { value: 3, r: 0.78, speed: 0.065, turnRate: 0.04, pitchRate: 0.03, fleeRadius: 0, fleeMultiplier: 1 },
+  carcass: { value: 1, r: 0.5, speed: 0.035, turnRate: 0.02, pitchRate: 0.018, fleeRadius: 0, fleeMultiplier: 1 },
+};
 /** Share of ambient dots that spawn in the middle of the tank rather than anywhere.
  *  A uniform-area scatter over the larger arena left the centre visibly empty, which
  *  removed the reason to fight over the middle. */
@@ -66,7 +87,7 @@ const CENTER_FOOD_RADIUS = 0.3; // fraction of the arena radius that counts as "
 const FRENZY_PERIOD = TICKS_PER_SECOND * 75;
 const FRENZY_TICKS = TICKS_PER_SECOND * 20;
 const FRENZY_SPEED = 1.16;
-const FRENZY_CHUM = 46;
+const FRENZY_CHUM = PREY_BUDGET.frenzyChum;
 // With 24 bots in the tank, a high retire score let two or three monsters accumulate and
 // farm every fresh spawn. A lower ceiling keeps the size ladder climbable.
 const BOT_RETIRE_SCORE = 240;
@@ -139,7 +160,7 @@ export function createRoom(opts: CreateRoomOptions = {}): RoomState {
     explosions: [],
     frenzyUntilTick: 0,
   };
-  for (let i = 0; i < AMBIENT_FOOD; i += 1) spawnAmbientFood(state);
+  for (let i = 0; i < PREY_BUDGET.ambient; i += 1) spawnAmbientFood(state);
   return state;
 }
 
@@ -172,17 +193,87 @@ function randomPointNearCenter(state: RoomState): Vec3 {
   return { x: Math.cos(a) * r, y: randomY(state), z: Math.sin(a) * r };
 }
 
+function schoolOrientation(school: number, tick: number): { yaw: number; pitch: number } {
+  const phase = school * 2.399963229728653;
+  return {
+    yaw: normalizeYaw(phase + Math.sin(tick * 0.025 + school * 0.61) * 0.55),
+    pitch: Math.sin(tick * 0.018 + school * 0.83) * 0.22,
+  };
+}
+
 function spawnAmbientFood(state: RoomState): void {
   const middle = rand(state) < CENTER_FOOD_SHARE;
   const p = middle ? randomPointNearCenter(state) : randomPointInOcean(state);
+  const kind: PreyKind = rand(state) < 0.78 ? "bait" : "reef";
+  const school = Math.floor(rand(state) * PREY_BUDGET.schools);
+  const orientation = schoolOrientation(school, state.tick);
+  const spec = PREY_SPECS[kind];
   state.food.push({
-    id: `f-${state.tick}-${Math.floor(rand(state) * 1e9).toString(36)}`,
+    id: `prey-${state.tick}-${Math.floor(rand(state) * 1e9).toString(36)}`,
+    kind,
     x: p.x,
     y: p.y,
     z: p.z,
-    value: 1,
-    r: 0.45,
+    value: spec.value,
+    r: spec.r,
+    yaw: orientation.yaw,
+    pitch: orientation.pitch,
+    school,
   });
+}
+
+function stepPrey(state: RoomState): void {
+  const horizontalWarning = Math.max(2, state.ocean.radius - PREY_BUDGET.boundaryMargin * 3);
+  const horizontalWarningSq = horizontalWarning * horizontalWarning;
+  const livingHeads = Object.values(state.snakes)
+    .filter((shark) => shark.alive && shark.segments[0])
+    .slice(0, PREY_BUDGET.maxSharksForFlee)
+    .map((shark) => shark.segments[0]);
+
+  for (const prey of state.food) {
+    const spec = PREY_SPECS[prey.kind];
+    let target = prey.school >= 0
+      ? schoolOrientation(prey.school, state.tick)
+      : { yaw: prey.yaw, pitch: prey.kind === "carcass" ? -0.08 : prey.pitch };
+    let speed = spec.speed;
+
+    if (spec.fleeRadius > 0 && livingHeads.length) {
+      let nearest: Vec3 | null = null;
+      let nearestDistanceSq = spec.fleeRadius * spec.fleeRadius;
+      for (const head of livingHeads) {
+        const d2 = distanceSquared3(prey, head);
+        if (d2 < nearestDistanceSq) {
+          nearestDistanceSq = d2;
+          nearest = head;
+        }
+      }
+      if (nearest) {
+        target = yawPitchToward(nearest, prey);
+        speed *= spec.fleeMultiplier;
+      }
+    }
+
+    if (horizontalRadiusSquared(prey) > horizontalWarningSq) {
+      target.yaw = Math.atan2(-prey.z, -prey.x);
+    }
+    if (prey.y > state.ocean.surfaceY - PREY_BUDGET.boundaryMargin * 1.5) {
+      target.pitch = Math.min(target.pitch, -0.24);
+    } else if (prey.y < state.ocean.seabedY + PREY_BUDGET.boundaryMargin * 1.5) {
+      target.pitch = Math.max(target.pitch, 0.24);
+    }
+
+    prey.yaw = rotateYawToward(prey.yaw, target.yaw, spec.turnRate);
+    prey.pitch = clampPitch(moveToward(prey.pitch, target.pitch, spec.pitchRate));
+    const direction = forwardFromYawPitch(prey.yaw, prey.pitch);
+    const next = clampToOceanVolume({
+      x: prey.x + direction.x * speed,
+      y: prey.y + direction.y * speed,
+      z: prey.z + direction.z * speed,
+    }, state.ocean, PREY_BUDGET.boundaryMargin);
+    prey.x = next.x;
+    prey.y = next.y;
+    prey.z = next.z;
+  }
 }
 
 // ── Snake construction ──────────────────────────────────────────────────────────
@@ -403,13 +494,19 @@ function dropChum(state: RoomState): void {
   for (let i = 0; i < FRENZY_CHUM; i += 1) {
     const angle = (i / FRENZY_CHUM) * Math.PI * 2 + randRange(state, -0.3, 0.3);
     const radius = randRange(state, 0.8, state.ocean.radius * CENTER_FOOD_RADIUS * 0.9);
+    const school = i % Math.min(8, PREY_BUDGET.schools);
+    const orientation = schoolOrientation(school, state.tick);
     state.food.push({
       id: `chum-${state.tick}-${i}`,
+      kind: "chum",
       x: Math.cos(angle) * radius,
       y: randRange(state, centerY - halfDepth, centerY + halfDepth),
       z: Math.sin(angle) * radius,
-      value: i % 3 === 0 ? 5 : 3,
-      r: i % 3 === 0 ? 0.95 : 0.72,
+      value: i % 3 === 0 ? 5 : PREY_SPECS.chum.value,
+      r: i % 3 === 0 ? 0.95 : PREY_SPECS.chum.r,
+      yaw: orientation.yaw,
+      pitch: orientation.pitch,
+      school,
     });
   }
   state.explosions ??= [];
@@ -524,10 +621,13 @@ export function step(state: RoomState): RoomState {
   // Frenzy scheduling runs first so this tick's movement already uses the new speed.
   stepFrenzy(state);
 
-  // Ambient food top-up.
-  for (let i = 0; i < FOOD_SPAWN_PER_TICK && state.food.length < AMBIENT_FOOD; i += 1) {
+  // Ambient prey top-up. Population and spawn work remain explicitly bounded.
+  for (let i = 0; i < PREY_BUDGET.spawnPerTick && state.food.length < PREY_BUDGET.ambient; i += 1) {
     spawnAmbientFood(state);
   }
+
+  // Prey movement is authoritative and deterministic. Client animation only interpolates this state.
+  stepPrey(state);
 
   // Bots choose their current compatibility orientation before movement.
   for (const s of Object.values(state.snakes)) {
@@ -567,7 +667,7 @@ export function step(state: RoomState): RoomState {
   }
 
   // Cap total food (corpse drops otherwise pile up into thousands of dots) — drop oldest.
-  if (state.food.length > MAX_TOTAL_FOOD) state.food.splice(0, state.food.length - MAX_TOTAL_FOOD);
+  if (state.food.length > PREY_BUDGET.max) state.food.splice(0, state.food.length - PREY_BUDGET.max);
 
   return state;
 }
@@ -699,7 +799,7 @@ function killSnake(state: RoomState, s: Snake): void {
   s.segments = [];
 }
 
-/** Turn a shark into a fat radial shower of collectible dots. */
+/** Turn a shark into bounded, collectible carcass pieces without using presentation geometry for collision. */
 function scatterAsFood(state: RoomState, s: Snake): void {
   const head = s.segments[0] ?? s.path[0];
   if (!head) return;
@@ -715,12 +815,16 @@ function scatterAsFood(state: RoomState, s: Snake): void {
       z: head.z + direction.z * radius,
     }, state.ocean, 0.25);
     state.food.push({
-      id: `d-${s.id}-${state.tick}-${i}`,
+      id: `carcass-${s.id}-${state.tick}-${i}`,
+      kind: "carcass",
       x: point.x,
       y: point.y,
       z: point.z,
-      value: i % 6 === 0 ? 2 : 1,
-      r: i % 6 === 0 ? 0.72 : 0.4,
+      value: i % 6 === 0 ? 2 : PREY_SPECS.carcass.value,
+      r: i % 6 === 0 ? 0.72 : PREY_SPECS.carcass.r,
+      yaw,
+      pitch,
+      school: -1,
     });
   }
 }
@@ -788,7 +892,7 @@ function steerBot(state: RoomState, s: Snake): void {
   }
 
   const sight = isFrenzy(state) ? 34 : 22;
-  let best: Food | null = null;
+  let best: Prey | null = null;
   let bestD = Infinity;
   for (const f of state.food) {
     const d = distance3({ x: f.x, y: f.y, z: f.z }, head);
@@ -798,10 +902,12 @@ function steerBot(state: RoomState, s: Snake): void {
     }
   }
   if (best) {
-    s.targetYaw = Math.atan2(best.z - head.z, best.x - head.x);
-    // ST-121 owns full volumetric bot flight. ST-112 keeps bot steering behavior
-    // intentionally planar while all positions and collision geometry are truly 3D.
-    s.targetPitch = 0;
+    // ST-120 compatibility only: bots may point at the selected authoritative prey in
+    // depth so moving fish remain consumable. ST-121 owns volumetric navigation,
+    // avoidance, threat assessment and tactical hunting.
+    const target = yawPitchToward(head, best);
+    s.targetYaw = target.yaw;
+    s.targetPitch = target.pitch;
   } else if (isFrenzy(state)) {
     s.targetYaw = Math.atan2(-head.z, -head.x);
     s.targetPitch = 0;

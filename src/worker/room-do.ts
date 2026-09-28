@@ -1,11 +1,11 @@
-import { applyAction, createRoom, leaderboard, playerCount, replay, SKINS, spawnBots, step, TICKS_PER_SECOND, type Action, type GameLogEntry, type RoomState } from "module-react3fiber/engine";
+import { applyAction, createRoom, leaderboard, playerCount, PREY_BUDGET, replay, SKINS, spawnBots, step, TICKS_PER_SECOND, type Action, type GameLogEntry, type RoomState } from "module-react3fiber/engine";
 import { clientInputToAction, parseRealtimeClientMessage, sanitizeDisplayName, toNetState, withRealtimeProtocol, type ServerMessagePayload } from "module-react3fiber/protocol";
 import { GAME_LOG_SCHEMA_VERSION, bootstrapRoomSnapshot, shouldRotateGameLogSchema } from "./room-state-schema.js";
 
 // A tank holds 32 sharks: up to SHARK_CAPACITY - BOT_COUNT humans, with bots making up
 // the rest so a lightly-populated tank still feels like a full lobby.
 const SHARK_CAPACITY = 32, CAPACITY = 8, BOT_COUNT = SHARK_CAPACITY - CAPACITY;
-const MAX_FOOD = 620, OCEAN_RADIUS = 82;
+const OCEAN_RADIUS = 82;
 const LEADERBOARD_EVERY = TICKS_PER_SECOND * 2, REPORT_EVERY = TICKS_PER_SECOND * 30;
 const STATE_BROADCAST_EVERY = 2; // 20Hz authoritative simulation, 10Hz snapshots.
 // Tank captures are a rolling 24-hour record: anything older is pruned, so the public
@@ -48,7 +48,7 @@ export class Room implements DurableObject {
       this.room = snapshotBoot.room;
 
       const generationChanged = Boolean(generation && storedGeneration !== generation);
-      const replaySchemaChanged = shouldRotateGameLogSchema(storedLogSchema) || snapshotBoot.source === "schema-7-reset";
+      const replaySchemaChanged = shouldRotateGameLogSchema(storedLogSchema) || snapshotBoot.source.endsWith("-reset");
       if (generationChanged || replaySchemaChanged) this.trackSql("DELETE FROM game_log");
       if (generationChanged && generation) {
         await this.ctx.storage.put("gameLogGeneration", generation);
@@ -63,7 +63,7 @@ export class Room implements DurableObject {
         if (botIndex && Number(botIndex[1]) >= BOT_COUNT) delete this.room.snakes[id];
       }
       spawnBots(this.room, BOT_COUNT);
-      if (this.room.food.length > MAX_FOOD) this.room.food.splice(0, this.room.food.length - MAX_FOOD);
+      if (this.room.food.length > PREY_BUDGET.max) this.room.food.splice(0, this.room.food.length - PREY_BUDGET.max);
       if (snapshotBoot.persistSnapshot) { await this.ctx.storage.put("snapshot", this.room); this.storageRowsWritten += 1; }
       const bootRowsRead = this.storageRowsRead, bootRowsWritten = this.storageRowsWritten;
       const meta = await this.ctx.storage.get<RoomMeta>("meta");

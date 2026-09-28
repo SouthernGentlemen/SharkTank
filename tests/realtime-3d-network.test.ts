@@ -2,6 +2,7 @@ import { readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
 import {
   MAX_PITCH,
+  PREY_BUDGET,
   applyAction,
   createRoom,
   normalizeYaw,
@@ -82,9 +83,9 @@ describe("ST-114 realtime 3D protocol", () => {
     expect(parseRealtimeServerMessage({ ...current, v: 7 })).toEqual({ ok: false, reason: "stale-schema" });
   });
 
-  it("quantizes complete schema-8 X/Y/Z state for sharks, prey, projectiles and explosions", () => {
+  it("quantizes complete schema-9 X/Y/Z state for sharks, authoritative prey, projectiles and explosions", () => {
     const state = createRoom({ seed: "wire-roundtrip" });
-    state.food = [{ id: "food", x: 1.234, y: -2.345, z: 3.456, value: 3, r: 0.456 }];
+    state.food = [{ id: "food", kind: "reef", x: 1.234, y: -2.345, z: 3.456, value: 3, r: 0.456, yaw: 1.23456, pitch: -0.23456, school: 2 }];
     const shark = join(state, "pilot");
     place(shark, 10.1234, -4.5678, 2.3456);
     shark.yaw = 1.23456;
@@ -110,10 +111,10 @@ describe("ST-114 realtime 3D protocol", () => {
     }];
 
     const net = toNetState(state);
-    expect(net.schemaVersion).toBe(8);
+    expect(net.schemaVersion).toBe(9);
     expect(net.snakes.find((item) => item.id === shark.id)?.segments[0]).toEqual({ x: 10.12, y: -4.57, z: 2.35 });
     expect(net.snakes.find((item) => item.id === shark.id)).toMatchObject({ yaw: 1.235, pitch: -0.457 });
-    expect(net.food[0]).toEqual({ x: 1.2, y: -2.3, z: 3.5, value: 3, r: 0.46 });
+    expect(net.food[0]).toEqual({ id: "food", kind: "reef", x: 1.2, y: -2.3, z: 3.5, value: 3, r: 0.46, yaw: 1.235, pitch: -0.235 });
     expect(net.rockets[0]).toMatchObject({ x: 2.35, y: -3.46, z: 4.57, yaw: 3.142, pitch: -0.988 });
     expect(net.explosions[0]).toMatchObject({ x: -1.23, y: 2.35, z: -3.46 });
     expect(JSON.parse(JSON.stringify(net))).toEqual(net);
@@ -175,13 +176,17 @@ describe("ST-114 realtime 3D protocol", () => {
 
   it("keeps a deterministic representative full-room snapshot under an explicit byte budget", () => {
     const state = createRoom({ id: "budget-room", seed: "snapshot-budget", oceanRadius: 82, seabedY: -12, surfaceY: 12 });
-    state.food = Array.from({ length: 620 }, (_, i) => ({
-      id: `food-${i}`,
+    state.food = Array.from({ length: PREY_BUDGET.max }, (_, i) => ({
+      id: `prey-${i}`,
+      kind: i % 9 === 0 ? "reef" as const : "bait" as const,
       x: ((i * 17) % 160) / 1.37 - 58,
       y: ((i * 13) % 220) / 10.7 - 10,
       z: ((i * 19) % 160) / 1.41 - 56,
-      value: i % 5 === 0 ? 3 : 1,
-      r: i % 5 === 0 ? 0.72 : 0.45,
+      value: i % 9 === 0 ? 2 : 1,
+      r: i % 9 === 0 ? 0.58 : 0.42,
+      yaw: normalizeYaw(i * 0.21731),
+      pitch: -0.45 + (i % 18) * 0.05,
+      school: i % PREY_BUDGET.schools,
     }));
     state.snakes = {};
     for (let i = 0; i < 32; i += 1) {
@@ -219,14 +224,14 @@ describe("ST-114 realtime 3D protocol", () => {
     const afterBytes = bytes(message);
     const preQuantization = withRealtimeProtocol({
       t: "state" as const,
-      state: { ...net, rockets: state.rockets, explosions: state.explosions },
+      state: { ...net, food: state.food, rockets: state.rockets, explosions: state.explosions },
     });
     const preQuantizationBytes = bytes(preQuantization);
 
     const planar = JSON.parse(JSON.stringify(message)) as {
       state: {
         snakes: Array<{ segments: Array<{ y?: number }>; pitch?: number }>;
-        food: Array<{ y?: number }>;
+        food: Array<{ y?: number; pitch?: number }>;
         rockets: Array<{ y?: number; pitch?: number }>;
         explosions: Array<{ y?: number }>;
       };
@@ -235,7 +240,10 @@ describe("ST-114 realtime 3D protocol", () => {
       for (const segment of item.segments) delete segment.y;
       delete item.pitch;
     }
-    for (const item of planar.state.food) delete item.y;
+    for (const item of planar.state.food) {
+      delete item.y;
+      delete item.pitch;
+    }
     for (const item of planar.state.rockets) {
       delete item.y;
       delete item.pitch;
@@ -243,9 +251,9 @@ describe("ST-114 realtime 3D protocol", () => {
     for (const item of planar.state.explosions) delete item.y;
     const planarBytes = bytes(planar);
 
-    const MAX_FULL_ROOM_BYTES = 56_000;
+    const MAX_FULL_ROOM_BYTES = 60_000;
     const MAX_3D_OVERHEAD_BYTES = 10_000;
-    console.info(`ST-114 snapshot bytes: ${afterBytes}; pre-quantization: ${preQuantizationBytes}; planar-equivalent: ${planarBytes}; budget: ${MAX_FULL_ROOM_BYTES}`);
+    console.info(`ST-120 snapshot bytes: ${afterBytes}; pre-quantization: ${preQuantizationBytes}; planar-equivalent: ${planarBytes}; budget: ${MAX_FULL_ROOM_BYTES}`);
     expect(afterBytes).toBeLessThanOrEqual(MAX_FULL_ROOM_BYTES);
     expect(afterBytes).toBeLessThanOrEqual(preQuantizationBytes);
     expect(afterBytes - planarBytes).toBeLessThanOrEqual(MAX_3D_OVERHEAD_BYTES);

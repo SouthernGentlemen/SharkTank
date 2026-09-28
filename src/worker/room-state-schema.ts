@@ -1,9 +1,10 @@
-import { ROOM_SCHEMA_VERSION, createRoom, type RoomState } from "module-react3fiber/engine";
+import { PREY_KINDS, ROOM_SCHEMA_VERSION, createRoom, type RoomState } from "module-react3fiber/engine";
 
-export const PREVIOUS_ROOM_SCHEMA_VERSION = 7 as const;
+export const PREVIOUS_ROOM_SCHEMA_VERSION = 8 as const;
+export const OLDEST_SUPPORTED_ROOM_SCHEMA_VERSION = 7 as const;
 export const GAME_LOG_SCHEMA_VERSION = ROOM_SCHEMA_VERSION;
 
-export type RoomSnapshotSource = "fresh" | "schema-7-reset" | "schema-8";
+export type RoomSnapshotSource = "fresh" | "schema-7-reset" | "schema-8-reset" | "schema-9";
 
 export interface RoomSnapshotBootResult {
   room: RoomState;
@@ -11,8 +12,10 @@ export interface RoomSnapshotBootResult {
   persistSnapshot: boolean;
 }
 
+const PREY_KIND_SET = new Set<string>(PREY_KINDS);
+
 export function bootstrapRoomSnapshot(stored: unknown, fallback: RoomState): RoomSnapshotBootResult {
-  assertSchema8RoomState(fallback, fallback.id);
+  assertSchema9RoomState(fallback, fallback.id);
 
   if (stored === undefined || stored === null) {
     return { room: fallback, source: "fresh", persistSnapshot: false };
@@ -21,28 +24,31 @@ export function bootstrapRoomSnapshot(stored: unknown, fallback: RoomState): Roo
   const record = asRecord(stored);
   const version = record?.schemaVersion;
 
-  if (record && version === PREVIOUS_ROOM_SCHEMA_VERSION) {
-    const id = requiredString(record.id, "schema-7 room id");
-    const seed = requiredString(record.seed, "schema-7 room seed");
+  if (record && (version === OLDEST_SUPPORTED_ROOM_SCHEMA_VERSION || version === PREVIOUS_ROOM_SCHEMA_VERSION)) {
+    const id = requiredString(record.id, `schema-${String(version)} room id`);
+    const seed = requiredString(record.seed, `schema-${String(version)} room seed`);
     if (id !== fallback.id) throw new Error(`room snapshot id ${id} does not match Durable Object ${fallback.id}`);
 
-    // Schema 7 is planar: sharks, prey, rockets and explosions have no Y coordinate,
-    // and sharks/projectiles use planar heading fields. Reset transient gameplay rather
-    // than inventing depth/orientation or replaying old actions as schema-8 history.
-    const room = createRoom({
-      id,
-      seed,
-      oceanRadius: fallback.ocean.radius,
-      seabedY: fallback.ocean.seabedY,
-      surfaceY: fallback.ocean.surfaceY,
-    });
-    assertSchema8RoomState(room, fallback.id);
-    return { room, source: "schema-7-reset", persistSnapshot: true };
+    // Schema 7 is planar. Schema 8 has volumetric sharks/food but anonymous stationary
+    // pellet records, so neither generation can be interpreted as schema-9 prey actors.
+    // Reset only transient gameplay while retaining stable Room identity/seed and, when
+    // trustworthy, the schema-8 ocean volume. Room metadata is stored separately.
+    const legacyOcean = version === PREVIOUS_ROOM_SCHEMA_VERSION ? asRecord(record.ocean) : null;
+    const radius = legacyOcean && finite(legacyOcean.radius) ? legacyOcean.radius as number : fallback.ocean.radius;
+    const seabedY = legacyOcean && finite(legacyOcean.seabedY) ? legacyOcean.seabedY as number : fallback.ocean.seabedY;
+    const surfaceY = legacyOcean && finite(legacyOcean.surfaceY) ? legacyOcean.surfaceY as number : fallback.ocean.surfaceY;
+    const room = createRoom({ id, seed, oceanRadius: radius, seabedY, surfaceY });
+    assertSchema9RoomState(room, fallback.id);
+    return {
+      room,
+      source: version === PREVIOUS_ROOM_SCHEMA_VERSION ? "schema-8-reset" : "schema-7-reset",
+      persistSnapshot: true,
+    };
   }
 
   if (record && version === ROOM_SCHEMA_VERSION) {
-    assertSchema8RoomState(stored, fallback.id);
-    return { room: stored, source: "schema-8", persistSnapshot: false };
+    assertSchema9RoomState(stored, fallback.id);
+    return { room: stored, source: "schema-9", persistSnapshot: false };
   }
 
   throw new Error(`unsupported room snapshot schema ${String(version)}`);
@@ -52,7 +58,7 @@ export function shouldRotateGameLogSchema(storedVersion: unknown): boolean {
   return storedVersion !== GAME_LOG_SCHEMA_VERSION;
 }
 
-export function assertSchema8RoomState(value: unknown, expectedId?: string): asserts value is RoomState {
+export function assertSchema9RoomState(value: unknown, expectedId?: string): asserts value is RoomState {
   const room = asRecord(value);
   if (!room || room.schemaVersion !== ROOM_SCHEMA_VERSION) invalid("schemaVersion");
   if (typeof room.id !== "string" || !room.id) invalid("id");
@@ -83,9 +89,21 @@ export function assertSchema8RoomState(value: unknown, expectedId?: string): ass
   }
 
   if (!Array.isArray(room.food) || !room.food.every((candidate) => {
-    const food = asRecord(candidate);
-    return Boolean(food && isVec3(food) && typeof food.id === "string" && finite(food.value) && finite(food.r));
-  })) invalid("food");
+    const prey = asRecord(candidate);
+    return Boolean(
+      prey
+      && isVec3(prey)
+      && typeof prey.id === "string"
+      && typeof prey.kind === "string"
+      && PREY_KIND_SET.has(prey.kind)
+      && finite(prey.value)
+      && finite(prey.r)
+      && finite(prey.yaw)
+      && finite(prey.pitch)
+      && finite(prey.school)
+      && Number.isInteger(prey.school),
+    );
+  })) invalid("prey");
 
   if (!Array.isArray(room.rockets) || !room.rockets.every((candidate) => {
     const rocket = asRecord(candidate);
