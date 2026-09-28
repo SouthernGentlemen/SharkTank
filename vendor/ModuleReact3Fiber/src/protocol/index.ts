@@ -3,7 +3,7 @@
 // into the Room Durable Object.
 
 import { clampPitch, normalizeYaw } from "../engine/geometry3d.js";
-import type { Action, Explosion, Food, OceanVolume, RocketProjectile, RoomState, ScoreEntry, Snake, Vec3 } from "../engine/types.js";
+import type { Action, Explosion, OceanVolume, Prey, RocketProjectile, RoomState, ScoreEntry, Snake, Vec3 } from "../engine/types.js";
 export { isFamilyFriendlyName, sanitizeDisplayName } from "./name-policy.js";
 
 // ── HTTP: health / tank / profile ─────────────────────────────────────────────
@@ -50,7 +50,7 @@ export interface ErrorResponse {
 }
 
 // ── WebSocket: realtime play (client ⇄ Room DO) ───────────────────────────────
-export const REALTIME_PROTOCOL_VERSION = 8 as const;
+export const REALTIME_PROTOCOL_VERSION = 9 as const;
 
 export interface OrientationInputAction {
   type: "setOrientation";
@@ -78,16 +78,13 @@ export type NetSnake = Pick<
 >;
 
 /**
- * A prey dot on the wire. The server-side id is bookkeeping the client never reads.
- * Coordinates are rounded deliberately because food dominates a full-room snapshot.
+ * Compact authoritative prey on the wire. Stable ids allow interpolation between
+ * snapshots; school membership remains server-only because rendering does not need it.
  */
-export interface NetFood {
-  x: number;
-  y: number;
-  z: number;
-  value: number;
-  r: number;
-}
+export type NetPrey = Pick<
+  Prey,
+  "id" | "kind" | "x" | "y" | "z" | "value" | "r" | "yaw" | "pitch"
+>;
 
 export type NetRocket = Pick<
   RocketProjectile,
@@ -101,13 +98,13 @@ export type NetExplosion = Pick<
 
 /** The per-tick world snapshot broadcast to every connected client. */
 export interface NetState {
-  schemaVersion: 8;
+  schemaVersion: 9;
   tick: number;
   arenaRadius: number;
   seabedY: number;
   surfaceY: number;
   snakes: NetSnake[];
-  food: NetFood[];
+  food: NetPrey[];
   rockets: NetRocket[];
   explosions: NetExplosion[];
   /** Tick the running Feeding Frenzy ends at; 0 or past when none is running. */
@@ -177,7 +174,7 @@ export function parseRealtimeClientMessage(value: unknown): RealtimeParseResult<
 
 function isNetState(value: unknown): value is NetState {
   return record(value)
-    && value.schemaVersion === 8
+    && value.schemaVersion === 9
     && typeof value.tick === "number"
     && Number.isFinite(value.tick)
     && Array.isArray(value.snakes)
@@ -257,7 +254,17 @@ export function toNetState(state: RoomState): NetState {
       score: s.score,
       alive: s.alive,
     })),
-    food: state.food.map((f) => ({ x: round(f.x, 1), y: round(f.y, 1), z: round(f.z, 1), value: f.value, r: round(f.r, 2) })),
+    food: state.food.map((f) => ({
+      id: f.id,
+      kind: f.kind,
+      x: round(f.x, 1),
+      y: round(f.y, 1),
+      z: round(f.z, 1),
+      value: f.value,
+      r: round(f.r, 2),
+      yaw: round(f.yaw, 3),
+      pitch: round(f.pitch, 3),
+    })),
     rockets: (state.rockets ?? []).map((rocket) => ({
       id: rocket.id,
       ownerId: rocket.ownerId,
@@ -292,4 +299,4 @@ export function roomSocketPath(roomId: string): string {
   return `/room/${encodeURIComponent(roomId)}/ws`;
 }
 
-export type { Action, Explosion, Food, OceanVolume, RocketProjectile, RoomState, ScoreEntry, Snake, Vec3 };
+export type { Action, Explosion, OceanVolume, Prey, PreyKind, RocketProjectile, RoomState, ScoreEntry, Snake, Vec3 } from "../engine/types.js";

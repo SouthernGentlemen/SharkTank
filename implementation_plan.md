@@ -83,37 +83,6 @@ These are acceptance targets, not permission to fake authority:
 ## Open tasks
 
 
-### ST-120 — [FEAT] Replace abstract pellets with authoritative fish and prey schools
-
-**Goal**
-
-Turn "eat dots to grow" into "hunt fish to grow" without giving the client authority over score.
-
-**Scope**
-
-- Introduce score-relevant prey entities with X/Y/Z position, compact type/value/radius data and deterministic movement.
-- Start with a small gameplay taxonomy such as bait fish, richer fish and large frenzy chum/prey rather than dozens of species.
-- Give prey deterministic schooling/flee behavior that reacts to nearby sharks without requiring heavyweight pathfinding.
-- Make prey consumption server-authoritative and retain bounded spawn counts.
-- Render prey efficiently through instancing/batching and simple animation.
-- Distinguish authoritative prey from client-only distant decorative schools so decorative actors can never affect score.
-- Convert shark-death food drops into a shark-appropriate prey/chum/carcass presentation instead of glowing dots.
-- Update bot food-seeking logic only enough to understand the new prey representation; full 3D bot behavior is the next task.
-
-**Non-goals**
-
-- No ecosystem simulation.
-- No breeding/hunger economy.
-- No persistence of individual fish across empty-room shutdowns beyond existing snapshot semantics.
-
-**Acceptance**
-
-- The arena contains recognizable moving fish at multiple depths.
-- Eating a fish visibly and audibly maps to one authoritative score/growth event.
-- Full-room prey count stays within measured CPU/network/render budgets.
-
----
-
 ### ST-121 — [FEAT] Teach bots to hunt and evade in full 3D
 
 **Goal**

@@ -29,10 +29,10 @@ function place(shark: Snake, x: number, y: number, z: number): void {
 }
 
 describe("volumetric authoritative engine", () => {
-  it("uses schema 8, X/Y/Z state, bounded volume spawns and no authoritative roll", () => {
+  it("uses schema 9, X/Y/Z state, bounded volume spawns and no authoritative roll", () => {
     const state = createRoom({ seed: "volume-shape" });
     expect(state.schemaVersion).toBe(ROOM_SCHEMA_VERSION);
-    expect(state.schemaVersion).toBe(8);
+    expect(state.schemaVersion).toBe(9);
     expect(state.ocean.surfaceY).toBeGreaterThan(state.ocean.seabedY);
     expect(state.food.some((food) => Math.abs(food.y) > 0.1)).toBe(true);
     expect(state.food.every((food) => isInsideOceanVolume(food, state.ocean))).toBe(true);
@@ -107,13 +107,13 @@ describe("volumetric authoritative engine", () => {
     place(eater, 0, -5, 0);
     place(rival, 20, 5, 0);
 
-    state.food = [{ id: "high", x: eater.segments[0].x + 0.556, y: 5, z: 0, value: 2, r: 0.4 }];
+    state.food = [{ id: "high", kind: "reef", x: eater.segments[0].x + 0.556, y: 5, z: 0, value: 2, r: 0.4, yaw: 0, pitch: 0, school: 1 }];
     step(state);
     expect(state.food.some((food) => food.id === "high")).toBe(true);
     expect(rival.alive).toBe(true);
 
     const head = eater.segments[0];
-    state.food = [{ id: "same-depth", x: head.x + 0.556, y: head.y, z: head.z, value: 2, r: 0.4 }];
+    state.food = [{ id: "same-depth", kind: "reef", x: head.x + 0.556, y: head.y, z: head.z, value: 2, r: 0.4, yaw: 0, pitch: 0, school: 1 }];
     step(state);
     expect(state.food.some((food) => food.id === "same-depth")).toBe(false);
 
@@ -190,7 +190,7 @@ describe("volumetric authoritative engine", () => {
     expect(JSON.stringify(replayedA)).toBe(JSON.stringify(replayedB));
 
     const net = toNetState(left);
-    expect(net.schemaVersion).toBe(8);
+    expect(net.schemaVersion).toBe(9);
     expect(net.seabedY).toBe(left.ocean.seabedY);
     expect(net.surfaceY).toBe(left.ocean.surfaceY);
     expect(net.snakes.every((shark) => shark.segments.every((segment) => Number.isFinite(segment.y)))).toBe(true);

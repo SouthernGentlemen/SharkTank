@@ -43,14 +43,22 @@ export interface Snake {
   invulnTick: number;
 }
 
-/** A collectible prey pellet. */
-export interface Food {
+/** Compact authoritative prey taxonomy. Rendering may style these differently, but gameplay owns the kind. */
+export type PreyKind = "bait" | "reef" | "chum" | "carcass";
+
+/** A single score-relevant prey actor. All movement/collision fields are server authoritative. */
+export interface Prey {
   id: string;
+  kind: PreyKind;
   x: number;
   y: number;
   z: number;
   value: number;
   r: number;
+  yaw: number;
+  pitch: number;
+  /** Deterministic school identity; -1 marks non-schooling drops such as carcass pieces. */
+  school: number;
 }
 
 /** A lethal player-fired projectile retained until the later combat replacement task. */
@@ -77,14 +85,14 @@ export interface Explosion {
 }
 
 export interface RoomState {
-  schemaVersion: 8;
+  schemaVersion: 9;
   id: string;
   seed: string;
   tick: number;
   rngState: number;
   ocean: OceanVolume;
   snakes: Record<string, Snake>;
-  food: Food[];
+  food: Prey[];
   rockets: RocketProjectile[];
   explosions: Explosion[];
   frenzyUntilTick: number;

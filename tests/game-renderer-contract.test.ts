@@ -58,7 +58,7 @@ describe("R3F-only gameplay renderer", () => {
     expect(actors).toContain("LocalPredictor");
     expect(actors).toContain("shark.pitch");
     expect(actors).toContain("predicted.head.y");
-    expect(prey).toContain("pellet.y");
+    expect(prey).toContain("pose.y");
     expect(fx).toContain("interpolateOrientedPose(prior, rocket");
     expect(fx).toContain("rocketPose.y");
     expect(fx).toContain("rocketPose.pitch");

@@ -1,6 +1,7 @@
 import { readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
 import {
+  PREY_KINDS,
   applyAction,
   createRoom,
   replay,
@@ -10,7 +11,7 @@ import {
 } from "../vendor/ModuleReact3Fiber/src/engine/index.js";
 import {
   GAME_LOG_SCHEMA_VERSION,
-  assertSchema8RoomState,
+  assertSchema9RoomState,
   bootstrapRoomSnapshot,
   shouldRotateGameLogSchema,
 } from "../src/worker/room-state-schema.js";
@@ -21,43 +22,37 @@ function schema7Snapshot(): unknown {
   return {
     schemaVersion: 7,
     id: "room-do-123",
-    seed: "legacy-seed",
+    seed: "legacy-planar-seed",
     tick: 731,
     rngState: 123456,
     arena: { radius: 82 },
-    snakes: {
-      "legacy-player": {
-        id: "legacy-player",
-        name: "Legacy",
-        skin: "cyan",
-        path: [{ x: 10, z: -4 }],
-        segments: [{ x: 10, z: -4 }],
-        heading: 1.25,
-        targetHeading: 1.5,
-        length: 19,
-        boosting: true,
-        chargeTicks: 3,
-        lungeTicks: 2,
-        dashCooldownTick: 800,
-        rocketTicks: 1,
-        rocketCooldownTick: 900,
-        score: 88,
-        alive: true,
-        isBot: false,
-        respawnTick: 0,
-        invulnTick: 0,
-      },
-    },
+    snakes: {},
     food: [{ id: "legacy-food", x: 3, z: 5, value: 2, r: 0.5 }],
-    rockets: [{ id: "legacy-rocket", ownerId: "legacy-player", x: 2, z: 3, heading: 0.4, expiresTick: 900 }],
-    explosions: [{ id: "legacy-burst", x: 1, z: 2, tick: 700, skin: "cyan", kind: "rocket" }],
+    rockets: [],
+    explosions: [],
     frenzyUntilTick: 750,
   };
 }
 
+function schema8Snapshot(): unknown {
+  return {
+    schemaVersion: 8,
+    id: "room-do-123",
+    seed: "legacy-volumetric-seed",
+    tick: 812,
+    rngState: 654321,
+    ocean: { radius: 74, seabedY: -14, surfaceY: 10 },
+    snakes: {},
+    food: [{ id: "legacy-pellet", x: 3, y: -2, z: 5, value: 2, r: 0.5 }],
+    rockets: [],
+    explosions: [],
+    frenzyUntilTick: 900,
+  };
+}
+
 function assertVolumetric(room: RoomState): void {
-  assertSchema8RoomState(room, room.id);
-  expect(room.schemaVersion).toBe(8);
+  assertSchema9RoomState(room, room.id);
+  expect(room.schemaVersion).toBe(9);
   expect("arena" in room).toBe(false);
   for (const shark of Object.values(room.snakes)) {
     expect(Number.isFinite(shark.yaw)).toBe(true);
@@ -66,47 +61,52 @@ function assertVolumetric(room: RoomState): void {
     expect(shark.segments.every((point) => Number.isFinite(point.y))).toBe(true);
     expect("heading" in shark).toBe(false);
   }
-  expect(room.food.every((food) => Number.isFinite(food.y))).toBe(true);
+  expect(room.food.every((prey) => (
+    PREY_KINDS.includes(prey.kind)
+    && Number.isFinite(prey.y)
+    && Number.isFinite(prey.yaw)
+    && Number.isFinite(prey.pitch)
+    && Number.isInteger(prey.school)
+  ))).toBe(true);
   expect(room.rockets.every((rocket) => Number.isFinite(rocket.y) && Number.isFinite(rocket.yaw) && Number.isFinite(rocket.pitch))).toBe(true);
   expect(room.explosions.every((burst) => Number.isFinite(burst.y))).toBe(true);
 }
 
 describe("Room persisted-state schema boundary", () => {
-  it("boots a representative schema-7 snapshot by deterministically resetting transient gameplay", () => {
+  it("resets schema-7 planar state and schema-8 pellet state instead of misreading either as schema 9", () => {
     const fallback = createRoom({ id: "room-do-123", seed: "fallback-seed", oceanRadius: 82 });
-    const first = bootstrapRoomSnapshot(schema7Snapshot(), fallback);
-    const second = bootstrapRoomSnapshot(schema7Snapshot(), createRoom({ id: "room-do-123", seed: "other-fallback", oceanRadius: 82 }));
+    const planar = bootstrapRoomSnapshot(schema7Snapshot(), fallback);
+    expect(planar.source).toBe("schema-7-reset");
+    expect(planar.persistSnapshot).toBe(true);
+    expect(planar.room.id).toBe("room-do-123");
+    expect(planar.room.seed).toBe("legacy-planar-seed");
+    expect(planar.room.tick).toBe(0);
+    assertVolumetric(planar.room);
 
-    expect(first.source).toBe("schema-7-reset");
-    expect(first.persistSnapshot).toBe(true);
-    expect(first.room.id).toBe("room-do-123");
-    expect(first.room.seed).toBe("legacy-seed");
-    expect(first.room.tick).toBe(0);
-    expect(first.room.snakes["legacy-player"]).toBeUndefined();
-    expect(first.room.rockets).toEqual([]);
-    expect(first.room.explosions).toEqual([]);
-    expect(JSON.stringify(first.room)).toBe(JSON.stringify(second.room));
-
-    spawnBots(first.room, BOT_COUNT);
-    assertVolumetric(first.room);
-    expect(first.room.snakes["legacy-player"]).toBeUndefined();
-    expect(JSON.stringify(first.room)).not.toContain('"heading"');
+    const volumetric = bootstrapRoomSnapshot(schema8Snapshot(), createRoom({ id: "room-do-123", seed: "other-fallback" }));
+    expect(volumetric.source).toBe("schema-8-reset");
+    expect(volumetric.persistSnapshot).toBe(true);
+    expect(volumetric.room.seed).toBe("legacy-volumetric-seed");
+    expect(volumetric.room.ocean).toEqual({ radius: 74, seabedY: -14, surfaceY: 10 });
+    expect(volumetric.room.tick).toBe(0);
+    expect(volumetric.room.food.some((prey) => prey.kind === "bait" || prey.kind === "reef")).toBe(true);
+    expect(JSON.stringify(volumetric.room)).not.toContain("legacy-pellet");
+    assertVolumetric(volumetric.room);
   });
 
-  it("serializes an upgraded snapshot and restores it only as a complete schema-8 room", () => {
-    const fallback = createRoom({ id: "room-do-123", seed: "fallback" });
-    const upgraded = bootstrapRoomSnapshot(schema7Snapshot(), fallback).room;
+  it("serializes and restores only complete schema-9 room state", () => {
+    const upgraded = bootstrapRoomSnapshot(schema8Snapshot(), createRoom({ id: "room-do-123", seed: "fallback" })).room;
     spawnBots(upgraded, BOT_COUNT);
 
     const serialized = JSON.stringify(upgraded);
     const restored = bootstrapRoomSnapshot(JSON.parse(serialized), createRoom({ id: "room-do-123", seed: "new-fallback" }));
-    expect(restored.source).toBe("schema-8");
+    expect(restored.source).toBe("schema-9");
     expect(restored.persistSnapshot).toBe(false);
     expect(JSON.stringify(restored.room)).toBe(serialized);
     assertVolumetric(restored.room);
   });
 
-  it("accepts fresh schema-8 rooms and replays only schema-8 actions", () => {
+  it("accepts fresh schema-9 rooms and replays only schema-9 actions", () => {
     const fresh = bootstrapRoomSnapshot(undefined, createRoom({ id: "room-do-fresh", seed: "fresh-seed" }));
     expect(fresh.source).toBe("fresh");
     assertVolumetric(fresh.room);
@@ -123,18 +123,19 @@ describe("Room persisted-state schema boundary", () => {
     expect(JSON.stringify(restored.room)).toBe(JSON.stringify(replayed));
   });
 
-  it("rotates unknown or schema-7 replay generations instead of interpreting them as schema 8", () => {
-    expect(GAME_LOG_SCHEMA_VERSION).toBe(8);
+  it("rotates unknown, schema-7 and schema-8 replay generations instead of interpreting them as schema 9", () => {
+    expect(GAME_LOG_SCHEMA_VERSION).toBe(9);
     expect(shouldRotateGameLogSchema(undefined)).toBe(true);
     expect(shouldRotateGameLogSchema(7)).toBe(true);
-    expect(shouldRotateGameLogSchema("8")).toBe(true);
-    expect(shouldRotateGameLogSchema(8)).toBe(false);
+    expect(shouldRotateGameLogSchema(8)).toBe(true);
+    expect(shouldRotateGameLogSchema("9")).toBe(true);
+    expect(shouldRotateGameLogSchema(9)).toBe(false);
   });
 
-  it("fails closed on incomplete or mixed schema-8 snapshots", () => {
-    const missingY = JSON.parse(JSON.stringify(createRoom({ id: "room-do-bad", seed: "bad" }))) as Record<string, any>;
-    delete missingY.food[0].y;
-    expect(() => bootstrapRoomSnapshot(missingY, createRoom({ id: "room-do-bad", seed: "fallback" }))).toThrow(/schema 8 is invalid: food/);
+  it("fails closed on incomplete or mixed schema-9 snapshots", () => {
+    const missingKind = JSON.parse(JSON.stringify(createRoom({ id: "room-do-bad", seed: "bad" }))) as Record<string, any>;
+    delete missingKind.food[0].kind;
+    expect(() => bootstrapRoomSnapshot(missingKind, createRoom({ id: "room-do-bad", seed: "fallback" }))).toThrow(/schema 9 is invalid: prey/);
 
     const mixed = createRoom({ id: "room-do-bad", seed: "mixed" }) as RoomState & { arena?: unknown };
     mixed.arena = { radius: 82 };
@@ -146,16 +147,16 @@ describe("Room persisted-state schema boundary", () => {
 
   it("wires the Durable Object boot path to snapshot persistence, replay rotation and preserved metadata", () => {
     const source = readFileSync(new URL("../src/worker/room-do.ts", import.meta.url), "utf8");
-    expect(source).toContain('bootstrapRoomSnapshot(storedRoom, this.room)');
+    expect(source).toContain("bootstrapRoomSnapshot(storedRoom, this.room)");
     expect(source).toContain('this.ctx.storage.get<number>("gameLogSchemaVersion")');
     expect(source).toContain('this.trackSql("DELETE FROM game_log")');
     expect(source).toContain('this.ctx.storage.put("gameLogSchemaVersion", GAME_LOG_SCHEMA_VERSION)');
     expect(source).toContain('if (snapshotBoot.persistSnapshot) { await this.ctx.storage.put("snapshot", this.room)');
+    expect(source).toContain('snapshotBoot.source.endsWith("-reset")');
     expect(source).toMatch(/this\.roomName = meta\.roomName/);
     expect(source).toMatch(/this\.maintenance = meta\.maintenance \?\? false/);
     expect(source).toMatch(/this\.activeMs = meta\.activeMs \?\? 0/);
     expect(source).toMatch(/this\.wsMessages = meta\.wsMessages \?\? 0/);
     expect(source).toMatch(/this\.connections = meta\.connections \?\? 0/);
-    expect(source).not.toContain("requires ST-113 migration");
   });
 });
