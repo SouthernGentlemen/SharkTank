@@ -83,36 +83,6 @@ These are acceptance targets, not permission to fake authority:
 ## Open tasks
 
 
-### ST-121 — [FEAT] Teach bots to hunt and evade in full 3D
-
-**Goal**
-
-Make always-on rivals exercise the same volumetric rules as human players so lightly populated rooms remain useful and fun.
-
-**Scope**
-
-- Update bot steering to choose full 3D target directions.
-- Make bots avoid surface/floor/outer boundary.
-- Make bots seek prey schools, react to Feeding Frenzy targets and use burst movement through the same authoritative action semantics.
-- Add simple threat logic: smaller bots may evade nearby apex sharks; larger bots may pursue vulnerable rivals.
-- Keep bots deterministic from room state and RNG.
-- Do not give bots information unavailable to the server simulation or impossible turning/pitch rates.
-- Keep bot CPU bounded at the existing target population.
-
-**Non-goals**
-
-- No machine-learning agent.
-- No perfect aim.
-- No bot-only combat rules.
-
-**Acceptance**
-
-- Bots use the water column rather than collapsing back onto one Y plane.
-- Seeded bot simulations remain deterministic.
-- A full bot-populated room stays within a measured server-tick budget.
-
----
-
 ### ST-122 — [FEAT] Replace contact kills and rockets with shark combat
 
 **Goal**

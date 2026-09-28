@@ -91,6 +91,22 @@ const FRENZY_CHUM = PREY_BUDGET.frenzyChum;
 // With 24 bots in the tank, a high retire score let two or three monsters accumulate and
 // farm every fresh spawn. A lower ceiling keeps the size ladder climbable.
 const BOT_RETIRE_SCORE = 240;
+export const BOT_AI_BUDGET = {
+  targetPopulation: 24,
+  maxTrackedSharks: 32,
+  preySight: 24,
+  frenzySight: 40,
+  threatRadius: 15,
+  huntRadius: 19,
+  burstRange: 9,
+  escapeBurstRange: 8,
+  boundaryMargin: 10,
+  verticalMargin: 4.5,
+  threatLengthRatio: 1.3,
+  huntLengthRatio: 1.25,
+  wanderInterval: 20,
+  wanderPitch: 0.45,
+} as const;
 const DASH_TICKS = 10;
 const DASH_ACCEL_TICKS = 3;
 const DASH_DECEL_TICKS = 4;
@@ -629,9 +645,12 @@ export function step(state: RoomState): RoomState {
   // Prey movement is authoritative and deterministic. Client animation only interpolates this state.
   stepPrey(state);
 
-  // Bots choose their current compatibility orientation before movement.
-  for (const s of Object.values(state.snakes)) {
-    if (s.alive && s.isBot) steerBot(state, s);
+  // Bots plan from one bounded authoritative view, then move through the same
+  // yaw/pitch and burst rules as every other shark.
+  const bots = Object.values(state.snakes).filter((s) => s.alive && s.isBot && s.segments[0]);
+  if (bots.length) {
+    const botView = makeBotWorldView(state);
+    for (const bot of bots) steerBot(state, bot, botView);
   }
 
   // Move every living snake.
@@ -879,58 +898,175 @@ function stepRockets(state: RoomState): void {
 }
 
 // ── Bot AI ───────────────────────────────────────────────────────────────────────
-function steerBot(state: RoomState, s: Snake): void {
-  const head = s.segments[0];
-  const radiusSq = horizontalRadiusSquared(head);
+interface BotWorldView {
+  frenzy: boolean;
+  livingSharks: Snake[];
+  schoolValue: number[];
+}
 
-  if (radiusSq > (state.ocean.radius * 0.8) ** 2) {
-    s.targetYaw = Math.atan2(-head.z, -head.x);
-    s.targetPitch = 0;
-    s.boosting = false;
-    s.chargeTicks = 0;
+function makeBotWorldView(state: RoomState): BotWorldView {
+  const livingSharks = Object.values(state.snakes)
+    .filter((shark) => shark.alive && shark.segments[0])
+    .slice(0, BOT_AI_BUDGET.maxTrackedSharks);
+  const schoolValue = Array.from({ length: PREY_BUDGET.schools }, () => 0);
+  for (const actor of state.food) {
+    if (actor.school >= 0 && actor.school < schoolValue.length) {
+      schoolValue[actor.school] += actor.value;
+    }
+  }
+  return { frenzy: isFrenzy(state), livingSharks, schoolValue };
+}
+
+function boundaryEscapeTarget(state: RoomState, s: Snake): Vec3 | null {
+  const head = s.segments[0];
+  const radius = Math.sqrt(horizontalRadiusSquared(head));
+  const radialGap = state.ocean.radius - radius;
+  const surfaceGap = state.ocean.surfaceY - head.y;
+  const floorGap = head.y - state.ocean.seabedY;
+  const nearWall = radialGap < BOT_AI_BUDGET.boundaryMargin;
+  const nearSurface = surfaceGap < BOT_AI_BUDGET.verticalMargin;
+  const nearFloor = floorGap < BOT_AI_BUDGET.verticalMargin;
+  if (!nearWall && !nearSurface && !nearFloor) return null;
+
+  const forward = forwardFromYawPitch(s.yaw, s.pitch);
+  let dx = forward.x;
+  let dy = forward.y;
+  let dz = forward.z;
+
+  if (nearWall && radius > 1e-6) {
+    const urgency = 1 + (BOT_AI_BUDGET.boundaryMargin - radialGap) / BOT_AI_BUDGET.boundaryMargin;
+    dx -= (head.x / radius) * urgency * 2.6;
+    dz -= (head.z / radius) * urgency * 2.6;
+  }
+  if (nearSurface) {
+    const urgency = 1 + (BOT_AI_BUDGET.verticalMargin - surfaceGap) / BOT_AI_BUDGET.verticalMargin;
+    dy -= urgency * 2.4;
+  }
+  if (nearFloor) {
+    const urgency = 1 + (BOT_AI_BUDGET.verticalMargin - floorGap) / BOT_AI_BUDGET.verticalMargin;
+    dy += urgency * 2.4;
+  }
+
+  return { x: head.x + dx * 10, y: head.y + dy * 10, z: head.z + dz * 10 };
+}
+
+function choosePreyTarget(state: RoomState, head: Vec3, view: BotWorldView): { prey: Prey; distance: number } | null {
+  const sight = view.frenzy ? BOT_AI_BUDGET.frenzySight : BOT_AI_BUDGET.preySight;
+  let best: Prey | null = null;
+  let bestDistance = Infinity;
+  let bestUtility = -Infinity;
+
+  for (const actor of state.food) {
+    const distance = distance3(actor, head);
+    if (distance > sight) continue;
+    const schoolBonus = actor.school >= 0 && actor.school < view.schoolValue.length
+      ? Math.min(8, view.schoolValue[actor.school] * 0.12)
+      : 0;
+    const frenzyBonus = view.frenzy && actor.kind === "chum" ? 18 : 0;
+    const utility = actor.value * 2 + schoolBonus + frenzyBonus - distance * 0.22;
+    if (utility > bestUtility || (utility === bestUtility && distance < bestDistance)) {
+      best = actor;
+      bestDistance = distance;
+      bestUtility = utility;
+    }
+  }
+
+  return best ? { prey: best, distance: bestDistance } : null;
+}
+
+function steerBot(state: RoomState, s: Snake, view: BotWorldView): void {
+  const head = s.segments[0];
+
+  // Schema 9 predates this planner and may contain the old bot-only charge flag.
+  // Clear that transient compatibility state, then use the normal setBoost action below.
+  if (s.boosting || s.chargeTicks > 0) {
+    applyAction(state, { type: "setBoost", playerId: s.id, on: false });
+  }
+
+  const boundaryTarget = boundaryEscapeTarget(state, s);
+  if (boundaryTarget) {
+    const target = yawPitchToward(head, boundaryTarget);
+    s.targetYaw = target.yaw;
+    s.targetPitch = target.pitch;
     return;
   }
 
-  const sight = isFrenzy(state) ? 34 : 22;
-  let best: Prey | null = null;
-  let bestD = Infinity;
-  for (const f of state.food) {
-    const d = distance3({ x: f.x, y: f.y, z: f.z }, head);
-    if (d < bestD && d < sight) {
-      bestD = d;
-      best = f;
+  let threat: Snake | null = null;
+  let threatDistance = Infinity;
+  let quarry: Snake | null = null;
+  let quarryDistance = Infinity;
+  for (const rival of view.livingSharks) {
+    if (rival.id === s.id || !rival.segments[0]) continue;
+    const distance = distance3(head, rival.segments[0]);
+    if (
+      rival.length >= s.length * BOT_AI_BUDGET.threatLengthRatio
+      && distance < BOT_AI_BUDGET.threatRadius
+      && distance < threatDistance
+    ) {
+      threat = rival;
+      threatDistance = distance;
+    }
+    if (
+      s.length >= rival.length * BOT_AI_BUDGET.huntLengthRatio
+      && state.tick >= rival.invulnTick
+      && distance < BOT_AI_BUDGET.huntRadius
+      && distance < quarryDistance
+    ) {
+      quarry = rival;
+      quarryDistance = distance;
     }
   }
-  if (best) {
-    // ST-120 compatibility only: bots may point at the selected authoritative prey in
-    // depth so moving fish remain consumable. ST-121 owns volumetric navigation,
-    // avoidance, threat assessment and tactical hunting.
-    const target = yawPitchToward(head, best);
+
+  if (threat?.segments[0]) {
+    const target = yawPitchToward(threat.segments[0], head);
     s.targetYaw = target.yaw;
     s.targetPitch = target.pitch;
-  } else if (isFrenzy(state)) {
-    s.targetYaw = Math.atan2(-head.z, -head.x);
-    s.targetPitch = 0;
-  } else if ((state.tick + botPhase(s.id)) % 20 === 0) {
-    s.targetYaw = randRange(state, -Math.PI, Math.PI);
-    s.targetPitch = 0;
+    if (threatDistance <= BOT_AI_BUDGET.escapeBurstRange) {
+      applyAction(state, { type: "setBoost", playerId: s.id, on: true });
+    }
+    return;
   }
 
-  s.dashCooldownTick ??= 0;
-  const wantsLunge = best !== null && bestD < 8 && best.value >= 2;
-  if (wantsLunge && state.tick >= s.dashCooldownTick && !s.boosting && s.lungeTicks === 0) s.boosting = true;
-  if (s.boosting && s.chargeTicks >= 6) {
-    s.boosting = false;
-    s.chargeTicks = 0;
-    s.lungeTicks = 6;
-    s.dashCooldownTick = state.tick + TICKS_PER_SECOND * 6;
+  const preyTarget = choosePreyTarget(state, head, view);
+  const shouldHuntRival = quarry?.segments[0]
+    && (!preyTarget || quarryDistance < Math.min(12, preyTarget.distance * 0.8));
+
+  let targetPoint: Vec3 | null = null;
+  let targetDistance = Infinity;
+  let wantsBurst = false;
+
+  if (shouldHuntRival && quarry?.segments[0]) {
+    targetPoint = quarry.segments[0];
+    targetDistance = quarryDistance;
+    wantsBurst = quarryDistance <= BOT_AI_BUDGET.burstRange;
+  } else if (preyTarget) {
+    targetPoint = preyTarget.prey;
+    targetDistance = preyTarget.distance;
+    wantsBurst = targetDistance <= BOT_AI_BUDGET.burstRange
+      && (view.frenzy || preyTarget.prey.value >= 2);
+  } else if (view.frenzy) {
+    targetPoint = {
+      x: 0,
+      y: (state.ocean.seabedY + state.ocean.surfaceY) / 2,
+      z: 0,
+    };
+  }
+
+  if (targetPoint) {
+    const target = yawPitchToward(head, targetPoint);
+    s.targetYaw = target.yaw;
+    s.targetPitch = target.pitch;
+    if (wantsBurst) applyAction(state, { type: "setBoost", playerId: s.id, on: true });
+  } else if ((state.tick + botPhase(s.id)) % BOT_AI_BUDGET.wanderInterval === 0) {
+    s.targetYaw = randRange(state, -Math.PI, Math.PI);
+    s.targetPitch = randRange(state, -BOT_AI_BUDGET.wanderPitch, BOT_AI_BUDGET.wanderPitch);
   }
 }
 
 /** Stable per-bot offset so wander turns are staggered across the tank. */
 function botPhase(id: string): number {
   let h = 0;
-  for (let i = 0; i < id.length; i += 1) h = (h * 31 + id.charCodeAt(i)) % 20;
+  for (let i = 0; i < id.length; i += 1) h = (h * 31 + id.charCodeAt(i)) % BOT_AI_BUDGET.wanderInterval;
   return h;
 }
 
