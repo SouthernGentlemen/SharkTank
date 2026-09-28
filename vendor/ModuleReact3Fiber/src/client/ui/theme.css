@@ -301,7 +301,7 @@ body {
   --safe-r: env(safe-area-inset-right, 0px);
   --safe-t: env(safe-area-inset-top, 0px);
 }
-.game-screen { touch-action: none; }
+.game-screen--touch .game-viewport,.touch-stick-zone,.game-screen--touch .ability-button{touch-action:none}
 
 /* ── Read-only overlays ── */
 /* These sit directly on the game canvas, which renders the same dark tank in every theme,
@@ -391,34 +391,41 @@ body {
    control this card is meant to leave reachable. Pin it to the top instead. */
 @media (max-height:560px){.scrim--respawn{align-items:start}.respawn-card{padding:14px}.respawn-card .btn--lg{min-height:48px;font-size:1rem}.respawn-note{display:none}}
 
-/* ── Virtual thumbstick ── */
-.stick-zone{position:absolute;z-index:6;top:calc(88px + var(--safe-t));bottom:0;width:50%;touch-action:none;-webkit-user-select:none;user-select:none;-webkit-tap-highlight-color:transparent}
-.stick-zone--right{right:0}
-.stick-zone--left{left:0}
-/* The base is always positioned by left/top and centred with negative margins, so the
-   resting anchor below and the inline coordinates written on touch-down use the same
-   axes — no `right:auto` unwinding, and nothing to fight the inline style. */
-.stick-base{position:absolute;left:calc(100% - 94px - var(--safe-r));top:calc(100% - 94px - var(--safe-b));width:132px;height:132px;margin:-66px 0 0 -66px;border:2px solid rgba(243,241,255,.28);border-radius:50%;background:rgba(11,10,20,.32);opacity:.5;transition:opacity 140ms ease}
-.stick-zone--left .stick-base{left:calc(94px + var(--safe-l))}
-.stick-base.is-live{opacity:1;border-color:rgba(34,230,255,.55);background:rgba(11,10,20,.46)}
+/* ── Twin virtual sticks ── */
+.touch-control-surface{position:absolute;inset:0;z-index:6;pointer-events:none}
+.touch-stick-zone{position:absolute;z-index:6;top:max(calc(38% + var(--safe-t)),104px);bottom:var(--safe-b);width:calc(50% - 6px);touch-action:none;pointer-events:auto;-webkit-user-select:none;user-select:none;-webkit-tap-highlight-color:transparent}
+.touch-stick-zone--left{left:var(--safe-l);width:calc(50% - var(--safe-l) - 6px)}
+.touch-stick-zone--right{right:var(--safe-r);width:calc(50% - var(--safe-r) - 6px)}
+.stick-base{position:absolute;top:calc(100% - 86px);width:132px;height:132px;margin:-66px 0 0 -66px;border:2px solid rgba(243,241,255,.28);border-radius:50%;background:rgba(11,10,20,.32);opacity:.62;transition:opacity 140ms ease}
+.touch-stick-zone--left .stick-base{left:86px}
+.touch-stick-zone--right .stick-base{left:calc(100% - 86px)}
+.touch-stick-zone--flight .stick-base{border-color:rgba(34,230,255,.48)}
+.touch-stick-zone--look .stick-base{border-color:rgba(255,213,74,.5)}
 .stick-knob{position:absolute;left:50%;top:50%;width:60px;height:60px;margin:-30px 0 0 -30px;border:2px solid rgba(255,255,255,.9);border-radius:50%;background:radial-gradient(circle at 35% 30%,#8ff4ff,#22a8d8);box-shadow:0 6px 18px rgba(0,0,0,.45)}
-.stick-hint{position:absolute;left:calc(100% - 94px - var(--safe-r));bottom:calc(8px + var(--safe-b));width:150px;margin:0;transform:translateX(-50%);color:var(--text-faint);font-size:.68rem;font-weight:800;letter-spacing:.1em;text-align:center;text-transform:uppercase}
-.stick-zone--left .stick-hint{left:calc(94px + var(--safe-l))}
+.stick-hint{position:absolute;bottom:8px;width:126px;margin:0;transform:translateX(-50%);color:#f3f1ff;font-size:.68rem;font-weight:900;letter-spacing:.1em;text-align:center;text-transform:uppercase;text-shadow:0 1px 3px #000}
+.touch-stick-zone--left .stick-hint{left:86px}
+.touch-stick-zone--right .stick-hint{left:calc(100% - 86px)}
+.stick-visual{position:absolute;inset:0;overflow:visible;pointer-events:none}.stick-live-base{fill:rgba(11,10,20,.46);stroke:rgba(34,230,255,.62);stroke-width:2}.touch-stick-zone--look .stick-live-base{stroke:rgba(255,213,74,.68)}.stick-live-knob{stroke:rgba(255,255,255,.9);stroke-width:2;filter:drop-shadow(0 6px 9px rgba(0,0,0,.45))}
 
-/* ── Touch arrangement: stick on one side, pads + tools on the other ── */
-.game-screen--touch .ability-rail{grid-auto-flow:column;gap:10px;bottom:calc(12px + var(--safe-b))}
-.game-screen--touch .game-tools{bottom:calc(104px + var(--safe-b))}
+/* Actions occupy the upper opposite quadrant, outside the lower stick travel area.
+   Mirroring the flight side swaps flight, look, actions and tools as one complete layout. */
+.game-screen--touch .ability-rail{grid-auto-flow:column;gap:10px;top:calc(82px + var(--safe-t));bottom:auto}
+.game-screen--touch .game-tools{bottom:calc(12px + var(--safe-b))}
 .game-screen--touch .ability-button{width:84px;min-height:84px;grid-template-columns:1fr;grid-template-rows:1fr auto;justify-items:center;gap:2px;padding:8px;border-radius:20px}
 .game-screen--touch .ability-button svg{grid-row:auto;width:38px;height:38px}
 .game-screen--touch .ability-button span{font-size:.66rem;letter-spacing:.06em}
 .game-screen--touch .game-minimap{display:none}
-/* Stick right → pads and tools left, and vice versa. */
-.game-screen--stick-right .ability-rail{left:calc(12px + var(--safe-l));right:auto;justify-items:start}
-.game-screen--stick-right .game-tools{left:calc(12px + var(--safe-l));right:auto}
-.game-screen--stick-left .ability-rail{right:calc(12px + var(--safe-r));left:auto;justify-items:end}
-.game-screen--stick-left .game-tools{right:calc(12px + var(--safe-r));left:auto}
-.game-screen--stick-left .gearbox__popover{left:auto;right:0}
+.game-screen--flight-left .ability-rail{right:calc(12px + var(--safe-r));left:auto;justify-items:end}
+.game-screen--flight-left .game-tools{right:calc(12px + var(--safe-r));left:auto}
+.game-screen--flight-left .gearbox__popover{left:auto;right:0}
+.game-screen--flight-right .ability-rail{left:calc(12px + var(--safe-l));right:auto;justify-items:start}
+.game-screen--flight-right .game-tools{left:calc(12px + var(--safe-l));right:auto}
+.game-screen--flight-right .gearbox__popover{left:0;right:auto}
 .game-screen--touch .conn-banner{bottom:auto;top:calc(64px + var(--safe-t))}
+.game-screen--portrait-lock .ability-rail{display:none}
+.touch-rotate-affordance{position:absolute;inset:0;z-index:15;display:grid;place-items:center;padding:calc(72px + var(--safe-t)) calc(18px + var(--safe-r)) calc(72px + var(--safe-b)) calc(18px + var(--safe-l));pointer-events:none}
+.touch-rotate-card{display:grid;gap:6px;max-width:360px;padding:16px 20px;border:2px solid var(--border-strong);border-radius:18px;background:rgba(6,5,12,.9);color:#fff;text-align:center;box-shadow:0 16px 48px rgba(0,0,0,.42)}
+.touch-rotate-card strong{font-size:1.15rem}.touch-rotate-card span{font-size:.86rem;line-height:1.35;color:#e5e1ff}
 
 .help-note{margin:0;padding:11px 13px;border:1px solid #6a5a2e;border-radius:12px;background:rgba(255,213,74,.09);color:var(--text-muted);font-size:.86rem}.help-note strong{color:var(--warning)}
 .control-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px}.control-card{display:grid;grid-template-columns:48px 1fr;align-items:center;gap:8px;padding:14px;border:1px solid var(--border);border-radius:12px;background:var(--surface-2);min-width:0}.control-card__icon{grid-row:1/3;width:42px;height:42px;fill:none;stroke:var(--accent);stroke-width:1.8;stroke-linecap:round;stroke-linejoin:round}.control-card>strong{min-width:0;text-align:left;overflow-wrap:anywhere}.control-card>div{display:flex;align-items:center;gap:6px;flex-wrap:wrap;min-width:0;color:var(--text-muted)}.control-card small{width:100%;text-align:left;overflow-wrap:anywhere}
@@ -442,19 +449,19 @@ body {
   .ability-rail{right:calc(6px + var(--safe-r));bottom:calc(140px + var(--safe-b))}
   .ability-button{width:112px;min-height:94px;border-radius:16px;padding:10px;grid-template-columns:42px 1fr}
   .ability-button svg{width:42px;height:42px}
-  .game-screen--touch .ability-rail{bottom:calc(10px + var(--safe-b))}
-  .game-screen--stick-right .ability-rail{left:calc(6px + var(--safe-l))}
-  .game-screen--stick-left .ability-rail{right:calc(6px + var(--safe-r))}
+  .game-screen--touch .ability-rail{top:calc(68px + var(--safe-t));bottom:auto}
+  .game-screen--flight-right .ability-rail{left:calc(6px + var(--safe-l))}
+  .game-screen--flight-left .ability-rail{right:calc(6px + var(--safe-r))}
   .game-screen--touch .game-tools{bottom:calc(96px + var(--safe-b))}
-  .game-screen--stick-right .game-tools{left:calc(6px + var(--safe-l))}
-  .game-screen--stick-left .game-tools{right:calc(6px + var(--safe-r))}
+  .game-screen--flight-right .game-tools{left:calc(6px + var(--safe-l))}
+  .game-screen--flight-left .game-tools{right:calc(6px + var(--safe-r))}
   .game-screen--touch .ability-button{width:76px;min-height:76px;padding:6px}
   .game-screen--touch .ability-button svg{width:34px;height:34px}
-  .stick-base{left:calc(100% - 84px - var(--safe-r));top:calc(100% - 84px - var(--safe-b));width:118px;height:118px;margin:-59px 0 0 -59px}
-  .stick-zone--left .stick-base{left:calc(84px + var(--safe-l))}
+  .stick-base{left:calc(100% - 78px);top:calc(100% - 78px);width:118px;height:118px;margin:-59px 0 0 -59px}
+  .touch-stick-zone--left .stick-base{left:78px}
   .stick-knob{width:54px;height:54px;margin:-27px 0 0 -27px}
-  .stick-hint{left:calc(100% - 84px - var(--safe-r));width:130px}
-  .stick-zone--left .stick-hint{left:calc(84px + var(--safe-l))}
+  .stick-hint{left:calc(100% - 78px);width:130px}
+  .touch-stick-zone--left .stick-hint{left:78px}
   /* No room for a centred banner between the HUD and the leaderboard on a phone —
      tuck it directly under the HUD chips instead, where the water is empty. */
   .frenzy-banner{top:calc(64px + var(--safe-t));left:calc(6px + var(--safe-l));right:auto;transform:none;justify-items:start;max-width:56vw;padding:5px 12px;border-radius:14px;text-align:left}
@@ -463,10 +470,10 @@ body {
 }
 /* Very short viewports (landscape phones): the pads and the tools trigger cannot stack. */
 @media (max-height: 430px) {
-  .game-screen--touch .ability-rail{bottom:calc(8px + var(--safe-b))}
+  .game-screen--touch .ability-rail{top:calc(58px + var(--safe-t));bottom:auto}
   .game-screen--touch .game-tools{bottom:auto;top:calc(50% - 30px)}
   .game-screen--touch .gearbox__popover{bottom:auto;top:60px}
-  .stick-zone{top:calc(56px + var(--safe-t))}
+  .touch-stick-zone{top:max(calc(34% + var(--safe-t)),96px)}
 }
 /* Short desktop windows cannot stack a vertical ability rail beside a ten-row
    leaderboard — the pads landed on top of the scores. Lay them along the bottom edge
@@ -537,4 +544,3 @@ body {
 
 .snake-label-layer{position:absolute;inset:0;z-index:9;overflow:hidden;pointer-events:none}
 .snake-label text{fill:#0b0a14;font:600 .75rem ui-sans-serif,system-ui,sans-serif;paint-order:stroke;stroke:rgba(255,255,255,.12);stroke-width:.4px}.snake-label.is-me text{font-size:.85rem;font-weight:800}
-.stick-visual{position:absolute;inset:0;overflow:visible;pointer-events:none}.stick-live-base{fill:rgba(11,10,20,.46);stroke:rgba(34,230,255,.55);stroke-width:2}.stick-live-knob{stroke:rgba(255,255,255,.9);stroke-width:2;filter:drop-shadow(0 6px 9px rgba(0,0,0,.45))}

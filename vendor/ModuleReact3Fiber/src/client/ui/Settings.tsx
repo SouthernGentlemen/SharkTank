@@ -227,10 +227,10 @@ function ControlsPanel() {
         options={[{ v: "auto", l: "Auto (touch devices)" }, { v: "on", l: "Always on" }, { v: "off", l: "Off" }]}
       />
       <Choice
-        label="Thumbstick side"
+        label="Touch layout"
         value={settings.controls.stickSide}
         onChange={(v) => update("controls", { stickSide: v })}
-        options={[{ v: "right", l: "Right (dash and rocket left)" }, { v: "left", l: "Left (dash and rocket right)" }]}
+        options={[{ v: "left", l: "Standard (flight left, look/actions right)" }, { v: "right", l: "Left-handed (flight right, look/actions left)" }]}
       />
     </div>
   );
