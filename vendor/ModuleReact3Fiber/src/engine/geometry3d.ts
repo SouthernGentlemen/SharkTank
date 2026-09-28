@@ -9,6 +9,26 @@ export function normalizeYaw(value: number): number {
   return (wrapped < 0 ? wrapped + Math.PI * 2 : wrapped) - Math.PI;
 }
 
+export function shortestYawDelta(from: number, to: number): number {
+  return normalizeYaw(normalizeYaw(to) - normalizeYaw(from));
+}
+
+export function lerpYawShortest(from: number, to: number, alpha: number): number {
+  const t = Math.max(0, Math.min(1, alpha));
+  return normalizeYaw(normalizeYaw(from) + shortestYawDelta(from, to) * t);
+}
+
+export function rotateYawToward(current: number, target: number, maxStep: number): number {
+  const diff = shortestYawDelta(current, target);
+  if (Math.abs(diff) <= maxStep) return normalizeYaw(target);
+  return normalizeYaw(current + Math.sign(diff) * maxStep);
+}
+
+export function moveToward(current: number, target: number, maxStep: number): number {
+  const delta = target - current;
+  return Math.abs(delta) <= maxStep ? target : current + Math.sign(delta) * maxStep;
+}
+
 export function clampPitch(value: number): number {
   if (!Number.isFinite(value)) return 0;
   return Math.max(-MAX_PITCH, Math.min(MAX_PITCH, value));

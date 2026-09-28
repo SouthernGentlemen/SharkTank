@@ -11,7 +11,7 @@ export interface GameViewportProps {
   settings: Settings;
   inputEnabled: boolean;
   labelsRef?: React.MutableRefObject<SnakeLabel[]>;
-  /** Live planar thumbstick heading retained until the full-3D input task lands. */
+  /** Current touch stick remains yaw-only until ST-117; the realtime intent is yaw+pitch. */
   stickRef?: React.MutableRefObject<StickState>;
   touchControls?: boolean;
 }
@@ -31,7 +31,7 @@ export function GameViewport({
   touchControls = false,
 }: GameViewportProps) {
   const surfaceRef = useRef<HTMLDivElement>(null);
-  const inputRef = useRef<LocalInput>({ targetHeading: 0, boosting: false });
+  const inputRef = useRef<LocalInput>({ targetYaw: 0, targetPitch: 0, boosting: false });
   const quality = resolveSceneQuality(settings.graphics.quality);
 
   useLocalInput(socket, settings, inputEnabled, inputRef, surfaceRef, stickRef, touchControls);

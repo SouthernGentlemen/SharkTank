@@ -110,7 +110,7 @@ export function GameScreen({ room, identity, onQuit }: GameScreenProps) {
 
       {/* Connection banner. Always mounted — see conn-banner:empty in theme.css. */}
       <div role="status" className="conn-banner">
-        {socket.status === "open" ? "" : socket.status === "connecting" ? "Connecting…" : "Reconnecting…"}
+        {socket.status === "open" ? "" : socket.status === "connecting" ? "Connecting…" : socket.status === "incompatible" ? "Game update required. Reload to reconnect." : "Reconnecting…"}
       </div>
 
       {socket.death && (

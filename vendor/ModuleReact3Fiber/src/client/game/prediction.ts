@@ -1,12 +1,15 @@
 // Client-side prediction for the local shark only. The server remains authoritative.
-// ST-112 intentionally keeps the existing planar input surface: targetHeading maps to
-// authoritative yaw while pitch stays neutral until the later 3D control task.
+// ST-114 carries the authoritative yaw+pitch movement semantics through prediction and
+// reconciles X/Y/Z against the latest server snapshot.
 
 import {
   MOVE,
   TICKS_PER_SECOND,
+  clampPitch,
   distance3,
   forwardFromYawPitch,
+  moveToward,
+  rotateYawToward,
   sampleTrail,
   segmentCount,
 } from "../../engine/index.js";
@@ -22,24 +25,18 @@ const RECONCILE_PER_SECOND = 5;
 const MAX_RECONCILE_SPEED = SPEED * 0.65;
 const TELEPORT_ERROR = 8;
 
-function rotateYawToward(cur: number, target: number, maxStep: number): number {
-  let d = target - cur;
-  while (d > Math.PI) d -= Math.PI * 2;
-  while (d < -Math.PI) d += Math.PI * 2;
-  if (Math.abs(d) <= maxStep) return target;
-  return cur + Math.sign(d) * maxStep;
-}
-
-function moveToward(cur: number, target: number, maxStep: number): number {
-  const d = target - cur;
-  return Math.abs(d) <= maxStep ? target : cur + Math.sign(d) * maxStep;
-}
-
 export interface PredictionResult {
   segments: Vec3[];
   head: Vec3;
   yaw: number;
   pitch: number;
+}
+
+export interface PredictionWorld {
+  seabedY: number;
+  surfaceY: number;
+  tick: number;
+  frenzyUntilTick: number;
 }
 
 export class LocalPredictor {
@@ -64,7 +61,13 @@ export class LocalPredictor {
     this.alive = true;
   }
 
-  step(auth: NetSnake | null | undefined, input: LocalInput, dt: number, staleness: number): PredictionResult | null {
+  step(
+    auth: NetSnake | null | undefined,
+    input: LocalInput,
+    dt: number,
+    staleness: number,
+    world?: PredictionWorld,
+  ): PredictionResult | null {
     if (!auth || !auth.alive || auth.segments.length === 0) {
       this.alive = false;
       return null;
@@ -76,17 +79,23 @@ export class LocalPredictor {
 
     this.length = auth.length;
     const frameStep = Math.min(dt, 0.05);
-    this.yaw = rotateYawToward(this.yaw, input.targetHeading, TURN * frameStep);
-    this.pitch = moveToward(this.pitch, 0, TURN * frameStep);
-    const speed = auth.lungeTicks > 0 ? BOOST : SPEED;
+    this.yaw = rotateYawToward(this.yaw, input.targetYaw, TURN * frameStep);
+    this.pitch = clampPitch(moveToward(this.pitch, input.targetPitch, TURN * frameStep));
+    const frenzyMultiplier = world && world.frenzyUntilTick > world.tick ? MOVE.FRENZY_SPEED : 1;
+    const speed = (auth.lungeTicks > 0 ? BOOST : SPEED) * frenzyMultiplier;
     const forward = forwardFromYawPitch(this.yaw, this.pitch);
     const next: Vec3 = {
       x: this.head.x + forward.x * speed * frameStep,
       y: this.head.y + forward.y * speed * frameStep,
       z: this.head.z + forward.z * speed * frameStep,
     };
+    if (world) {
+      const boundedY = Math.max(world.seabedY, Math.min(world.surfaceY, next.y));
+      if (boundedY !== next.y) this.pitch = 0;
+      next.y = boundedY;
+    }
 
-    const authSpeed = auth.lungeTicks > 0 ? BOOST : SPEED;
+    const authSpeed = (auth.lungeTicks > 0 ? BOOST : SPEED) * frenzyMultiplier;
     const authForward = forwardFromYawPitch(auth.yaw, auth.pitch);
     const authNow: Vec3 = {
       x: auth.segments[0].x + authForward.x * authSpeed * staleness,

@@ -4,12 +4,12 @@
 // Auto-reconnects with backoff.
 
 import { useCallback, useEffect, useRef, useState } from "react";
-import { TICKS_PER_SECOND } from "../../engine/index.js";
-import { type ClientMessage, type NetState, type ScoreEntry, type ServerMessage } from "../../protocol/index.js";
+import { clampPitch, normalizeYaw, shortestYawDelta, TICKS_PER_SECOND } from "../../engine/index.js";
+import { parseRealtimeServerMessage, withRealtimeProtocol, type ClientMessagePayload, type NetState, type ScoreEntry } from "../../protocol/index.js";
 
 const TICK_MS = 1000 / TICKS_PER_SECOND;
 
-export type ConnectionStatus = "connecting" | "open" | "closed";
+export type ConnectionStatus = "connecting" | "open" | "closed" | "incompatible";
 
 export interface DeathInfo {
   score: number;
@@ -40,7 +40,7 @@ export interface RoomSocket {
   status: ConnectionStatus;
   leaderboard: ScoreEntry[];
   death: DeathInfo | null;
-  setHeading: (angle: number) => void;
+  setOrientation: (yaw: number, pitch: number) => void;
   setBoost: (on: boolean) => void;
   rocket: () => void;
   respawn: () => void;
@@ -66,8 +66,8 @@ export function useRoomSocket(
   // time, so a late packet cannot make every remote entity visibly speed up or stall.
   const timelineOriginRef = useRef<number | null>(null);
   const wsRef = useRef<WebSocket | null>(null);
-  const lastHeadingRef = useRef<number>(Infinity);
-  const lastHeadingSentAtRef = useRef(0);
+  const lastOrientationRef = useRef({ yaw: Infinity, pitch: Infinity });
+  const lastOrientationSentAtRef = useRef(0);
   const lastBoostRef = useRef<boolean>(false);
   const youIdRef = useRef<string | null>(null);
   const identityRef = useRef(identity);
@@ -79,9 +79,9 @@ export function useRoomSocket(
   const [leaderboard, setLeaderboard] = useState<ScoreEntry[]>([]);
   const [death, setDeath] = useState<DeathInfo | null>(null);
 
-  const send = useCallback((msg: ClientMessage) => {
+  const send = useCallback((msg: ClientMessagePayload) => {
     const ws = wsRef.current;
-    if (ws && ws.readyState === WebSocket.OPEN) ws.send(JSON.stringify(msg));
+    if (ws && ws.readyState === WebSocket.OPEN) ws.send(JSON.stringify(withRealtimeProtocol(msg)));
   }, []);
 
   // Record a snapshot as the latest AND append it to the interpolation buffer.
@@ -140,12 +140,22 @@ export function useRoomSocket(
       };
 
       ws.onmessage = (ev) => {
-        let msg: ServerMessage;
+        let raw: unknown;
         try {
-          msg = JSON.parse(ev.data as string) as ServerMessage;
+          raw = JSON.parse(ev.data as string) as unknown;
         } catch {
           return;
         }
+        const parsed = parseRealtimeServerMessage(raw);
+        if (!parsed.ok) {
+          if (parsed.reason === "stale-schema") {
+            closedByUs = true;
+            setStatus("incompatible");
+            ws.close(1008, "realtime schema mismatch");
+          }
+          return;
+        }
+        const msg = parsed.message;
         switch (msg.t) {
           case "welcome":
             bufferRef.current = [];
@@ -170,8 +180,13 @@ export function useRoomSocket(
       };
 
       ws.onclose = (event) => {
-        setStatus("closed");
+        if (event.code === 1008 && event.reason === "realtime schema mismatch") {
+          closedByUs = true;
+          setStatus("incompatible");
+          return;
+        }
         if (closedByUs) return;
+        setStatus("closed");
         if (event.code === 1012 && event.reason === "maintenance") {
           window.location.assign("/");
           return;
@@ -210,14 +225,19 @@ export function useRoomSocket(
     };
   }, [roomId, roomName, send, pushSnapshot]);
 
-  const setHeading = useCallback(
-    (angle: number) => {
-      // Cap steering traffic at 10Hz; local prediction remains display-rate smooth.
+  const setOrientation = useCallback(
+    (yaw: number, pitch: number) => {
+      const safeYaw = normalizeYaw(yaw);
+      const safePitch = clampPitch(pitch);
       const now = performance.now();
-      if (now - lastHeadingSentAtRef.current < 100 || Math.abs(angle - lastHeadingRef.current) < 0.05) return;
-      lastHeadingSentAtRef.current = now;
-      lastHeadingRef.current = angle;
-      send({ t: "input", action: { type: "setHeading", playerId: "me", angle } });
+      const last = lastOrientationRef.current;
+      const changed = !Number.isFinite(last.yaw)
+        || Math.abs(shortestYawDelta(last.yaw, safeYaw)) >= 0.05
+        || Math.abs(last.pitch - safePitch) >= 0.04;
+      if (now - lastOrientationSentAtRef.current < 100 || !changed) return;
+      lastOrientationSentAtRef.current = now;
+      lastOrientationRef.current = { yaw: safeYaw, pitch: safePitch };
+      send({ t: "input", action: { type: "setOrientation", yaw: safeYaw, pitch: safePitch } });
     },
     [send],
   );
@@ -226,16 +246,16 @@ export function useRoomSocket(
     (on: boolean) => {
       if (on === lastBoostRef.current) return;
       lastBoostRef.current = on;
-      send({ t: "input", action: { type: "setBoost", playerId: "me", on } });
+      send({ t: "input", action: { type: "setBoost", on } });
     },
     [send],
   );
 
   const respawn = useCallback(() => {
     setDeath(null);
-    send({ t: "input", action: { type: "respawn", playerId: "me" } });
+    send({ t: "input", action: { type: "respawn" } });
   }, [send]);
-  const rocket = useCallback(() => send({ t: "input", action: { type: "rocket", playerId: "me" } }), [send]);
+  const rocket = useCallback(() => send({ t: "input", action: { type: "rocket" } }), [send]);
 
   return {
     stateRef,
@@ -245,7 +265,7 @@ export function useRoomSocket(
     status,
     leaderboard,
     death,
-    setHeading,
+    setOrientation,
     setBoost,
     rocket,
     respawn,

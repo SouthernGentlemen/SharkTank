@@ -2,7 +2,7 @@
 // travel over HTTP (tank/profile) and over the WebSocket (realtime play)
 // into the Room Durable Object.
 
-import { normalizeYaw } from "../engine/geometry3d.js";
+import { clampPitch, normalizeYaw } from "../engine/geometry3d.js";
 import type { Action, Explosion, Food, OceanVolume, RocketProjectile, RoomState, ScoreEntry, Snake, Vec3 } from "../engine/types.js";
 export { isFamilyFriendlyName, sanitizeDisplayName } from "./name-policy.js";
 
@@ -50,39 +50,36 @@ export interface ErrorResponse {
 }
 
 // ── WebSocket: realtime play (client ⇄ Room DO) ───────────────────────────────
-/** Temporary ST-112 adapter input. Remove when the 3D control/network task lands. */
-export interface LegacyPlanarHeadingAction {
-  type: "setHeading";
-  playerId: string;
-  angle: number;
+export const REALTIME_PROTOCOL_VERSION = 8 as const;
+
+export interface OrientationInputAction {
+  type: "setOrientation";
+  yaw: number;
+  pitch: number;
 }
 
 export type ClientInputAction =
-  | LegacyPlanarHeadingAction
-  | Extract<Action, { type: "setBoost" | "rocket" | "respawn" }>;
+  | OrientationInputAction
+  | { type: "setBoost"; on: boolean }
+  | { type: "rocket" }
+  | { type: "respawn" };
 
-export function legacyPlanarHeadingToOrientation(playerId: string, angle: number): Action | null {
-  if (!Number.isFinite(angle)) return null;
-  return { type: "setOrientation", playerId, yaw: normalizeYaw(angle), pitch: 0 };
-}
-
-/** Client → server. Current clients keep the bounded planar compatibility input only. */
-export type ClientMessage =
+export type ClientMessagePayload =
   | { t: "hello"; name: string; skin: string }
   | { t: "input"; action: ClientInputAction }
   | { t: "ping"; ts: number };
 
-/** A trimmed snake for the wire — segments are the bulk of the payload. */
+export type ClientMessage = ClientMessagePayload & { v: typeof REALTIME_PROTOCOL_VERSION };
+
+/** A trimmed shark for the wire — one authoritative head/body sample plus orientation. */
 export type NetSnake = Pick<
   Snake,
   "id" | "name" | "skin" | "segments" | "yaw" | "pitch" | "length" | "boosting" | "chargeTicks" | "lungeTicks" | "dashCooldownTick" | "rocketTicks" | "rocketCooldownTick" | "score" | "alive"
 >;
 
 /**
- * A dot on the wire. The server-side `id` is bookkeeping the client never reads, and
- * coordinates are rounded to a tenth of a world unit. A full tank ships hundreds of
- * dots ten times a second, so trimming this record is the single biggest lever on
- * snapshot size — it roughly halves the payload of a busy arena.
+ * A prey dot on the wire. The server-side id is bookkeeping the client never reads.
+ * Coordinates are rounded deliberately because food dominates a full-room snapshot.
  */
 export interface NetFood {
   x: number;
@@ -91,6 +88,16 @@ export interface NetFood {
   value: number;
   r: number;
 }
+
+export type NetRocket = Pick<
+  RocketProjectile,
+  "id" | "ownerId" | "x" | "y" | "z" | "yaw" | "pitch" | "expiresTick"
+>;
+
+export type NetExplosion = Pick<
+  Explosion,
+  "id" | "x" | "y" | "z" | "tick" | "skin" | "kind"
+>;
 
 /** The per-tick world snapshot broadcast to every connected client. */
 export interface NetState {
@@ -101,21 +108,124 @@ export interface NetState {
   surfaceY: number;
   snakes: NetSnake[];
   food: NetFood[];
-  rockets: RocketProjectile[];
-  explosions: Explosion[];
+  rockets: NetRocket[];
+  explosions: NetExplosion[];
   /** Tick the running Feeding Frenzy ends at; 0 or past when none is running. */
   frenzyUntilTick: number;
 }
 
-/** Server → client. */
-export type ServerMessage =
+export type ServerMessagePayload =
   | { t: "welcome"; youId: string; roomId: string; state: NetState }
   | { t: "state"; state: NetState }
   | { t: "leaderboard"; entries: ScoreEntry[] }
   | { t: "died"; by: string | null; score: number; respawnInMs: number }
   | { t: "pong"; ts: number };
 
-/** Round to `places` decimals — snapshot bytes, not display precision. */
+export type ServerMessage = ServerMessagePayload & { v: typeof REALTIME_PROTOCOL_VERSION };
+
+export type RealtimeParseFailureReason = "stale-schema" | "malformed";
+export type RealtimeParseResult<T> =
+  | { ok: true; message: T }
+  | { ok: false; reason: RealtimeParseFailureReason };
+
+function record(value: unknown): value is Record<string, unknown> {
+  return typeof value === "object" && value !== null;
+}
+
+export function withRealtimeProtocol<T extends { t: string }>(
+  message: T,
+): T & { v: typeof REALTIME_PROTOCOL_VERSION } {
+  return { ...message, v: REALTIME_PROTOCOL_VERSION };
+}
+
+export function normalizeClientInputAction(value: unknown): ClientInputAction | null {
+  if (!record(value) || typeof value.type !== "string") return null;
+  if (value.type === "setOrientation") {
+    if (typeof value.yaw !== "number" || !Number.isFinite(value.yaw)) return null;
+    if (typeof value.pitch !== "number" || !Number.isFinite(value.pitch)) return null;
+    return {
+      type: "setOrientation",
+      yaw: normalizeYaw(value.yaw),
+      pitch: clampPitch(value.pitch),
+    };
+  }
+  if (value.type === "setBoost" && typeof value.on === "boolean") return { type: "setBoost", on: value.on };
+  if (value.type === "rocket") return { type: "rocket" };
+  if (value.type === "respawn") return { type: "respawn" };
+  return null;
+}
+
+export function parseRealtimeClientMessage(value: unknown): RealtimeParseResult<ClientMessage> {
+  if (!record(value) || typeof value.t !== "string") return { ok: false, reason: "malformed" };
+  if (value.v !== REALTIME_PROTOCOL_VERSION) return { ok: false, reason: "stale-schema" };
+
+  if (value.t === "hello") {
+    if (typeof value.name !== "string" || typeof value.skin !== "string") return { ok: false, reason: "malformed" };
+    return { ok: true, message: { t: "hello", name: value.name, skin: value.skin, v: REALTIME_PROTOCOL_VERSION } };
+  }
+  if (value.t === "ping") {
+    if (typeof value.ts !== "number" || !Number.isFinite(value.ts)) return { ok: false, reason: "malformed" };
+    return { ok: true, message: { t: "ping", ts: value.ts, v: REALTIME_PROTOCOL_VERSION } };
+  }
+  if (value.t === "input") {
+    const action = normalizeClientInputAction(value.action);
+    if (!action) return { ok: false, reason: "malformed" };
+    return { ok: true, message: { t: "input", action, v: REALTIME_PROTOCOL_VERSION } };
+  }
+  return { ok: false, reason: "malformed" };
+}
+
+function isNetState(value: unknown): value is NetState {
+  return record(value)
+    && value.schemaVersion === 8
+    && typeof value.tick === "number"
+    && Number.isFinite(value.tick)
+    && Array.isArray(value.snakes)
+    && Array.isArray(value.food)
+    && Array.isArray(value.rockets)
+    && Array.isArray(value.explosions);
+}
+
+export function parseRealtimeServerMessage(value: unknown): RealtimeParseResult<ServerMessage> {
+  if (!record(value) || typeof value.t !== "string") return { ok: false, reason: "malformed" };
+  if (value.v !== REALTIME_PROTOCOL_VERSION) return { ok: false, reason: "stale-schema" };
+
+  if (value.t === "welcome") {
+    if (typeof value.youId !== "string" || typeof value.roomId !== "string" || !isNetState(value.state)) return { ok: false, reason: "malformed" };
+    return { ok: true, message: value as unknown as ServerMessage };
+  }
+  if (value.t === "state") {
+    if (!isNetState(value.state)) return { ok: false, reason: "malformed" };
+    return { ok: true, message: value as unknown as ServerMessage };
+  }
+  if (value.t === "leaderboard") {
+    if (!Array.isArray(value.entries)) return { ok: false, reason: "malformed" };
+    return { ok: true, message: value as unknown as ServerMessage };
+  }
+  if (value.t === "died") {
+    if ((value.by !== null && typeof value.by !== "string")
+      || typeof value.score !== "number" || !Number.isFinite(value.score)
+      || typeof value.respawnInMs !== "number" || !Number.isFinite(value.respawnInMs)) {
+      return { ok: false, reason: "malformed" };
+    }
+    return { ok: true, message: value as unknown as ServerMessage };
+  }
+  if (value.t === "pong") {
+    if (typeof value.ts !== "number" || !Number.isFinite(value.ts)) return { ok: false, reason: "malformed" };
+    return { ok: true, message: value as unknown as ServerMessage };
+  }
+  return { ok: false, reason: "malformed" };
+}
+
+/** Bind a validated client intent to the authenticated WebSocket session id. */
+export function clientInputToAction(input: ClientInputAction, playerId: string): Action {
+  if (input.type === "setOrientation") return { type: "setOrientation", playerId, yaw: input.yaw, pitch: input.pitch };
+  if (input.type === "setBoost") return { type: "setBoost", playerId, on: input.on };
+  if (input.type === "rocket") return { type: "rocket", playerId };
+  return { type: "respawn", playerId };
+}
+
+/** Round to places decimals — snapshot bytes, not display precision. */
 function round(value: number, places = 2): number {
   const factor = 10 ** places;
   return Math.round(value * factor) / factor;
@@ -126,9 +236,9 @@ export function toNetState(state: RoomState): NetState {
   return {
     schemaVersion: state.schemaVersion,
     tick: state.tick,
-    arenaRadius: state.ocean.radius,
-    seabedY: state.ocean.seabedY,
-    surfaceY: state.ocean.surfaceY,
+    arenaRadius: round(state.ocean.radius, 1),
+    seabedY: round(state.ocean.seabedY, 1),
+    surfaceY: round(state.ocean.surfaceY, 1),
     frenzyUntilTick: state.frenzyUntilTick ?? 0,
     snakes: Object.values(state.snakes).map((s) => ({
       id: s.id,
@@ -137,7 +247,7 @@ export function toNetState(state: RoomState): NetState {
       segments: s.segments.map((seg) => ({ x: round(seg.x), y: round(seg.y), z: round(seg.z) })),
       yaw: round(s.yaw, 3),
       pitch: round(s.pitch, 3),
-      length: s.length,
+      length: round(s.length, 2),
       boosting: s.boosting,
       chargeTicks: s.chargeTicks ?? 0,
       lungeTicks: s.lungeTicks ?? 0,
@@ -147,9 +257,26 @@ export function toNetState(state: RoomState): NetState {
       score: s.score,
       alive: s.alive,
     })),
-    food: state.food.map((f) => ({ x: round(f.x, 1), y: round(f.y, 1), z: round(f.z, 1), value: f.value, r: f.r })),
-    rockets: state.rockets ?? [],
-    explosions: state.explosions ?? [],
+    food: state.food.map((f) => ({ x: round(f.x, 1), y: round(f.y, 1), z: round(f.z, 1), value: f.value, r: round(f.r, 2) })),
+    rockets: (state.rockets ?? []).map((rocket) => ({
+      id: rocket.id,
+      ownerId: rocket.ownerId,
+      x: round(rocket.x),
+      y: round(rocket.y),
+      z: round(rocket.z),
+      yaw: round(rocket.yaw, 3),
+      pitch: round(rocket.pitch, 3),
+      expiresTick: rocket.expiresTick,
+    })),
+    explosions: (state.explosions ?? []).map((burst) => ({
+      id: burst.id,
+      x: round(burst.x),
+      y: round(burst.y),
+      z: round(burst.z),
+      tick: burst.tick,
+      skin: burst.skin,
+      kind: burst.kind,
+    })),
   };
 }
 

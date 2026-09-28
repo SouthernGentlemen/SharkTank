@@ -1,3 +1,5 @@
+import { lerpYawShortest } from "../../engine/index.js";
+
 export type SceneQuality = "low" | "medium" | "high";
 
 export interface SceneVec3 {
@@ -9,6 +11,26 @@ export interface SceneVec3 {
 export interface ChaseCameraPose {
   position: SceneVec3;
   lookAt: SceneVec3;
+}
+
+export interface OrientedScenePose extends SceneVec3 {
+  yaw: number;
+  pitch: number;
+}
+
+export function interpolateOrientedPose(
+  previous: OrientedScenePose,
+  current: OrientedScenePose,
+  alpha: number,
+  out: OrientedScenePose = { x: 0, y: 0, z: 0, yaw: 0, pitch: 0 },
+): OrientedScenePose {
+  const t = Math.max(0, Math.min(1, alpha));
+  out.x = previous.x + (current.x - previous.x) * t;
+  out.y = previous.y + (current.y - previous.y) * t;
+  out.z = previous.z + (current.z - previous.z) * t;
+  out.yaw = lerpYawShortest(previous.yaw, current.yaw, t);
+  out.pitch = previous.pitch + (current.pitch - previous.pitch) * t;
+  return out;
 }
 
 export const CAMERA_PROJECTION = {

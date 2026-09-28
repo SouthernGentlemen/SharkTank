@@ -59,8 +59,9 @@ describe("R3F-only gameplay renderer", () => {
     expect(actors).toContain("shark.pitch");
     expect(actors).toContain("predicted.head.y");
     expect(prey).toContain("pellet.y");
-    expect(fx).toContain("rocket.y");
-    expect(fx).toContain("rocket.pitch");
+    expect(fx).toContain("interpolateOrientedPose(prior, rocket");
+    expect(fx).toContain("rocketPose.y");
+    expect(fx).toContain("rocketPose.pitch");
     expect(fx).toContain("burst.y");
     expect(fx).toContain("frenzyUntilTick");
     expect(fx).toContain("arenaRadius");
