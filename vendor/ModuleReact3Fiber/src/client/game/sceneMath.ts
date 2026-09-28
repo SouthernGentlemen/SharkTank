@@ -77,7 +77,7 @@ export const CAMERA_PROJECTION = {
 export const OCEAN_CUES = {
   surfaceY: 12,
   seabedY: -12,
-  horizontalRadius: 210,
+  horizontalRadius: 82,
   depthReferenceRadius: 42,
 } as const;
 

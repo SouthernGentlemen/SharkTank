@@ -82,39 +82,6 @@ These are acceptance targets, not permission to fake authority:
 
 ## Open tasks
 
-### ST-118 — [FEAT] Build the stylized ocean arena
-
-**Goal**
-
-Replace the empty/grid-like arena presentation with a readable underwater world that gives motion and depth strong visual reference.
-
-**Scope**
-
-- Add a visible water surface and seabed defining the gameplay volume.
-- Add depth fog/haze and color attenuation appropriate to the quality preset.
-- Add lightweight caustic/light-shaft treatment.
-- Add suspended particulate and bubbles with quality-scaled density.
-- Add a readable outer play boundary that is obvious before the player crosses it.
-- Add large navigation landmarks: reef/rock formations, a wreck or equivalent focal structure, and central Feeding Frenzy landmark/feeding zone.
-- Keep competitive collision simple. Decorative geometry must not imply collision where none exists.
-- Use local assets with license/provenance recorded in repository history.
-- Keep the ocean stylized, saturated and readable; photorealism is not a requirement.
-
-**Non-goals**
-
-- No procedural open world.
-- No terrain destruction.
-- No general rigid-body physics.
-- No remote asset CDN.
-
-**Acceptance**
-
-- A stationary screenshot from several depths unmistakably reads as an ocean environment.
-- Players can judge climb/dive motion from world cues even with particles reduced.
-- Low quality retains surface/floor/boundary/landmark readability.
-
----
-
 ### ST-119 — [FEAT] Replace primitive actors with animated shark models
 
 **Goal**
