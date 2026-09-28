@@ -5,7 +5,6 @@ import {
   MOVE,
   SKINS,
   TICKS_PER_SECOND,
-  forwardFromYawPitch,
   shortestYawDelta,
   swimSpeedForLungeTicks,
 } from "../../engine/index.js";
@@ -17,9 +16,13 @@ import { LocalPredictor } from "./prediction.js";
 import {
   advanceBankRoll,
   interpolateOrientedPose,
-  resolveSceneQuality,
   type OrientedScenePose,
 } from "./sceneMath.js";
+import {
+  resolveSharkAnimation,
+  resolveSharkPresentationQuality,
+  sharkScaleForLength,
+} from "./sharkPresentation.js";
 import type { LocalInput } from "./useLocalInput.js";
 
 const MAX_SHARKS = 32;
@@ -31,6 +34,46 @@ const FALLBACK = new THREE.Color("#33b679");
 const EYE_WHITE = new THREE.Color("#ffffff");
 const PUPIL = new THREE.Color("#0b0a14");
 const skinBody = new Map(SKINS.map((skin) => [skin.id, new THREE.Color(skin.color)]));
+
+function setPartMatrix(
+  mesh: THREE.InstancedMesh,
+  index: number,
+  rootMatrix: THREE.Matrix4,
+  part: THREE.Object3D,
+  composed: THREE.Matrix4,
+  x: number,
+  y: number,
+  z: number,
+  rotationX: number,
+  rotationY: number,
+  rotationZ: number,
+  scaleX: number,
+  scaleY: number,
+  scaleZ: number,
+): void {
+  part.position.set(x, y, z);
+  part.rotation.set(rotationX, rotationY, rotationZ);
+  part.scale.set(scaleX, scaleY, scaleZ);
+  part.updateMatrix();
+  composed.multiplyMatrices(rootMatrix, part.matrix);
+  mesh.setMatrixAt(index, composed);
+}
+
+function setPartColor(
+  meshes: readonly THREE.InstancedMesh[],
+  index: number,
+  color: THREE.Color,
+): void {
+  for (const mesh of meshes) mesh.setColorAt(index, color);
+}
+
+function commitInstances(meshes: readonly THREE.InstancedMesh[], count: number): void {
+  for (const mesh of meshes) {
+    mesh.count = count;
+    mesh.instanceMatrix.needsUpdate = true;
+    if (mesh.instanceColor) mesh.instanceColor.needsUpdate = true;
+  }
+}
 
 export interface SnakeLabel {
   id: string;
@@ -55,11 +98,20 @@ export function ActorLayer({
   followRef: React.MutableRefObject<CameraFollowTarget>;
 }) {
   const { camera, size } = useThree();
-  const sharkMesh = useRef<THREE.InstancedMesh>(null);
+  const bodyMesh = useRef<THREE.InstancedMesh>(null);
+  const headMesh = useRef<THREE.InstancedMesh>(null);
+  const snoutMesh = useRef<THREE.InstancedMesh>(null);
+  const peduncleMesh = useRef<THREE.InstancedMesh>(null);
+  const tailFinMesh = useRef<THREE.InstancedMesh>(null);
+  const dorsalFinMesh = useRef<THREE.InstancedMesh>(null);
+  const pectoralLeftMesh = useRef<THREE.InstancedMesh>(null);
+  const pectoralRightMesh = useRef<THREE.InstancedMesh>(null);
   const eyeMesh = useRef<THREE.InstancedMesh>(null);
   const pupilMesh = useRef<THREE.InstancedMesh>(null);
   const predictor = useMemo(() => new LocalPredictor(), []);
-  const dummy = useMemo(() => new THREE.Object3D(), []);
+  const root = useMemo(() => new THREE.Object3D(), []);
+  const part = useMemo(() => new THREE.Object3D(), []);
+  const composed = useMemo(() => new THREE.Matrix4(), []);
   const position = useMemo(() => new THREE.Vector3(), []);
   const interpolatedPose = useMemo<OrientedScenePose>(() => ({ x: 0, y: 0, z: 0, yaw: 0, pitch: 0 }), []);
   const projected = useMemo(() => new THREE.Vector3(), []);
@@ -68,10 +120,31 @@ export function ActorLayer({
   const motionById = useMemo(() => new Map<string, { yaw: number; roll: number }>(), []);
 
   useFrame((_, dt) => {
-    const sharks = sharkMesh.current;
+    const body = bodyMesh.current;
+    const head = headMesh.current;
+    const snout = snoutMesh.current;
+    const peduncle = peduncleMesh.current;
+    const tailFin = tailFinMesh.current;
+    const dorsalFin = dorsalFinMesh.current;
+    const pectoralLeft = pectoralLeftMesh.current;
+    const pectoralRight = pectoralRightMesh.current;
     const eyes = eyeMesh.current;
     const pupils = pupilMesh.current;
-    if (!sharks || !eyes || !pupils) return;
+    if (
+      !body || !head || !snout || !peduncle || !tailFin || !dorsalFin
+      || !pectoralLeft || !pectoralRight || !eyes || !pupils
+    ) return;
+
+    const sharkParts = [
+      body,
+      head,
+      snout,
+      peduncle,
+      tailFin,
+      dorsalFin,
+      pectoralLeft,
+      pectoralRight,
+    ] as const;
 
     const frame = socket.frameAt(INTERP_DELAY_MS);
     if (!frame) {
@@ -111,7 +184,7 @@ export function ActorLayer({
 
       const previousShark = prevById.get(shark.id);
       const bodyColor = skinBody.get(shark.skin) ?? FALLBACK;
-      const sharkScale = Math.min(2.5, 0.72 + Math.sqrt(shark.length) * 0.12);
+      const sharkScale = sharkScaleForLength(shark.length);
 
       let yaw: number;
       let pitch: number;
@@ -120,11 +193,23 @@ export function ActorLayer({
         yaw = predicted.yaw;
         pitch = predicted.pitch;
       } else {
-        const head = shark.segments[0];
-        const priorHead = previousShark?.segments[0] ?? head;
+        const sharkHead = shark.segments[0];
+        const priorHead = previousShark?.segments[0] ?? sharkHead;
         interpolateOrientedPose(
-          { x: priorHead.x, y: priorHead.y, z: priorHead.z, yaw: previousShark?.yaw ?? shark.yaw, pitch: previousShark?.pitch ?? shark.pitch },
-          { x: head.x, y: head.y, z: head.z, yaw: shark.yaw, pitch: shark.pitch },
+          {
+            x: priorHead.x,
+            y: priorHead.y,
+            z: priorHead.z,
+            yaw: previousShark?.yaw ?? shark.yaw,
+            pitch: previousShark?.pitch ?? shark.pitch,
+          },
+          {
+            x: sharkHead.x,
+            y: sharkHead.y,
+            z: sharkHead.z,
+            yaw: shark.yaw,
+            pitch: shark.pitch,
+          },
           alpha,
           interpolatedPose,
         );
@@ -139,44 +224,98 @@ export function ActorLayer({
       motion.yaw = yaw;
       motionById.set(shark.id, motion);
 
-      dummy.position.copy(position);
-      dummy.rotation.set(motion.roll, -yaw, pitch);
-      dummy.scale.set(sharkScale * 1.75, sharkScale * 0.62, sharkScale * 0.82);
-      dummy.updateMatrix();
-      sharks.setMatrixAt(sharkCount, dummy.matrix);
+      const frenzy = state.frenzyUntilTick > state.tick ? MOVE.FRENZY_SPEED : 1;
+      const baseSpeed = MOVE.BASE_SPEED * TICKS_PER_SECOND;
+      const boostSpeed = MOVE.BOOST_SPEED * TICKS_PER_SECOND * frenzy;
+      const speed = swimSpeedForLungeTicks(shark.lungeTicks) * TICKS_PER_SECOND * frenzy;
+      const animation = resolveSharkAnimation({
+        tick: state.tick + alpha,
+        actorId: shark.id,
+        speed,
+        baseSpeed,
+        boostSpeed,
+        boosting: shark.boosting || shark.lungeTicks > 0,
+        pitch,
+        reducedMotion,
+      });
+
+      root.position.copy(position);
+      root.rotation.set(motion.roll, -yaw, pitch);
+      root.scale.setScalar(sharkScale);
+      root.updateMatrix();
+
+      setPartMatrix(
+        body, sharkCount, root.matrix, part, composed,
+        0, 0, 0,
+        0, animation.bodyYaw, 0,
+        1.72, 0.58, 0.66,
+      );
+      setPartMatrix(
+        head, sharkCount, root.matrix, part, composed,
+        1.42, 0.03, 0,
+        0, -animation.bodyYaw * 0.35, 0,
+        0.82, 0.59, 0.64,
+      );
+      setPartMatrix(
+        snout, sharkCount, root.matrix, part, composed,
+        2.08, -0.04, 0,
+        0, -animation.bodyYaw * 0.22, 0,
+        0.48, 0.42, 0.52,
+      );
+      setPartMatrix(
+        peduncle, sharkCount, root.matrix, part, composed,
+        -1.72, 0, animation.peduncleYaw * 0.18,
+        0, animation.peduncleYaw, 0,
+        0.76, 0.25, 0.3,
+      );
+      setPartMatrix(
+        tailFin, sharkCount, root.matrix, part, composed,
+        -2.45, 0, animation.tailYaw * 0.24,
+        0, animation.tailYaw, 0,
+        0.23, 0.98, 0.68,
+      );
+      setPartMatrix(
+        dorsalFin, sharkCount, root.matrix, part, composed,
+        -0.18, 0.78, 0,
+        0, animation.bodyYaw * 0.45, 0,
+        0.46, 0.92, 0.25,
+      );
+      setPartMatrix(
+        pectoralLeft, sharkCount, root.matrix, part, composed,
+        0.38, -0.2, 0.72,
+        Math.PI / 2 - 0.14, 0, -0.22 + animation.pectoralSweep,
+        0.36, 0.9, 0.25,
+      );
+      setPartMatrix(
+        pectoralRight, sharkCount, root.matrix, part, composed,
+        0.38, -0.2, -0.72,
+        -Math.PI / 2 + 0.14, 0, 0.22 - animation.pectoralSweep,
+        0.36, 0.9, 0.25,
+      );
 
       const glow = shark.boosting
         ? Math.min(0.72, 0.25 + (shark.chargeTicks ?? 0) * 0.07)
         : isMe ? 0.18 : 0;
-      sharks.setColorAt(
-        sharkCount,
-        glow ? tempColor.copy(bodyColor).lerp(WHITE, glow) : bodyColor,
-      );
+      const renderColor = glow ? tempColor.copy(bodyColor).lerp(WHITE, glow) : bodyColor;
+      setPartColor(sharkParts, sharkCount, renderColor);
       sharkCount += 1;
 
       if (eyeCount <= MAX_EYES - 2) {
-        const forward = forwardFromYawPitch(yaw, pitch);
-        const forwardX = forward.x;
-        const forwardY = forward.y;
-        const forwardZ = forward.z;
-        const sideX = -Math.sin(yaw);
-        const sideZ = Math.cos(yaw);
         for (const sign of [-1, 1] as const) {
-          const eyeX = position.x + forwardX * 0.34 + sideX * sign * 0.34;
-          const eyeY = position.y + 0.65 + forwardY * 0.34;
-          const eyeZ = position.z + forwardZ * 0.34 + sideZ * sign * 0.34;
-
-          dummy.position.set(eyeX, eyeY, eyeZ);
-          dummy.rotation.set(0, 0, 0);
-          dummy.scale.setScalar(0.26 * sharkScale);
-          dummy.updateMatrix();
-          eyes.setMatrixAt(eyeCount, dummy.matrix);
+          setPartMatrix(
+            eyes, eyeCount, root.matrix, part, composed,
+            1.74, 0.27, sign * 0.43,
+            0, 0, 0,
+            0.14, 0.14, 0.14,
+          );
           eyes.setColorAt(eyeCount, EYE_WHITE);
 
-          dummy.position.set(eyeX + forwardX * 0.16, eyeY + 0.09 + forwardY * 0.16, eyeZ + forwardZ * 0.16);
-          dummy.scale.setScalar(0.2);
-          dummy.updateMatrix();
-          pupils.setMatrixAt(eyeCount, dummy.matrix);
+          setPartMatrix(
+            pupils, eyeCount, root.matrix, part, composed,
+            1.86, 0.285, sign * 0.445,
+            0, 0, 0,
+            0.076, 0.076, 0.076,
+          );
           pupils.setColorAt(eyeCount, PUPIL);
           eyeCount += 1;
         }
@@ -184,7 +323,7 @@ export function ActorLayer({
 
       if (wantLabels) {
         projected.copy(position);
-        projected.y += 1.5;
+        projected.y += 1.25 * sharkScale;
         projected.project(camera);
         if (projected.z < 1) {
           const x = (projected.x * 0.5 + 0.5) * size.width;
@@ -203,9 +342,7 @@ export function ActorLayer({
       }
     }
 
-    sharks.count = sharkCount;
-    sharks.instanceMatrix.needsUpdate = true;
-    if (sharks.instanceColor) sharks.instanceColor.needsUpdate = true;
+    commitInstances(sharkParts, sharkCount);
     eyes.count = eyeCount;
     eyes.instanceMatrix.needsUpdate = true;
     if (eyes.instanceColor) eyes.instanceColor.needsUpdate = true;
@@ -239,11 +376,23 @@ export function ActorLayer({
       followRef.current.pitch = predicted.pitch;
     } else if (interpolatedMe?.segments[0]) {
       const prior = prevById.get(interpolatedMe.id);
-      const head = interpolatedMe.segments[0];
-      const priorHead = prior?.segments[0] ?? head;
+      const sharkHead = interpolatedMe.segments[0];
+      const priorHead = prior?.segments[0] ?? sharkHead;
       interpolateOrientedPose(
-        { x: priorHead.x, y: priorHead.y, z: priorHead.z, yaw: prior?.yaw ?? interpolatedMe.yaw, pitch: prior?.pitch ?? interpolatedMe.pitch },
-        { x: head.x, y: head.y, z: head.z, yaw: interpolatedMe.yaw, pitch: interpolatedMe.pitch },
+        {
+          x: priorHead.x,
+          y: priorHead.y,
+          z: priorHead.z,
+          yaw: prior?.yaw ?? interpolatedMe.yaw,
+          pitch: prior?.pitch ?? interpolatedMe.pitch,
+        },
+        {
+          x: sharkHead.x,
+          y: sharkHead.y,
+          z: sharkHead.z,
+          yaw: interpolatedMe.yaw,
+          pitch: interpolatedMe.pitch,
+        },
         alpha,
         interpolatedPose,
       );
@@ -263,7 +412,7 @@ export function ActorLayer({
         const baseSpeed = MOVE.BASE_SPEED * TICKS_PER_SECOND;
         const boostSpeed = MOVE.BOOST_SPEED * TICKS_PER_SECOND;
         const frenzy = state.frenzyUntilTick > state.tick ? MOVE.FRENZY_SPEED : 1;
-        followRef.current.sharkScale = Math.min(2.5, 0.72 + Math.sqrt(local.length) * 0.12);
+        followRef.current.sharkScale = sharkScaleForLength(local.length);
         followRef.current.speed = swimSpeedForLungeTicks(local.lungeTicks) * TICKS_PER_SECOND * frenzy;
         followRef.current.baseSpeed = baseSpeed;
         followRef.current.boostSpeed = boostSpeed * frenzy;
@@ -274,20 +423,48 @@ export function ActorLayer({
     }
   });
 
-  const detail = resolveSceneQuality(settings.graphics.quality).geometryDetail;
+  const sharkQuality = resolveSharkPresentationQuality(settings.graphics.quality);
 
   return (
     <>
-      <instancedMesh ref={sharkMesh} args={[undefined, undefined, MAX_SHARKS]} frustumCulled={false}>
-        <sphereGeometry args={[1, detail, detail]} />
+      <instancedMesh ref={bodyMesh} args={[undefined, undefined, MAX_SHARKS]} frustumCulled={false}>
+        <sphereGeometry args={[1, sharkQuality.radialSegments, sharkQuality.radialSegments]} />
+        <meshBasicMaterial toneMapped={false} />
+      </instancedMesh>
+      <instancedMesh ref={headMesh} args={[undefined, undefined, MAX_SHARKS]} frustumCulled={false}>
+        <sphereGeometry args={[1, sharkQuality.radialSegments, sharkQuality.radialSegments]} />
+        <meshBasicMaterial toneMapped={false} />
+      </instancedMesh>
+      <instancedMesh ref={snoutMesh} args={[undefined, undefined, MAX_SHARKS]} frustumCulled={false}>
+        <sphereGeometry args={[1, sharkQuality.radialSegments, sharkQuality.radialSegments]} />
+        <meshBasicMaterial toneMapped={false} />
+      </instancedMesh>
+      <instancedMesh ref={peduncleMesh} args={[undefined, undefined, MAX_SHARKS]} frustumCulled={false}>
+        <sphereGeometry args={[1, sharkQuality.radialSegments, sharkQuality.radialSegments]} />
+        <meshBasicMaterial toneMapped={false} />
+      </instancedMesh>
+      <instancedMesh ref={tailFinMesh} args={[undefined, undefined, MAX_SHARKS]} frustumCulled={false}>
+        <coneGeometry args={[1, 1, 3]} />
+        <meshBasicMaterial toneMapped={false} />
+      </instancedMesh>
+      <instancedMesh ref={dorsalFinMesh} args={[undefined, undefined, MAX_SHARKS]} frustumCulled={false}>
+        <coneGeometry args={[1, 1, 3]} />
+        <meshBasicMaterial toneMapped={false} />
+      </instancedMesh>
+      <instancedMesh ref={pectoralLeftMesh} args={[undefined, undefined, MAX_SHARKS]} frustumCulled={false}>
+        <coneGeometry args={[1, 1, 3]} />
+        <meshBasicMaterial toneMapped={false} />
+      </instancedMesh>
+      <instancedMesh ref={pectoralRightMesh} args={[undefined, undefined, MAX_SHARKS]} frustumCulled={false}>
+        <coneGeometry args={[1, 1, 3]} />
         <meshBasicMaterial toneMapped={false} />
       </instancedMesh>
       <instancedMesh ref={eyeMesh} args={[undefined, undefined, MAX_EYES]} frustumCulled={false}>
-        <sphereGeometry args={[1, 10, 10]} />
+        <sphereGeometry args={[1, 8, 8]} />
         <meshBasicMaterial toneMapped={false} />
       </instancedMesh>
       <instancedMesh ref={pupilMesh} args={[undefined, undefined, MAX_EYES]} frustumCulled={false}>
-        <sphereGeometry args={[1, 8, 8]} />
+        <sphereGeometry args={[1, 6, 6]} />
         <meshBasicMaterial toneMapped={false} />
       </instancedMesh>
     </>

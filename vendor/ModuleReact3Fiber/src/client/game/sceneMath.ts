@@ -164,9 +164,12 @@ export function advanceBankRoll(
   dt: number,
   reducedMotion = false,
 ): number {
-  if (reducedMotion) return 0;
-  const maxBank = 0.42;
-  const target = Math.max(-maxBank, Math.min(maxBank, -yawRate * 0.16));
+  const maxBank = reducedMotion ? 0.24 : 0.42;
+  const target = Math.max(
+    -maxBank,
+    Math.min(maxBank, -yawRate * (reducedMotion ? 0.09 : 0.16)),
+  );
+  if (reducedMotion) return Math.abs(target) < 0.0005 ? 0 : target;
   const frameStep = Math.max(0, Math.min(0.05, Number.isFinite(dt) ? dt : 0));
   const response = Math.abs(target) > 0.01 ? 9 : 6;
   const blend = 1 - Math.exp(-response * frameStep);
