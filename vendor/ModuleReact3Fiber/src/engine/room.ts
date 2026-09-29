@@ -78,14 +78,34 @@ export const PREY_SPECS: Record<PreyKind, {
  *  removed the reason to fight over the middle. */
 const CENTER_FOOD_SHARE = 0.55;
 const CENTER_FOOD_RADIUS = 0.3; // fraction of the arena radius that counts as "the middle"
+
 // ── Feeding Frenzy ──
-// Every FRENZY_PERIOD ticks a chum drop lands dead centre and the whole tank goes
-// hungry for FRENZY_TICKS: faster sharks, halved dash cooldown, richer dots. Driven
-// entirely off `state.tick`, so it replays deterministically like everything else.
-const FRENZY_PERIOD = TICKS_PER_SECOND * 75;
-const FRENZY_TICKS = TICKS_PER_SECOND * 20;
-const FRENZY_SPEED = 1.16;
-const FRENZY_CHUM = PREY_BUDGET.frenzyChum;
+// This is authoritative gameplay, not presentation tuning. The shared values let the
+// client explain server truth without inventing its own schedule, volume, or modifiers.
+export const FRENZY_RULES = {
+  periodTicks: TICKS_PER_SECOND * 75,
+  durationTicks: TICKS_PER_SECOND * 20,
+  speedMultiplier: 1.16,
+  dashCooldownMultiplier: 0.5,
+  volumeRadiusShare: 0.3,
+  volumeHalfHeightShare: 0.32,
+  placementInset: 0.88,
+  chumCount: PREY_BUDGET.frenzyChum,
+  baseChumValue: PREY_SPECS.chum.value,
+  bonusChumValue: 5,
+  bonusChumEvery: 3,
+} as const;
+
+export interface FrenzyVolume {
+  center: Vec3;
+  radius: number;
+  halfHeight: number;
+}
+
+const FRENZY_PERIOD = FRENZY_RULES.periodTicks;
+const FRENZY_TICKS = FRENZY_RULES.durationTicks;
+const FRENZY_SPEED = FRENZY_RULES.speedMultiplier;
+const FRENZY_CHUM = FRENZY_RULES.chumCount;
 // With 24 bots in the tank, a high retire score let two or three monsters accumulate and
 // farm every fresh spawn. A lower ceiling keeps the size ladder climbable.
 const BOT_RETIRE_SCORE = 240;
@@ -508,33 +528,74 @@ export function spawnBots(state: RoomState, n: number): void {
 }
 
 // ── Feeding Frenzy ───────────────────────────────────────────────────────────────
+export interface FrenzyTiming {
+  active: boolean;
+  startTick: number | null;
+  endTick: number;
+  remainingTicks: number;
+}
+
+/** The authoritative central event cylinder. Placement and bot navigation share it. */
+export function frenzyVolumeFor(ocean: OceanVolume): FrenzyVolume {
+  const height = Math.max(2, ocean.surfaceY - ocean.seabedY);
+  const desiredHalfHeight = height * FRENZY_RULES.volumeHalfHeightShare;
+  const maxHalfHeight = Math.max(0.5, height / 2 - PREY_BUDGET.boundaryMargin);
+  return {
+    center: { x: 0, y: (ocean.seabedY + ocean.surfaceY) / 2, z: 0 },
+    radius: Math.max(2, ocean.radius * FRENZY_RULES.volumeRadiusShare),
+    halfHeight: Math.min(desiredHalfHeight, maxHalfHeight),
+  };
+}
+
+export function isInsideFrenzyVolume(point: Vec3, ocean: OceanVolume, margin = 0): boolean {
+  const volume = frenzyVolumeFor(ocean);
+  const radius = Math.max(0, volume.radius + margin);
+  return horizontalRadiusSquared(point) <= radius * radius
+    && Math.abs(point.y - volume.center.y) <= volume.halfHeight + margin;
+}
+
+/** Derive active/start/end/remaining state only from authoritative snapshot ticks. */
+export function frenzyTiming(state: { tick: number; frenzyUntilTick?: number }): FrenzyTiming {
+  const endTick = Math.max(0, Math.trunc(state.frenzyUntilTick ?? 0));
+  const active = endTick > state.tick;
+  return {
+    active,
+    startTick: active ? endTick - FRENZY_RULES.durationTicks : null,
+    endTick,
+    remainingTicks: active ? endTick - state.tick : 0,
+  };
+}
+
 /** True while the tank is in a Feeding Frenzy. Shared with the client HUD/renderer. */
 export function isFrenzy(state: { tick: number; frenzyUntilTick?: number }): boolean {
-  return (state.frenzyUntilTick ?? 0) > state.tick;
+  return frenzyTiming(state).active;
 }
 
 /** Ticks left in the current frenzy (0 when none is running). */
 export function frenzyTicksLeft(state: { tick: number; frenzyUntilTick?: number }): number {
-  return Math.max(0, (state.frenzyUntilTick ?? 0) - state.tick);
+  return frenzyTiming(state).remainingTicks;
 }
 
-/** Fat, high-value chum shower dropped in the middle when a frenzy opens. */
+/** Deterministic, vertically stratified chum shower inside the authoritative volume. */
 function dropChum(state: RoomState): void {
-  const centerY = (state.ocean.seabedY + state.ocean.surfaceY) / 2;
-  const halfDepth = (state.ocean.surfaceY - state.ocean.seabedY) * 0.18;
+  const volume = frenzyVolumeFor(state.ocean);
+  const depthStep = (volume.halfHeight * 2 * FRENZY_RULES.placementInset) / FRENZY_CHUM;
   for (let i = 0; i < FRENZY_CHUM; i += 1) {
     const angle = (i / FRENZY_CHUM) * Math.PI * 2 + randRange(state, -0.3, 0.3);
-    const radius = randRange(state, 0.8, state.ocean.radius * CENTER_FOOD_RADIUS * 0.9);
+    const radius = Math.sqrt(rand(state)) * volume.radius * FRENZY_RULES.placementInset;
+    const depthBase = -volume.halfHeight * FRENZY_RULES.placementInset + depthStep * (i + 0.5);
+    const y = volume.center.y + depthBase + randRange(state, -depthStep * 0.3, depthStep * 0.3);
     const school = i % Math.min(8, PREY_BUDGET.schools);
     const orientation = schoolOrientation(school, state.tick);
+    const bonus = i % FRENZY_RULES.bonusChumEvery === 0;
     state.food.push({
       id: `chum-${state.tick}-${i}`,
       kind: "chum",
       x: Math.cos(angle) * radius,
-      y: randRange(state, centerY - halfDepth, centerY + halfDepth),
+      y,
       z: Math.sin(angle) * radius,
-      value: i % 3 === 0 ? 5 : PREY_SPECS.chum.value,
-      r: i % 3 === 0 ? 0.95 : PREY_SPECS.chum.r,
+      value: bonus ? FRENZY_RULES.bonusChumValue : FRENZY_RULES.baseChumValue,
+      r: bonus ? 0.95 : PREY_SPECS.chum.r,
       yaw: orientation.yaw,
       pitch: orientation.pitch,
       school,
@@ -543,18 +604,26 @@ function dropChum(state: RoomState): void {
   state.explosions ??= [];
   state.explosions.push({
     id: `chum-burst-${state.tick}`,
-    x: 0,
-    y: centerY,
-    z: 0,
+    x: volume.center.x,
+    y: volume.center.y,
+    z: volume.center.z,
     tick: state.tick,
     skin: "gold",
     kind: "frenzy",
   });
 }
 
-/** Open a frenzy on schedule. Purely tick-driven so replays reproduce it exactly. */
+function retireFrenzyFood(state: RoomState): void {
+  state.food = state.food.filter((actor) => actor.kind !== "chum");
+}
+
+/** Open and close the event from authoritative ticks; expired event food is retired here. */
 function stepFrenzy(state: RoomState): void {
   state.frenzyUntilTick ??= 0;
+  if (state.frenzyUntilTick > 0 && state.tick >= state.frenzyUntilTick) {
+    retireFrenzyFood(state);
+    state.frenzyUntilTick = 0;
+  }
   if (state.tick % FRENZY_PERIOD !== 0 || state.tick === 0) return;
   state.frenzyUntilTick = state.tick + FRENZY_TICKS;
   dropChum(state);
@@ -599,7 +668,7 @@ export function applyAction(state: RoomState, action: Action): RoomState {
           s.lungeTicks = DASH_TICKS;
           // A frenzy halves the dash cooldown, which is what makes the twenty seconds
           // feel different rather than just looking different.
-          s.dashCooldownTick = state.tick + Math.round(DASH_COOLDOWN_TICKS * (isFrenzy(state) ? 0.5 : 1));
+          s.dashCooldownTick = state.tick + Math.round(DASH_COOLDOWN_TICKS * (isFrenzy(state) ? FRENZY_RULES.dashCooldownMultiplier : 1));
         }
         s.chargeTicks = 0;
         s.boosting = false;

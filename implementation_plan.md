@@ -83,35 +83,6 @@ These are acceptance targets, not permission to fake authority:
 ## Open tasks
 
 
-### ST-123 — [FEAT] Turn Feeding Frenzy into a 3D server-wide event
-
-**Goal**
-
-Make the existing deterministic event the signature convergence moment of each arena.
-
-**Scope**
-
-- Spawn frenzy prey/chum throughout a defined 3D central volume rather than a flat center disc.
-- Make the feeding landmark/environment visibly activate.
-- Give all clients an unmistakable visual, audio and captioned start/end cue.
-- Make frenzy affect movement/cooldowns/prey value only through documented authoritative rules.
-- Make bots converge intelligently through depth.
-- Keep event timing deterministic from round/tick state.
-- Reduce effects appropriately for reduced-motion and low-quality settings without hiding event state.
-
-**Non-goals**
-
-- No random client-only event schedule.
-- No loot boxes or progression economy.
-
-**Acceptance**
-
-- Joining mid-frenzy yields the correct remaining time and world state.
-- Every participant converges on the same authoritative 3D event.
-- The event is understandable with sound off and with reduced motion enabled.
-
----
-
 ### ST-124 — [FEAT] Add round structure and an Apex climax
 
 **Goal**

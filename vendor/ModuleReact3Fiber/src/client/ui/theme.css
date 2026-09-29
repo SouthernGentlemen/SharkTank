@@ -544,3 +544,6 @@ body {
 
 .snake-label-layer{position:absolute;inset:0;z-index:9;overflow:hidden;pointer-events:none}
 .snake-label text{fill:#0b0a14;font:600 .75rem ui-sans-serif,system-ui,sans-serif;paint-order:stroke;stroke:rgba(255,255,255,.12);stroke-width:.4px}.snake-label.is-me text{font-size:.85rem;font-weight:800}
+
+.frenzy-banner--reduced-motion,.frenzy-banner--ended{animation:none}
+.frenzy-banner--ended{border-color:#8ee9dc;background:rgba(8,74,78,.94);box-shadow:0 10px 24px rgba(8,74,78,.3)}

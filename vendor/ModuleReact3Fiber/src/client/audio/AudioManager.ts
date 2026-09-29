@@ -3,13 +3,15 @@
 // systems-menu sliders; everything is gated behind a user gesture (the game is entered
 // via a click, so resume() succeeds). Each SFX also names a caption for the captions UI.
 
-export type Sfx = "eat" | "boost" | "die" | "spawn";
+export type Sfx = "eat" | "boost" | "die" | "spawn" | "frenzyStart" | "frenzyEnd";
 
 export const SFX_CAPTION: Record<Sfx, string> = {
   eat: "♪ pickup",
   boost: "» boost",
   die: "✖ crash",
   spawn: "✧ spawn",
+  frenzyStart: "Feeding Frenzy started",
+  frenzyEnd: "Feeding Frenzy ended",
 };
 
 // A minor pentatonic-ish arpeggio (Hz) for the loop.
@@ -174,6 +176,22 @@ class AudioManagerImpl {
         env(g, t, 0.2, 0.18);
         osc.start(t);
         osc.stop(t + 0.2);
+        break;
+      case "frenzyStart":
+        osc.type = "sawtooth";
+        osc.frequency.setValueAtTime(220, t);
+        osc.frequency.exponentialRampToValueAtTime(880, t + 0.3);
+        env(g, t, 0.2, 0.34);
+        osc.start(t);
+        osc.stop(t + 0.36);
+        break;
+      case "frenzyEnd":
+        osc.type = "triangle";
+        osc.frequency.setValueAtTime(520, t);
+        osc.frequency.exponentialRampToValueAtTime(220, t + 0.24);
+        env(g, t, 0.16, 0.28);
+        osc.start(t);
+        osc.stop(t + 0.3);
         break;
     }
   }

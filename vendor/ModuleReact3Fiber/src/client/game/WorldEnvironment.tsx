@@ -3,6 +3,7 @@ import { useMemo, useRef } from "react";
 import * as THREE from "three";
 import type { RoomSocket } from "../net/useRoomSocket.js";
 import type { Settings } from "../settings/SettingsContext.js";
+import { frenzyVolumeFor } from "../../engine/index.js";
 import {
   ENVIRONMENT_LANDMARKS,
   makeEnvironmentSeeds,
@@ -103,6 +104,11 @@ export function WorldEnvironment({ socket, settings }: { socket: RoomSocket; set
     seabedY: OCEAN_CUES.seabedY,
     surfaceY: OCEAN_CUES.surfaceY,
   });
+  const fallbackFrenzy = frenzyVolumeFor({
+    radius: fallback.radius,
+    seabedY: fallback.seabedY,
+    surfaceY: fallback.surfaceY,
+  });
 
   const surfaceRef = useRef<THREE.Mesh>(null);
   const seabedRef = useRef<THREE.Mesh>(null);
@@ -196,19 +202,24 @@ export function WorldEnvironment({ socket, settings }: { socket: RoomSocket; set
       placeRadial(wreckRef.current, wreck.angle, wreck.radialShare, cues.radius, cues.seabedY + 0.25);
     }
 
+    const frenzyOn = Boolean(state && state.frenzyUntilTick > state.tick);
+    const frenzyVolume = frenzyVolumeFor({
+      radius: cues.radius,
+      seabedY: cues.seabedY,
+      surfaceY: cues.surfaceY,
+    });
     if (frenzyGroupRef.current) {
-      frenzyGroupRef.current.position.y = cues.midY;
-      frenzyGroupRef.current.scale.set(cues.frenzyRadius, 1, cues.frenzyRadius);
-      if (!reducedMotion) frenzyGroupRef.current.rotation.y += dt * 0.08;
+      frenzyGroupRef.current.position.y = frenzyVolume.center.y;
+      frenzyGroupRef.current.scale.set(frenzyVolume.radius, 1, frenzyVolume.radius);
+      if (frenzyOn && !reducedMotion) frenzyGroupRef.current.rotation.y += dt * 0.08;
     }
     if (frenzyBeamRef.current) {
       frenzyBeamRef.current.scale.set(
-        1 / Math.max(1, cues.frenzyRadius),
-        cues.height * 0.72,
-        1 / Math.max(1, cues.frenzyRadius),
+        1 / Math.max(1, frenzyVolume.radius),
+        frenzyVolume.halfHeight * 2,
+        1 / Math.max(1, frenzyVolume.radius),
       );
     }
-    const frenzyOn = Boolean(state && state.frenzyUntilTick > state.tick);
     if (frenzyMaterialRef.current) {
       frenzyMaterialRef.current.color.set(frenzyOn ? FRENZY_ACTIVE : FRENZY);
       frenzyMaterialRef.current.opacity = frenzyOn
@@ -381,7 +392,15 @@ export function WorldEnvironment({ socket, settings }: { socket: RoomSocket; set
         </group>
       )}
 
-      <group ref={frenzyGroupRef} position={[0, fallback.midY, 0]}>
+      <group
+        ref={frenzyGroupRef}
+        position={[0, fallbackFrenzy.center.y, 0]}
+        scale={[fallbackFrenzy.radius, 1, fallbackFrenzy.radius]}
+      >
+        <mesh>
+          <cylinderGeometry args={[0.09, 0.14, 4, 10]} />
+          <meshStandardMaterial color={FRENZY} emissive={FRENZY} emissiveIntensity={0.22} roughness={0.42} />
+        </mesh>
         <mesh ref={frenzyBeamRef}>
           <cylinderGeometry args={[0.12, 0.4, 1, 12, 1, true]} />
           <meshBasicMaterial
@@ -394,7 +413,7 @@ export function WorldEnvironment({ socket, settings }: { socket: RoomSocket; set
             blending={THREE.AdditiveBlending}
           />
         </mesh>
-        {[0.34, 0.62, 0.9].map((radius, index) => (
+        {[0.34, 0.62, 0.9].slice(0, environmentQuality.frenzyRingCount).map((radius, index) => (
           <mesh key={radius} rotation={[-Math.PI / 2, 0, 0]} position={[0, (index - 1) * 0.22, 0]}>
             <ringGeometry args={[radius, radius + 0.025, sceneQuality.ringSegments]} />
             <meshBasicMaterial
