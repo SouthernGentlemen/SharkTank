@@ -150,7 +150,12 @@ export class Room implements DurableObject {
     for (const session of this.sessions.values()) {
       if (!session.joined) continue;
       const snake = this.room.snakes[session.id], alive = snake?.alive ?? false;
-      if (session.wasAlive && !alive && snake) { this.send(session.ws, { t: "died", by: null, score: snake.score, respawnInMs: Math.max(0, (snake.respawnTick - this.room.tick) * (1000 / TICKS_PER_SECOND)) }); this.emitEvent("death", session.name, `score ${snake.score}`); }
+      if (session.wasAlive && !alive && snake) {
+        const death = snake.lastDeath;
+        const killer = death?.killerId ? this.room.snakes[death.killerId]?.name ?? death.killerId : null;
+        this.send(session.ws, { t: "died", by: killer, action: death?.action ?? null, tick: death?.tick ?? this.room.tick, score: snake.score, respawnInMs: Math.max(0, (snake.respawnTick - this.room.tick) * (1000 / TICKS_PER_SECOND)) });
+        this.emitEvent("death", session.name, `action=${death?.action ?? "unknown"};killer=${killer ?? "none"};tick=${death?.tick ?? this.room.tick};score=${snake.score}`);
+      }
       if (session.wasAlive !== alive) { session.wasAlive = alive; this.saveAttachment(session); }
     }
     if (this.room.tick % STATE_BROADCAST_EVERY === 0) this.broadcast({ t: "state", state: toNetState(this.room) });

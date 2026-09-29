@@ -3,7 +3,7 @@
 // into the Room Durable Object.
 
 import { clampPitch, normalizeYaw } from "../engine/geometry3d.js";
-import type { Action, Explosion, OceanVolume, Prey, RocketProjectile, RoomState, ScoreEntry, Snake, Vec3 } from "../engine/types.js";
+import type { Action, DeathAction, Explosion, OceanVolume, Prey, RoomState, ScoreEntry, Snake, Vec3 } from "../engine/types.js";
 export { isFamilyFriendlyName, sanitizeDisplayName } from "./name-policy.js";
 
 // ── HTTP: health / tank / profile ─────────────────────────────────────────────
@@ -50,7 +50,7 @@ export interface ErrorResponse {
 }
 
 // ── WebSocket: realtime play (client ⇄ Room DO) ───────────────────────────────
-export const REALTIME_PROTOCOL_VERSION = 9 as const;
+export const REALTIME_PROTOCOL_VERSION = 10 as const;
 
 export interface OrientationInputAction {
   type: "setOrientation";
@@ -61,7 +61,7 @@ export interface OrientationInputAction {
 export type ClientInputAction =
   | OrientationInputAction
   | { type: "setBoost"; on: boolean }
-  | { type: "rocket" }
+  | { type: "bite" }
   | { type: "respawn" };
 
 export type ClientMessagePayload =
@@ -74,7 +74,7 @@ export type ClientMessage = ClientMessagePayload & { v: typeof REALTIME_PROTOCOL
 /** A trimmed shark for the wire — one authoritative head/body sample plus orientation. */
 export type NetSnake = Pick<
   Snake,
-  "id" | "name" | "skin" | "segments" | "yaw" | "pitch" | "length" | "boosting" | "chargeTicks" | "lungeTicks" | "dashCooldownTick" | "rocketTicks" | "rocketCooldownTick" | "score" | "alive"
+  "id" | "name" | "skin" | "segments" | "yaw" | "pitch" | "length" | "boosting" | "chargeTicks" | "lungeTicks" | "dashCooldownTick" | "health" | "biteCooldownTick" | "score" | "alive"
 >;
 
 /**
@@ -86,10 +86,6 @@ export type NetPrey = Pick<
   "id" | "kind" | "x" | "y" | "z" | "value" | "r" | "yaw" | "pitch"
 >;
 
-export type NetRocket = Pick<
-  RocketProjectile,
-  "id" | "ownerId" | "x" | "y" | "z" | "yaw" | "pitch" | "expiresTick"
->;
 
 export type NetExplosion = Pick<
   Explosion,
@@ -98,14 +94,13 @@ export type NetExplosion = Pick<
 
 /** The per-tick world snapshot broadcast to every connected client. */
 export interface NetState {
-  schemaVersion: 9;
+  schemaVersion: 10;
   tick: number;
   arenaRadius: number;
   seabedY: number;
   surfaceY: number;
   snakes: NetSnake[];
   food: NetPrey[];
-  rockets: NetRocket[];
   explosions: NetExplosion[];
   /** Tick the running Feeding Frenzy ends at; 0 or past when none is running. */
   frenzyUntilTick: number;
@@ -115,7 +110,7 @@ export type ServerMessagePayload =
   | { t: "welcome"; youId: string; roomId: string; state: NetState }
   | { t: "state"; state: NetState }
   | { t: "leaderboard"; entries: ScoreEntry[] }
-  | { t: "died"; by: string | null; score: number; respawnInMs: number }
+  | { t: "died"; by: string | null; action: DeathAction | null; tick: number; score: number; respawnInMs: number }
   | { t: "pong"; ts: number };
 
 export type ServerMessage = ServerMessagePayload & { v: typeof REALTIME_PROTOCOL_VERSION };
@@ -147,7 +142,7 @@ export function normalizeClientInputAction(value: unknown): ClientInputAction | 
     };
   }
   if (value.type === "setBoost" && typeof value.on === "boolean") return { type: "setBoost", on: value.on };
-  if (value.type === "rocket") return { type: "rocket" };
+  if (value.type === "bite") return { type: "bite" };
   if (value.type === "respawn") return { type: "respawn" };
   return null;
 }
@@ -174,12 +169,11 @@ export function parseRealtimeClientMessage(value: unknown): RealtimeParseResult<
 
 function isNetState(value: unknown): value is NetState {
   return record(value)
-    && value.schemaVersion === 9
+    && value.schemaVersion === 10
     && typeof value.tick === "number"
     && Number.isFinite(value.tick)
     && Array.isArray(value.snakes)
     && Array.isArray(value.food)
-    && Array.isArray(value.rockets)
     && Array.isArray(value.explosions);
 }
 
@@ -201,6 +195,8 @@ export function parseRealtimeServerMessage(value: unknown): RealtimeParseResult<
   }
   if (value.t === "died") {
     if ((value.by !== null && typeof value.by !== "string")
+      || (value.action !== null && value.action !== "bite" && value.action !== "boundary" && value.action !== "retire")
+      || typeof value.tick !== "number" || !Number.isFinite(value.tick)
       || typeof value.score !== "number" || !Number.isFinite(value.score)
       || typeof value.respawnInMs !== "number" || !Number.isFinite(value.respawnInMs)) {
       return { ok: false, reason: "malformed" };
@@ -218,7 +214,7 @@ export function parseRealtimeServerMessage(value: unknown): RealtimeParseResult<
 export function clientInputToAction(input: ClientInputAction, playerId: string): Action {
   if (input.type === "setOrientation") return { type: "setOrientation", playerId, yaw: input.yaw, pitch: input.pitch };
   if (input.type === "setBoost") return { type: "setBoost", playerId, on: input.on };
-  if (input.type === "rocket") return { type: "rocket", playerId };
+  if (input.type === "bite") return { type: "bite", playerId };
   return { type: "respawn", playerId };
 }
 
@@ -249,8 +245,8 @@ export function toNetState(state: RoomState): NetState {
       chargeTicks: s.chargeTicks ?? 0,
       lungeTicks: s.lungeTicks ?? 0,
       dashCooldownTick: s.dashCooldownTick ?? 0,
-      rocketTicks: s.rocketTicks ?? 0,
-      rocketCooldownTick: s.rocketCooldownTick ?? 0,
+      health: s.health,
+      biteCooldownTick: s.biteCooldownTick ?? 0,
       score: s.score,
       alive: s.alive,
     })),
@@ -265,16 +261,7 @@ export function toNetState(state: RoomState): NetState {
       yaw: round(f.yaw, 3),
       pitch: round(f.pitch, 3),
     })),
-    rockets: (state.rockets ?? []).map((rocket) => ({
-      id: rocket.id,
-      ownerId: rocket.ownerId,
-      x: round(rocket.x),
-      y: round(rocket.y),
-      z: round(rocket.z),
-      yaw: round(rocket.yaw, 3),
-      pitch: round(rocket.pitch, 3),
-      expiresTick: rocket.expiresTick,
-    })),
+
     explosions: (state.explosions ?? []).map((burst) => ({
       id: burst.id,
       x: round(burst.x),
@@ -299,4 +286,4 @@ export function roomSocketPath(roomId: string): string {
   return `/room/${encodeURIComponent(roomId)}/ws`;
 }
 
-export type { Action, Explosion, OceanVolume, Prey, PreyKind, RocketProjectile, RoomState, ScoreEntry, Snake, Vec3 } from "../engine/types.js";
+export type { Action, DeathAction, Explosion, OceanVolume, Prey, PreyKind, RoomState, ScoreEntry, Snake, Vec3 } from "../engine/types.js";

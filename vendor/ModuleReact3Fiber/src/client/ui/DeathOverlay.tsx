@@ -24,9 +24,17 @@ export function DeathOverlay({
   const { announce } = useAnnouncer();
   const [remaining, setRemaining] = useState(Math.ceil(death.respawnInMs / 1000));
 
+  const cause = death.action === "bite"
+    ? death.by ? `Bitten by ${death.by}.` : "Defeated by a bite."
+    : death.action === "boundary"
+      ? "You crossed the arena boundary."
+      : death.action === "retire"
+        ? "This shark retired from the round."
+        : "Shark eliminated.";
+
   useEffect(() => {
-    announce(`You died. Final score ${death.score} points.`, "assertive");
-  }, [death.score, announce]);
+    announce(`${cause} Final score ${death.score} points.`, "assertive");
+  }, [cause, death.score, announce]);
 
   useEffect(() => {
     const end = death.at + death.respawnInMs;
@@ -56,7 +64,7 @@ export function DeathOverlay({
       >
         <h2 id="death-title">Shark eliminated</h2>
         <p id="death-desc">
-          <strong>{death.score}</strong> points this life.
+          {cause} <strong>{death.score}</strong> points this life.
         </p>
         <div className="stack">
           <button ref={respawnRef} className="btn btn--primary btn--lg btn--block" onClick={onRespawn} disabled={!ready}>

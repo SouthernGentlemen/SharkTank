@@ -48,7 +48,7 @@ export function useLocalInput(
   touchInputRef?: React.MutableRefObject<TwinStickState>,
   touchControls = false,
 ): void {
-  const { stateRef, youId, setOrientation, setBoost, rocket } = socket;
+  const { stateRef, youId, setOrientation, setBoost, bite } = socket;
   const yawRef = useRef(0);
   const pitchRef = useRef(0);
   const boostRef = useRef(false);
@@ -105,7 +105,7 @@ export function useLocalInput(
         syncInput();
         setBoost(true);
       }
-      if (code === b.bite && !e.repeat) rocket();
+      if (code === b.bite && !e.repeat) bite();
     };
     const onKeyUp = (e: KeyboardEvent) => {
       const code = eventCode(e);
@@ -218,7 +218,7 @@ export function useLocalInput(
       surface?.removeEventListener("lostpointercapture", clearPointerLook);
       releaseActiveInput();
     };
-  }, [enabled, stateRef, youId, setOrientation, setBoost, rocket, surfaceRef, inputRef, touchInputRef, touchControls]);
+  }, [enabled, stateRef, youId, setOrientation, setBoost, bite, surfaceRef, inputRef, touchInputRef, touchControls]);
 }
 
 function clampAxis(value: number): number {

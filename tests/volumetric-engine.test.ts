@@ -29,10 +29,10 @@ function place(shark: Snake, x: number, y: number, z: number): void {
 }
 
 describe("volumetric authoritative engine", () => {
-  it("uses schema 9, X/Y/Z state, bounded volume spawns and no authoritative roll", () => {
+  it("uses schema 10, X/Y/Z state, bounded volume spawns and no authoritative roll", () => {
     const state = createRoom({ seed: "volume-shape" });
     expect(state.schemaVersion).toBe(ROOM_SCHEMA_VERSION);
-    expect(state.schemaVersion).toBe(9);
+    expect(state.schemaVersion).toBe(10);
     expect(state.ocean.surfaceY).toBeGreaterThan(state.ocean.seabedY);
     expect(state.food.some((food) => Math.abs(food.y) > 0.1)).toBe(true);
     expect(state.food.every((food) => isInsideOceanVolume(food, state.ocean))).toBe(true);
@@ -127,29 +127,7 @@ describe("volumetric authoritative engine", () => {
     place(rival, 20, 0, 0);
     eater.yaw = eater.targetYaw = rival.yaw = rival.targetYaw = 0;
     step(state);
-    expect(rival.alive).toBe(false);
-  });
-
-  it("keeps projectiles and explosions volumetric", () => {
-    const state = createRoom({ seed: "rocket-depth", oceanRadius: 100, seabedY: -20, surfaceY: 20 });
-    state.food = [];
-    const shooter = join(state, "shooter");
-    const target = join(state, "target");
-    shooter.invulnTick = target.invulnTick = 0;
-    place(shooter, 0, -5, 0);
-    place(target, 4, 5, 0);
-    shooter.yaw = shooter.targetYaw = 0;
-    shooter.pitch = shooter.targetPitch = 0;
-
-    applyAction(state, { type: "rocket", playerId: shooter.id });
-    expect(state.rockets[0]).toMatchObject({ y: -5, yaw: 0, pitch: 0 });
-    step(state);
-    expect(target.alive).toBe(true);
-
-    place(target, 8, -5, 0);
-    for (let i = 0; i < 4 && target.alive; i += 1) step(state);
-    expect(target.alive).toBe(false);
-    expect(state.explosions.every((burst) => Number.isFinite(burst.y))).toBe(true);
+    expect(rival.alive).toBe(true);
   });
 
   it("normalizes yaw, clamps pitch and rejects non-finite authoritative orientation", () => {
@@ -190,7 +168,7 @@ describe("volumetric authoritative engine", () => {
     expect(JSON.stringify(replayedA)).toBe(JSON.stringify(replayedB));
 
     const net = toNetState(left);
-    expect(net.schemaVersion).toBe(9);
+    expect(net.schemaVersion).toBe(10);
     expect(net.seabedY).toBe(left.ocean.seabedY);
     expect(net.surfaceY).toBe(left.ocean.surfaceY);
     expect(net.snakes.every((shark) => shark.segments.every((segment) => Number.isFinite(segment.y)))).toBe(true);

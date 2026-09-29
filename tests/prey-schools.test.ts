@@ -114,8 +114,9 @@ describe("ST-120 authoritative fish and prey schools", () => {
     applyAction(state, { type: "leave", playerId: shark.id });
 
     const drops = state.food.filter((actor) => !ambientIds.has(actor.id));
-    expect(drops.length).toBeGreaterThanOrEqual(24);
-    expect(drops.length).toBeLessThanOrEqual(42);
+    // ST-122 deliberately reduces corpse density so one early kill cannot seed a runaway growth loop.
+    expect(drops.length).toBeGreaterThanOrEqual(14);
+    expect(drops.length).toBeLessThanOrEqual(28);
     expect(drops.every((actor) => actor.kind === "carcass" && actor.school === -1)).toBe(true);
     expect(drops.every((actor) => isInsideOceanVolume(actor, state.ocean))).toBe(true);
   });
@@ -179,8 +180,8 @@ describe("ST-120 authoritative fish and prey schools", () => {
   it("ships only compact authoritative prey fields and keeps browser presentation out of Worker imports", () => {
     const state = createRoom({ seed: "wire-prey" });
     const net = toNetState(state);
-    expect(ROOM_SCHEMA_VERSION).toBe(9);
-    expect(REALTIME_PROTOCOL_VERSION).toBe(9);
+    expect(ROOM_SCHEMA_VERSION).toBe(10);
+    expect(REALTIME_PROTOCOL_VERSION).toBe(10);
     expect(net.food).toHaveLength(PREY_BUDGET.ambient);
     expect(net.food[0]).toMatchObject({
       id: state.food[0].id,

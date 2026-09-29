@@ -15,6 +15,15 @@ export interface OceanVolume {
   surfaceY: number;
 }
 
+export type DeathAction = "bite" | "boundary" | "retire";
+
+export interface DeathRecord {
+  killerId: string | null;
+  victimId: string;
+  action: DeathAction;
+  tick: number;
+}
+
 /** A single living (or recently dead) shark — player or bot. */
 export interface Snake {
   id: string;
@@ -34,8 +43,9 @@ export interface Snake {
   chargeTicks: number;
   lungeTicks: number;
   dashCooldownTick: number;
-  rocketTicks: number;
-  rocketCooldownTick: number;
+  health: number;
+  biteCooldownTick: number;
+  lastDeath: DeathRecord | null;
   score: number;
   alive: boolean;
   isBot: boolean;
@@ -61,19 +71,7 @@ export interface Prey {
   school: number;
 }
 
-/** A lethal player-fired projectile retained until the later combat replacement task. */
-export interface RocketProjectile {
-  id: string;
-  ownerId: string;
-  x: number;
-  y: number;
-  z: number;
-  yaw: number;
-  pitch: number;
-  expiresTick: number;
-}
-
-/** Short-lived deterministic burst rendered by every client. */
+/** Short-lived deterministic world feedback rendered by every client. */
 export interface Explosion {
   id: string;
   x: number;
@@ -81,11 +79,11 @@ export interface Explosion {
   z: number;
   tick: number;
   skin: string;
-  kind: "shark" | "rocket";
+  kind: "shark" | "bite" | "frenzy";
 }
 
 export interface RoomState {
-  schemaVersion: 9;
+  schemaVersion: 10;
   id: string;
   seed: string;
   tick: number;
@@ -93,7 +91,6 @@ export interface RoomState {
   ocean: OceanVolume;
   snakes: Record<string, Snake>;
   food: Prey[];
-  rockets: RocketProjectile[];
   explosions: Explosion[];
   frenzyUntilTick: number;
 }
@@ -104,7 +101,7 @@ export type Action =
   | { type: "leave"; playerId: string }
   | { type: "setOrientation"; playerId: string; yaw: number; pitch: number }
   | { type: "setBoost"; playerId: string; on: boolean }
-  | { type: "rocket"; playerId: string }
+  | { type: "bite"; playerId: string }
   | { type: "respawn"; playerId: string };
 
 export interface ScoreEntry {

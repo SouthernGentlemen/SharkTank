@@ -116,8 +116,8 @@ describe("ST-119 animated shark models", () => {
     const packageJson = JSON.parse(read("../package.json")) as { version: string };
     const actors = read("../vendor/ModuleReact3Fiber/src/client/game/ActorLayer.tsx");
 
-    expect(ROOM_SCHEMA_VERSION).toBe(9);
-    expect(REALTIME_PROTOCOL_VERSION).toBe(9);
+    expect(ROOM_SCHEMA_VERSION).toBe(10);
+    expect(REALTIME_PROTOCOL_VERSION).toBe(10);
     expect(packageJson.version).toBe("2.0.0");
     expect(worker).not.toContain("sharkPresentation");
     expect(worker).not.toContain("@react-three/fiber");

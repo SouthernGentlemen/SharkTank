@@ -7,18 +7,16 @@ import {
   clampPitch,
   clampToOceanVolume,
   distance3,
-  distancePointToSegmentSquared3,
   distanceSquared3,
   forwardFromYawPitch,
   horizontalRadiusSquared,
-  isInsideOceanVolume,
   moveToward,
   normalizeYaw,
   rotateYawToward,
   yawPitchToward,
 } from "./geometry3d.js";
 import { nextRandom, seedToNumber } from "./rng.js";
-import type { Action, OceanVolume, Prey, PreyKind, RocketProjectile, RoomState, ScoreEntry, Snake, Vec3 } from "./types.js";
+import type { Action, DeathAction, OceanVolume, Prey, PreyKind, RoomState, ScoreEntry, Snake, Vec3 } from "./types.js";
 
 // ── Tuning ────────────────────────────────────────────────────────────────────
 // Ticking at 30Hz (vs 20) means fresher snapshots → less perceived lag. Per-tick speeds
@@ -27,7 +25,7 @@ import type { Action, OceanVolume, Prey, PreyKind, RocketProjectile, RoomState, 
 export const TICKS_PER_SECOND = 20; // responsive authority; shark snapshots contain only one body point
 // 32 sharks share a tank, so the arena grew with the population — enough water that a
 // full lobby is dense rather than a permanent scrum at the wall.
-export const ROOM_SCHEMA_VERSION = 9 as const;
+export const ROOM_SCHEMA_VERSION = 10 as const;
 const OCEAN_RADIUS = 82;
 export const DEFAULT_SEABED_Y = -12;
 export const DEFAULT_SURFACE_Y = 12;
@@ -111,10 +109,27 @@ const DASH_TICKS = 10;
 const DASH_ACCEL_TICKS = 3;
 const DASH_DECEL_TICKS = 4;
 const DASH_COOLDOWN_TICKS = TICKS_PER_SECOND * 2;
-const ROCKET_SPEED = 3.1;
-const ROCKET_LIFETIME_TICKS = TICKS_PER_SECOND * 3;
-const ROCKET_COOLDOWN_TICKS = TICKS_PER_SECOND * 3;
 const EXPLOSION_TICKS = 24;
+
+export const COMBAT = {
+  maxHealth: 100,
+  biteCooldownTicks: 14,
+  biteRange: 3.4,
+  biteRangeLengthScale: 0.02,
+  biteRangeSizeBonusMax: 0.8,
+  biteConeCos: Math.cos(Math.PI * (50 / 180)),
+  baseDamage: 34,
+  minSizeDamageScale: 0.85,
+  maxSizeDamageScale: 1.2,
+  burstDamageMultiplier: 1.15,
+  maxDamage: 42,
+  killScoreLengthScale: 0.12,
+  killScoreMin: 3,
+  killScoreMax: 10,
+  killGrowthLengthScale: 0.025,
+  killGrowthMin: 0.4,
+  killGrowthMax: 1,
+} as const;
 
 /** Cosmetic catalog. Colorblind-safe, high-contrast hues; shared by server + client. */
 export interface Skin {
@@ -172,7 +187,6 @@ export function createRoom(opts: CreateRoomOptions = {}): RoomState {
     ocean: { radius, seabedY, surfaceY },
     snakes: {},
     food: [],
-    rockets: [],
     explosions: [],
     frenzyUntilTick: 0,
   };
@@ -343,7 +357,7 @@ export const MOVE = {
 
 /**
  * Deterministic forward speed envelope for the existing dash/lunge state.
- * It uses only lungeTicks, so schema-8 snapshots/replays need no new velocity field.
+ * It uses only lungeTicks, so movement needs no separate authoritative velocity field.
  */
 export function swimSpeedForLungeTicks(lungeTicks: number): number {
   const ticks = Math.max(0, Math.min(DASH_TICKS, Math.floor(Number.isFinite(lungeTicks) ? lungeTicks : 0)));
@@ -465,8 +479,9 @@ function makeSnake(state: RoomState, id: string, name: string, skin: string, isB
     chargeTicks: 0,
     lungeTicks: 0,
     dashCooldownTick: 0,
-    rocketTicks: 0,
-    rocketCooldownTick: 0,
+    health: COMBAT.maxHealth,
+    biteCooldownTick: 0,
+    lastDeath: null,
     score: 0,
     alive: true,
     isBot,
@@ -533,7 +548,7 @@ function dropChum(state: RoomState): void {
     z: 0,
     tick: state.tick,
     skin: "gold",
-    kind: "rocket",
+    kind: "frenzy",
   });
 }
 
@@ -591,25 +606,13 @@ export function applyAction(state: RoomState, action: Action): RoomState {
       }
       return state;
     }
-    case "rocket": {
+    case "bite": {
       const s = state.snakes[action.playerId];
-      if (s?.alive && !s.isBot && s.segments[0] && state.tick >= (s.rocketCooldownTick ?? 0)) {
-        const head = s.segments[0];
-        const lead = 2.5;
-        const forward = forwardFromYawPitch(s.yaw, s.pitch);
-        state.rockets ??= [];
-        state.rockets.push({
-          id: `rocket-${s.id}-${state.tick}`,
-          ownerId: s.id,
-          x: head.x + forward.x * lead,
-          y: head.y + forward.y * lead,
-          z: head.z + forward.z * lead,
-          yaw: s.yaw,
-          pitch: s.pitch,
-          expiresTick: state.tick + ROCKET_LIFETIME_TICKS,
-        });
-        s.rocketTicks = 6;
-        s.rocketCooldownTick = state.tick + ROCKET_COOLDOWN_TICKS;
+      if (s?.alive && s.segments[0] && state.tick >= s.biteCooldownTick) {
+        s.biteCooldownTick = state.tick + COMBAT.biteCooldownTicks;
+        // Choosing to attack ends spawn grace: protected sharks cannot deal free damage.
+        if (state.tick < s.invulnTick) s.invulnTick = state.tick;
+        resolveBite(state, s);
       }
       return state;
     }
@@ -630,7 +633,6 @@ export function applyAction(state: RoomState, action: Action): RoomState {
 /** Advance the simulation by one tick. Mutates and returns `state`. */
 export function step(state: RoomState): RoomState {
   state.tick += 1;
-  state.rockets ??= [];
   state.explosions ??= [];
   state.explosions = state.explosions.filter((burst) => state.tick - burst.tick < EXPLOSION_TICKS);
 
@@ -658,24 +660,19 @@ export function step(state: RoomState): RoomState {
     if (s.alive) moveSnake(state, s);
   }
 
-  // Rockets are real projectiles: server-authoritative, lethal, and swept against
-  // each target so their deliberately high speed cannot tunnel through a shark.
-  stepRockets(state);
-
   // Eating.
   for (const s of Object.values(state.snakes)) {
     if (s.alive) eat(state, s);
   }
 
-  // Contact combat is size-ordered: the larger shark consumes the smaller. Rockets
-  // are resolved first and remain lethal regardless of size or spawn protection.
+  // Physical overlap is non-lethal. Combat damage only comes from explicit bite actions.
   resolveSharkCollisions(state);
 
   // Always-on rivals must not snowball across a long-lived Durable Object until a
   // fresh player has no practical opening. A bot that clears the demo-scale score
   // target bursts into food, then returns through the normal fast respawn path.
   for (const s of Object.values(state.snakes)) {
-    if (s.isBot && s.alive && s.score >= BOT_RETIRE_SCORE) killSnake(state, s);
+    if (s.isBot && s.alive && s.score >= BOT_RETIRE_SCORE) killSnake(state, s, null, "retire");
   }
 
   // Bots auto-respawn after their delay so the arena stays populated (~24 snakes).
@@ -699,11 +696,8 @@ function moveSnake(state: RoomState, s: Snake): void {
   s.chargeTicks ??= 0;
   s.lungeTicks ??= 0;
   s.dashCooldownTick ??= 0;
-  s.rocketTicks ??= 0;
-  s.rocketCooldownTick ??= 0;
   if (s.boosting) s.chargeTicks = Math.min(16, s.chargeTicks + 1);
   if (s.lungeTicks > 0) s.lungeTicks -= 1;
-  if (s.rocketTicks > 0) s.rocketTicks -= 1;
   if (isFrenzy(state)) speed *= FRENZY_SPEED;
 
   const head = s.path[0];
@@ -750,12 +744,85 @@ function eat(state: RoomState, s: Snake): void {
   });
 }
 
+function biteRangeFor(s: Snake): number {
+  const sizeBonus = Math.min(
+    COMBAT.biteRangeSizeBonusMax,
+    Math.max(0, s.length - START_LENGTH) * COMBAT.biteRangeLengthScale,
+  );
+  return COMBAT.biteRange + sizeBonus;
+}
+
+function biteDamage(attacker: Snake, victim: Snake): number {
+  const sizeScale = Math.max(
+    COMBAT.minSizeDamageScale,
+    Math.min(COMBAT.maxSizeDamageScale, Math.sqrt(Math.max(0.01, attacker.length / Math.max(0.01, victim.length)))),
+  );
+  const burstScale = attacker.lungeTicks > 0 ? COMBAT.burstDamageMultiplier : 1;
+  return Math.min(COMBAT.maxDamage, Math.round(COMBAT.baseDamage * sizeScale * burstScale));
+}
+
+function resolveBite(state: RoomState, attacker: Snake): void {
+  const origin = attacker.segments[0];
+  if (!origin) return;
+  const forward = forwardFromYawPitch(attacker.yaw, attacker.pitch);
+  const range = biteRangeFor(attacker);
+  let target: Snake | null = null;
+  let targetDistance = Infinity;
+
+  for (const candidate of Object.values(state.snakes)) {
+    if (
+      candidate.id === attacker.id
+      || !candidate.alive
+      || !candidate.segments[0]
+      || state.tick < candidate.invulnTick
+    ) continue;
+    const head = candidate.segments[0];
+    const dx = head.x - origin.x;
+    const dy = head.y - origin.y;
+    const dz = head.z - origin.z;
+    const distance = Math.sqrt(dx * dx + dy * dy + dz * dz);
+    if (distance <= 1e-6 || distance > range) continue;
+    const dot = (forward.x * dx + forward.y * dy + forward.z * dz) / distance;
+    if (dot < COMBAT.biteConeCos) continue;
+    if (distance < targetDistance || (distance === targetDistance && candidate.id < (target?.id ?? ""))) {
+      target = candidate;
+      targetDistance = distance;
+    }
+  }
+
+  if (!target) return;
+  target.health = Math.max(0, target.health - biteDamage(attacker, target));
+  const hit = target.segments[0];
+  state.explosions.push({
+    id: `bite-${attacker.id}-${target.id}-${state.tick}`,
+    x: hit.x,
+    y: hit.y,
+    z: hit.z,
+    tick: state.tick,
+    skin: attacker.skin,
+    kind: "bite",
+  });
+  if (target.health > 0) return;
+
+  const scoreReward = Math.max(
+    COMBAT.killScoreMin,
+    Math.min(COMBAT.killScoreMax, Math.round(target.length * COMBAT.killScoreLengthScale)),
+  );
+  const growthReward = Math.max(
+    COMBAT.killGrowthMin,
+    Math.min(COMBAT.killGrowthMax, target.length * COMBAT.killGrowthLengthScale),
+  );
+  attacker.score += scoreReward;
+  attacker.length += growthReward;
+  killSnake(state, target, attacker.id, "bite");
+}
+
 function resolveSharkCollisions(state: RoomState): void {
   const living = Object.values(state.snakes).filter((shark) => shark.alive && shark.segments[0]);
   const radiusSq = state.ocean.radius * state.ocean.radius;
   for (const shark of living) {
     const head = shark.segments[0];
-    if (shark.alive && horizontalRadiusSquared(head) >= radiusSq) killSnake(state, shark);
+    if (shark.alive && horizontalRadiusSquared(head) >= radiusSq) killSnake(state, shark, null, "boundary");
   }
 
   for (let i = 0; i < living.length; i += 1) {
@@ -763,38 +830,26 @@ function resolveSharkCollisions(state: RoomState): void {
     if (!a.alive) continue;
     for (let j = i + 1; j < living.length; j += 1) {
       const b = living[j];
-      if (!b.alive || state.tick < a.invulnTick || state.tick < b.invulnTick) continue;
+      if (!b.alive) continue;
       const radiusA = HEAD_RADIUS + Math.min(1.15, Math.sqrt(a.length) * 0.075);
       const radiusB = HEAD_RADIUS + Math.min(1.15, Math.sqrt(b.length) * 0.075);
       const headA = a.segments[0];
       const headB = b.segments[0];
       if (distanceSquared3(headA, headB) > (radiusA + radiusB) ** 2) continue;
 
-      const difference = a.length - b.length;
-      const consumeAdvantage = Math.max(3, Math.min(a.length, b.length) * 0.2);
-      if (Math.abs(difference) <= consumeAdvantage) {
-        const apartA = distanceSquared3(headA, headB) > 1e-9
-          ? yawPitchToward(headB, headA)
-          : { yaw: a.yaw, pitch: 0 };
-        const apartB = { yaw: normalizeYaw(apartA.yaw + Math.PI), pitch: -apartA.pitch };
-        a.yaw = a.targetYaw = apartA.yaw;
-        a.pitch = a.targetPitch = apartA.pitch;
-        b.yaw = b.targetYaw = apartB.yaw;
-        b.pitch = b.targetPitch = apartB.pitch;
-        continue;
-      }
-
-      const winner = difference > 0 ? a : b;
-      const smaller = difference > 0 ? b : a;
-      winner.score += Math.max(3, Math.round(smaller.length * 0.15));
-      winner.length += Math.min(1.5, Math.max(0.5, smaller.length * 0.035));
-      killSnake(state, smaller);
-      if (!a.alive) break;
+      const apartA = distanceSquared3(headA, headB) > 1e-9
+        ? yawPitchToward(headB, headA)
+        : { yaw: normalizeYaw(a.yaw + Math.PI / 2), pitch: 0 };
+      const apartB = { yaw: normalizeYaw(apartA.yaw + Math.PI), pitch: -apartA.pitch };
+      a.yaw = a.targetYaw = apartA.yaw;
+      a.pitch = a.targetPitch = apartA.pitch;
+      b.yaw = b.targetYaw = apartB.yaw;
+      b.pitch = b.targetPitch = apartB.pitch;
     }
   }
 }
 
-function killSnake(state: RoomState, s: Snake): void {
+function killSnake(state: RoomState, s: Snake, killerId: string | null, action: DeathAction): void {
   const head = s.segments[0] ?? s.path[0];
   if (head) {
     state.explosions ??= [];
@@ -810,10 +865,11 @@ function killSnake(state: RoomState, s: Snake): void {
   }
   scatterAsFood(state, s);
   s.alive = false;
+  s.health = 0;
+  s.lastDeath = { killerId, victimId: s.id, action, tick: state.tick };
   s.boosting = false;
   s.chargeTicks = 0;
   s.lungeTicks = 0;
-  s.rocketTicks = 0;
   s.respawnTick = state.tick + RESPAWN_DELAY;
   s.segments = [];
 }
@@ -822,7 +878,8 @@ function killSnake(state: RoomState, s: Snake): void {
 function scatterAsFood(state: RoomState, s: Snake): void {
   const head = s.segments[0] ?? s.path[0];
   if (!head) return;
-  const count = Math.min(42, 24 + Math.floor(Math.sqrt(Math.max(0, s.length)) * 2));
+  const desired = Math.min(28, 12 + Math.floor(Math.sqrt(Math.max(0, s.length)) * 1.5));
+  const count = Math.min(desired, Math.max(0, PREY_BUDGET.max - state.food.length));
   for (let i = 0; i < count; i += 1) {
     const yaw = (i / count) * Math.PI * 2 + randRange(state, -0.16, 0.16);
     const pitch = randRange(state, -0.55, 0.55);
@@ -846,55 +903,6 @@ function scatterAsFood(state: RoomState, s: Snake): void {
       school: -1,
     });
   }
-}
-
-function stepRockets(state: RoomState): void {
-  const active: RocketProjectile[] = [];
-  for (const rocket of state.rockets) {
-    const from: Vec3 = { x: rocket.x, y: rocket.y, z: rocket.z };
-    const forward = forwardFromYawPitch(rocket.yaw, rocket.pitch);
-    const to: Vec3 = {
-      x: from.x + forward.x * ROCKET_SPEED,
-      y: from.y + forward.y * ROCKET_SPEED,
-      z: from.z + forward.z * ROCKET_SPEED,
-    };
-
-    let hit: Snake | null = null;
-    for (const shark of Object.values(state.snakes)) {
-      if (!shark.alive || shark.id === rocket.ownerId || !shark.segments[0]) continue;
-      const hitRadius = 1.25 + Math.min(1.35, Math.sqrt(shark.length) * 0.1);
-      if (distancePointToSegmentSquared3(shark.segments[0], from, to) <= hitRadius * hitRadius) {
-        hit = shark;
-        break;
-      }
-    }
-
-    if (hit) {
-      const owner = state.snakes[rocket.ownerId];
-      if (owner?.alive) owner.score += 10;
-      killSnake(state, hit);
-      continue;
-    }
-
-    rocket.x = to.x;
-    rocket.y = to.y;
-    rocket.z = to.z;
-    const expired = state.tick >= rocket.expiresTick || !isInsideOceanVolume(to, state.ocean);
-    if (expired) {
-      state.explosions.push({
-        id: `rocket-burst-${rocket.id}-${state.tick}`,
-        x: to.x,
-        y: to.y,
-        z: to.z,
-        tick: state.tick,
-        skin: "orange",
-        kind: "rocket",
-      });
-    } else {
-      active.push(rocket);
-    }
-  }
-  state.rockets = active;
 }
 
 // ── Bot AI ───────────────────────────────────────────────────────────────────────
@@ -977,8 +985,7 @@ function choosePreyTarget(state: RoomState, head: Vec3, view: BotWorldView): { p
 function steerBot(state: RoomState, s: Snake, view: BotWorldView): void {
   const head = s.segments[0];
 
-  // Schema 9 predates this planner and may contain the old bot-only charge flag.
-  // Clear that transient compatibility state, then use the normal setBoost action below.
+  // Clear any legacy planner charge flag, then use the normal setBoost action below.
   if (s.boosting || s.chargeTicks > 0) {
     applyAction(state, { type: "setBoost", playerId: s.id, on: false });
   }
@@ -1057,6 +1064,9 @@ function steerBot(state: RoomState, s: Snake, view: BotWorldView): void {
     s.targetYaw = target.yaw;
     s.targetPitch = target.pitch;
     if (wantsBurst) applyAction(state, { type: "setBoost", playerId: s.id, on: true });
+    if (shouldHuntRival && targetDistance <= biteRangeFor(s)) {
+      applyAction(state, { type: "bite", playerId: s.id });
+    }
   } else if ((state.tick + botPhase(s.id)) % BOT_AI_BUDGET.wanderInterval === 0) {
     s.targetYaw = randRange(state, -Math.PI, Math.PI);
     s.targetPitch = randRange(state, -BOT_AI_BUDGET.wanderPitch, BOT_AI_BUDGET.wanderPitch);

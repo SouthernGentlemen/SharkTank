@@ -31,7 +31,7 @@ export function HelpOverlay({ onClose }: { onClose: () => void }) {
           <div className="control-grid">
             <Control icon="steer" label="Steer"><span>Hold the {stick} half</span><small>The stick appears under your thumb; the shark swims that way while you hold.</small></Control>
             <Control icon="dash" label="Dash"><span>{pads} pad</span><small>2s cooldown · half that during a frenzy</small></Control>
-            <Control icon="rocket" label="Rocket"><span>{pads} pad</span><small>Lethal · 3s cooldown</small></Control>
+            <Control icon="bite" label="Bite"><span>{pads} pad</span><small>Directional close-range attack · aim with the shark</small></Control>
             <Control icon="menu" label="Tools"><span>Gear button</span><small>Exit, audio, display, and full settings</small></Control>
           </div>
         ) : (
@@ -39,7 +39,7 @@ export function HelpOverlay({ onClose }: { onClose: () => void }) {
             <Control icon="steer" label="Fly"><Key>{keyLabel(k.pitchUp)}</Key><Key>{keyLabel(k.pitchDown)}</Key><Key>{keyLabel(k.yawLeft)}</Key><Key>{keyLabel(k.yawRight)}</Key><small>W/S pitch · A/D yaw by default</small></Control>
             <Control icon="steer" label="Look"><Key>{keyLabel(k.lookUp)}</Key><Key>{keyLabel(k.lookDown)}</Key><Key>{keyLabel(k.lookLeft)}</Key><Key>{keyLabel(k.lookRight)}</Key><span>Mouse optional</span><small>Camera only; shark direction is unchanged</small></Control>
             <Control icon="dash" label="Burst"><Key>{keyLabel(k.boost)}</Key><small>2s cooldown · half that during a frenzy</small></Control>
-            <Control icon="rocket" label="Bite / attack"><Key>{keyLabel(k.bite)}</Key><small>Uses the current primary attack until the 3D combat rewrite</small></Control>
+            <Control icon="bite" label="Bite"><Key>{keyLabel(k.bite)}</Key><small>Directional close-range attack · size and burst give modest bonuses</small></Control>
             <Control icon="menu" label="Tools"><Key>{keyLabel(k.pause)}</Key><Key>?</Key><small>Pause, help, exit and settings</small></Control>
           </div>
         )}
@@ -52,13 +52,13 @@ export function HelpOverlay({ onClose }: { onClose: () => void }) {
   );
 }
 
-type ControlIcon = "steer" | "dash" | "rocket" | "menu";
+type ControlIcon = "steer" | "dash" | "bite" | "menu";
 function Control({ icon, label, children }: { icon: ControlIcon; label: string; children: React.ReactNode }) { return <section className="control-card"><ControlSvg name={icon} /><strong>{label}</strong><div>{children}</div></section>; }
 function ControlSvg({ name }: { name: ControlIcon }) {
   const paths: Record<ControlIcon, React.ReactNode> = {
     steer: <><path d="M4 12h16M8 8l-4 4 4 4M16 8l4 4-4 4"/><circle cx="12" cy="12" r="2"/></>,
     dash: <><path d="M3 8h9M2 12h8M4 16h8M13 5l8 7-8 7Z"/></>,
-    rocket: <><path d="M14 4c3-1 5-1 6-1 0 1 0 3-1 6l-7 7-4-4 6-8Z"/><path d="m8 12-4 1-1 4 5-1M12 16l-1 5 4-1 1-4M7 17l-3 3"/><circle cx="16" cy="7" r="2"/></>,
+    bite: <><path d="M3 7c5-4 13-4 18 0-2 6-5 11-9 13C8 18 5 13 3 7Z"/><path d="m6 9 2 4 3-5 2 5 3-5 2 4"/></>,
     menu: <><circle cx="12" cy="12" r="3"/><path d="M12 2v3M12 19v3M2 12h3M19 12h3M5 5l2 2M17 17l2 2M19 5l-2 2M7 17l-2 2"/></>,
   };
   return <svg className="control-card__icon" viewBox="0 0 24 24" aria-hidden="true">{paths[name]}</svg>;
