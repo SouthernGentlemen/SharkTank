@@ -7,7 +7,7 @@
 // `game-screen--touch` class rather than a media query alone.
 
 import { useCallback, useEffect, useRef, useState } from "react";
-import { TICKS_PER_SECOND } from "../../engine/index.js";
+import { FRENZY_RULES, TICKS_PER_SECOND, frenzyTiming } from "../../engine/index.js";
 import { GameViewport } from "../game/GameViewport.js";
 import type { SnakeLabel } from "../game/Scene.js";
 import {
@@ -112,7 +112,7 @@ export function GameScreen({ room, identity, onQuit }: GameScreenProps) {
 
       <Hud socket={socket} />
       <Leaderboard socket={socket} />
-      <FrenzyBanner socket={socket} />
+      <FrenzyBanner socket={socket} reducedMotion={settings.a11y.motion === "reduced"} />
       {settings.graphics.showMinimap && <Minimap socket={socket} />}
       <MinimapSummary socket={socket} />
       <QuickA11y onQuit={handleQuit} onHelp={openHelp} onSettings={openSettings} collapsed={touch} />
@@ -255,27 +255,66 @@ function useAbilityCooldown(socket: ReturnType<typeof useRoomSocket>, field: "da
  * same tick, so the countdown is derived from the snapshot rather than a local timer —
  * no drift, and a late joiner sees the correct remaining time immediately.
  */
-function FrenzyBanner({ socket }: { socket: ReturnType<typeof useRoomSocket> }) {
+function FrenzyBanner({
+  socket,
+  reducedMotion,
+}: {
+  socket: ReturnType<typeof useRoomSocket>;
+  reducedMotion: boolean;
+}) {
   const [left, setLeft] = useState(0);
+  const [ended, setEnded] = useState(false);
   const { announce } = useAnnouncer();
   const wasOn = useRef(false);
+  const endCueTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+
   useEffect(() => {
-    const id = setInterval(() => {
+    const update = () => {
       const state = socket.stateRef.current;
-      setLeft(state ? Math.max(0, Math.ceil((state.frenzyUntilTick - state.tick) / TICKS_PER_SECOND)) : 0);
-    }, 200);
+      const remaining = state ? frenzyTiming(state).remainingTicks : 0;
+      setLeft(Math.ceil(remaining / TICKS_PER_SECOND));
+    };
+    update();
+    const id = setInterval(update, 200);
     return () => clearInterval(id);
   }, [socket.stateRef]);
+
   useEffect(() => {
     const on = left > 0;
-    if (on && !wasOn.current) announce("Feeding frenzy. Chum in the middle of the tank.", "assertive");
+    if (on && !wasOn.current) {
+      announce("Feeding frenzy. Converge on the central water column.", "assertive");
+      setEnded(false);
+      if (endCueTimer.current) clearTimeout(endCueTimer.current);
+    } else if (!on && wasOn.current) {
+      announce("Feeding frenzy ended.", "polite");
+      setEnded(true);
+      if (endCueTimer.current) clearTimeout(endCueTimer.current);
+      endCueTimer.current = setTimeout(() => setEnded(false), 1800);
+    }
     wasOn.current = on;
   }, [left, announce]);
-  if (left <= 0) return null;
+
+  useEffect(() => () => {
+    if (endCueTimer.current) clearTimeout(endCueTimer.current);
+  }, []);
+
+  if (left <= 0 && !ended) return null;
+  const classes = `frenzy-banner${reducedMotion ? " frenzy-banner--reduced-motion" : ""}${ended ? " frenzy-banner--ended" : ""}`;
+  if (ended) {
+    return (
+      <div className={classes} role="status">
+        <strong>FRENZY ENDED</strong>
+        <span>Central water column returning to normal</span>
+      </div>
+    );
+  }
+
+  const speedBonus = Math.round((FRENZY_RULES.speedMultiplier - 1) * 100);
+  const dashRecharge = Math.round(1 / FRENZY_RULES.dashCooldownMultiplier);
   return (
-    <div className="frenzy-banner" role="status">
+    <div className={classes} role="status">
       <strong>FEEDING FRENZY</strong>
-      <span>Chum dropped in the middle · {left}s</span>
+      <span>Central water column · +{speedBonus}% swim speed · dash recharge {dashRecharge}× · {left}s</span>
     </div>
   );
 }

@@ -19,6 +19,7 @@ export function useGameAudio(socket: RoomSocket, settings: Settings): Caption | 
   const lastScore = useRef(0);
   const lastBoost = useRef(false);
   const wasAlive = useRef(false);
+  const wasFrenzy = useRef<boolean | null>(null);
   const captionsOn = settings.audio.captions;
 
   // Emit a caption (only when the player asked for captions).
@@ -59,6 +60,13 @@ export function useGameAudio(socket: RoomSocket, settings: Settings): Caption | 
     const id = setInterval(() => {
       const s = socket.stateRef.current;
       if (!s) return;
+      const frenzyOn = s.frenzyUntilTick > s.tick;
+      if (wasFrenzy.current === null) {
+        if (frenzyOn) cue.current("frenzyStart");
+      } else if (frenzyOn !== wasFrenzy.current) {
+        cue.current(frenzyOn ? "frenzyStart" : "frenzyEnd");
+      }
+      wasFrenzy.current = frenzyOn;
       const me = s.snakes.find((x) => x.id === socket.youId);
       if (!me) return;
       if (me.alive && !wasAlive.current) {

@@ -42,6 +42,14 @@ Lobby state includes the operational records needed by the current MVP, includin
 
 `vendor/ModuleReact3Fiber` is first-party source. Its engine and protocol are deterministic/server-safe; its client entry is browser-only. The Worker imports only server-safe entries.
 
+## Feeding Frenzy authority
+
+Feeding Frenzy is an authoritative 3D convergence event owned by the Room simulation. Every 75 seconds of simulation time the server opens a 20-second central event cylinder. Its radius is 30% of the ocean radius and its half-height is 32% of the playable water column, bounded away from the surface and seabed. The server deterministically places 40 chum actors throughout that volume with seeded horizontal placement and vertically stratified depth; every third piece is worth 5 points and the rest use the ordinary 3-point chum value.
+
+While the event is active, the authoritative movement multiplier is 1.16 and the authoritative dash cooldown multiplier is 0.5. Bots use the same X/Y/Z prey coordinates, ocean geometry, event state, movement and dash action as players; there is no bot-only teleport or scoring path. Event chum is retired when the authoritative end tick is reached so long-lived Rooms do not accumulate event-only actors.
+
+Realtime snapshots keep schema/protocol 10 and carry the existing authoritative `tick` plus `frenzyUntilTick`. Shared engine rules derive whether the event is active, its start/end ticks and remaining duration, so late join/reconnect does not depend on a browser timer. The client adds presentation only: the central beacon/column changes state, the HUD shows the server-derived countdown and bounded modifiers, and audio/caption hooks announce start/end. Reduced-motion mode removes pulsing/rotation without hiding state; low-quality mode reduces landmark ring complexity without removing the navigation cue.
+
 ## Static assets and security
 
 Wrangler keeps `run_worker_first` enabled with `html_handling` and `not_found_handling` set to `none`. The Worker explicitly fetches Vite's built `/index.html` through the `ASSETS` binding only for the game shell. Known assets keep their own paths; unknown application and asset paths remain ordinary 404s.

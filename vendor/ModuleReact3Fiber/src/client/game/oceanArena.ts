@@ -1,3 +1,4 @@
+import { FRENZY_RULES } from "../../engine/index.js";
 import type { SceneQuality } from "./sceneMath.js";
 import { OCEAN_CUES } from "./sceneMath.js";
 
@@ -22,6 +23,7 @@ export interface OceanEnvironmentQuality {
   bubbleBudget: number;
   lightShaftCount: number;
   causticBands: number;
+  frenzyRingCount: number;
 }
 
 export type EnvironmentLandmarkKind = "reef" | "wreck" | "frenzy";
@@ -55,18 +57,21 @@ const ENVIRONMENT_QUALITY: Record<SceneQuality, OceanEnvironmentQuality> = {
     bubbleBudget: 10,
     lightShaftCount: 1,
     causticBands: 4,
+    frenzyRingCount: 1,
   },
   medium: {
     particulateBudget: 78,
     bubbleBudget: 22,
     lightShaftCount: 2,
     causticBands: 6,
+    frenzyRingCount: 2,
   },
   high: {
     particulateBudget: 132,
     bubbleBudget: 38,
     lightShaftCount: 3,
     causticBands: 8,
+    frenzyRingCount: 3,
   },
 };
 
@@ -87,7 +92,7 @@ export function resolveOceanArenaCues(input: AuthoritativeOceanCueInput = {}): O
     height,
     midY: seabedY + height / 2,
     boundaryWarningRadius: radius * 0.91,
-    frenzyRadius: radius * 0.3,
+    frenzyRadius: radius * FRENZY_RULES.volumeRadiusShare,
   };
 }
 
