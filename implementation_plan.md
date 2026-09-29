@@ -41,7 +41,7 @@ That split is temporary technical debt. The rebuild ends with one gameplay rende
 - **Owner-default camera/look control:** right mobile stick is the arrow-key-equivalent look stick: up/down/left/right offsets the third-person chase camera around the shark for situational awareness and aiming. Releasing it smoothly recenters behind the shark.
 - **Desktop default:** W/S pitch up/down, A/D yaw left/right; Arrow Up/Down/Left/Right control the same chase-camera look offsets as the right mobile stick. This is the primary desktop scheme: keyboard-driven, jet-like flight through 3D water. Mouse look may be an optional mirror for the arrow-key look axis, but it must not be required to steer, climb, dive or fight.
 - **Abilities:** bite and burst remain separate actions from the two directional sticks/clusters and must be reachable without changing the primary pitch/yaw model. Mobile must support additional simultaneous ability pointers while both sticks are active.
-- **Shark-centric combat.** Contact alone must not remain the primary kill mechanic. The full-3D combat target is directional bite + burst movement + size advantage. The existing rocket mechanic is temporary compatibility and is retired when the 3D combat task lands unless the owner changes direction before then.
+- **Shark-centric combat.** Directional bite + burst movement + bounded size advantage is the authoritative combat model. Contact is non-lethal separation/deflection, and ranged weapons are not part of the core kit.
 - **Fish are gameplay, not decoration.** Score-relevant prey is authoritative. Decorative distant schools/particles may be client-only only when they cannot affect score, collision or competitive information.
 - **Ocean, not empty space.** The final world needs a water surface, seabed, depth fog, caustic/light treatment, suspended particulate/bubbles, readable boundaries and landmarks such as reef/rock/wreck structures. The world remains stylized and performant rather than photorealistic.
 - **Assets ship locally.** No runtime hotlinking of models/textures/audio. Add only first-party or license-compatible assets with provenance that is safe for this MIT repository.
@@ -82,44 +82,6 @@ These are acceptance targets, not permission to fake authority:
 
 ## Open tasks
 
-
-### ST-122 — [FEAT] Replace contact kills and rockets with shark combat
-
-**Goal**
-
-Make fighting another player an intentional 3D interaction built around sharks rather than center-point overlap and ranged rockets.
-
-**Owner default**
-
-The full-3D core kit is **bite + burst swim + size/position advantage**. Retire rockets in this task unless the owner explicitly changes that direction before implementation.
-
-**Scope**
-
-- Add a directional bite action with server-authoritative cooldown, forward cone/range and hit resolution.
-- Add shark health or an equivalently explicit damage model so equal-size contact is not an arbitrary instant kill.
-- Scale bite effectiveness modestly with shark size while capping snowball behavior.
-- Make burst movement a mobility/engagement tool; if burst modifies bite impact, encode that rule explicitly and test it.
-- Remove "larger center touches smaller center => kill" as the primary combat resolution.
-- Keep physical overlap readable with separation/deflection where needed.
-- Remove rockets/projectiles, their cooldowns, renderer, input and protocol fields when the bite path fully replaces them.
-- Make deaths identify the killer/attack when known so the death overlay and audit events are meaningful.
-- Preserve spawn protection in a form appropriate to bite combat.
-- Retune death drops/growth so a kill is rewarding without making one early kill decide the whole round.
-
-**Non-goals**
-
-- No weapon inventory.
-- No ranged combat replacement.
-- No complex status-effect system.
-
-**Acceptance**
-
-- A player can explain why they died from visible attacker/action feedback.
-- Collision without a bite does not arbitrarily delete an equal/smaller shark.
-- Bigger sharks have an advantage but are not immune to positioning mistakes.
-- All combat outcomes remain authoritative and replayable.
-
----
 
 ### ST-123 — [FEAT] Turn Feeding Frenzy into a 3D server-wide event
 

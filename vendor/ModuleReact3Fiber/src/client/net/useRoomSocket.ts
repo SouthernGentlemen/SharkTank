@@ -12,6 +12,9 @@ const TICK_MS = 1000 / TICKS_PER_SECOND;
 export type ConnectionStatus = "connecting" | "open" | "closed" | "incompatible";
 
 export interface DeathInfo {
+  by: string | null;
+  action: "bite" | "boundary" | "retire" | null;
+  tick: number;
   score: number;
   respawnInMs: number;
   at: number; // client timestamp
@@ -42,7 +45,7 @@ export interface RoomSocket {
   death: DeathInfo | null;
   setOrientation: (yaw: number, pitch: number) => void;
   setBoost: (on: boolean) => void;
-  rocket: () => void;
+  bite: () => void;
   respawn: () => void;
 }
 
@@ -172,7 +175,7 @@ export function useRoomSocket(
             setLeaderboard(msg.entries);
             break;
           case "died":
-            setDeath({ score: msg.score, respawnInMs: msg.respawnInMs, at: performance.now() });
+            setDeath({ by: msg.by, action: msg.action, tick: msg.tick, score: msg.score, respawnInMs: msg.respawnInMs, at: performance.now() });
             break;
           case "pong":
             break;
@@ -255,7 +258,7 @@ export function useRoomSocket(
     setDeath(null);
     send({ t: "input", action: { type: "respawn" } });
   }, [send]);
-  const rocket = useCallback(() => send({ t: "input", action: { type: "rocket" } }), [send]);
+  const bite = useCallback(() => send({ t: "input", action: { type: "bite" } }), [send]);
 
   return {
     stateRef,
@@ -267,7 +270,7 @@ export function useRoomSocket(
     death,
     setOrientation,
     setBoost,
-    rocket,
+    bite,
     respawn,
   };
 }

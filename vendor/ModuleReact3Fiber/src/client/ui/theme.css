@@ -1,7 +1,7 @@
 /* ─────────────────────────────────────────────────────────────────────────────
    Shark Arena UI design system — WCAG 2.2 AA.
    Token-driven so contrast is auditable in one place. All text tokens hit ≥4.5:1 on
-   their intended surface — including --ability-rocket and --ability-dash, which are
+   their intended surface — including --ability-bite and --ability-dash, which are
    fills carrying white text and are therefore measured as text, not as UI. Only the
    tokens that carry no text — borders and non-text indicators — sit at the ≥3:1 line
    (1.4.3 / 1.4.11).
@@ -20,7 +20,7 @@
   /* Ability pad fills. These carry white text at 13.1px and 9.9px, so they are text
      tokens and fall under the 4.5:1 claim above rather than the 3:1 one — #d94322 was
      4.40:1 for the 13.1px label, which is a fail at that size. */
-  --ability-rocket: #cc3f20;   /* white on this: 4.88:1 */
+  --ability-bite: #cc3f20;   /* white on this: 4.88:1 */
   --ability-dash: #6557d7;     /* white on this: 5.39:1 */
 
   /* Text — measured on --surface-1/2 */
@@ -365,11 +365,11 @@ body {
 .ability-button:disabled{opacity:.54;cursor:not-allowed;filter:saturate(.55)}
 .ability-button svg{grid-row:1/3;width:48px;height:48px;fill:none;stroke:currentColor;stroke-width:2;stroke-linecap:round;stroke-linejoin:round}
 .ability-button span{min-width:0;font-size:.82rem;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-/* The .86 opacity took this 9.9px label to 3.63:1 on the rocket fill and 4.43:1 on the
+/* The .86 opacity took this 9.9px label to 3.63:1 on the bite fill and 4.43:1 on the
    dash fill — both under 4.5:1, and neither is large text. Removed rather than
    compensated for: white on both fills already clears AA at full opacity. */
 .ability-button small{min-width:0;font-size:.62rem;letter-spacing:.11em;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-.rocket-button{background:var(--ability-rocket)}.dash-button{background:var(--ability-dash)}
+.bite-button{background:var(--ability-bite)}.dash-button{background:var(--ability-dash)}
 
 /* ── Feeding Frenzy ── */
 .frenzy-banner{position:absolute;z-index:12;top:calc(12px + var(--safe-t));left:50%;transform:translateX(-50%);display:grid;justify-items:center;gap:1px;max-width:calc(100% - 24px);padding:7px 18px;border:2px solid #ffd54a;border-radius:999px;background:linear-gradient(120deg,#9a2a12,#995215);color:#fff;text-align:center;pointer-events:none;box-shadow:0 10px 30px rgba(217,67,34,.4);animation:frenzy-pulse 1.1s ease-in-out infinite}

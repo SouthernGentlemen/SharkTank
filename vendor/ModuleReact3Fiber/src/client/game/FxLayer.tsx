@@ -2,13 +2,11 @@ import { useFrame } from "@react-three/fiber";
 import { useMemo, useRef } from "react";
 import * as THREE from "three";
 import { SKINS } from "../../engine/index.js";
-import type { RocketProjectile } from "../../protocol/index.js";
 import type { RoomSocket } from "../net/useRoomSocket.js";
 import type { Settings } from "../settings/SettingsContext.js";
 import type { CameraFollowTarget } from "./CameraRig.js";
-import { interpolateOrientedPose, resolveSceneQuality, type OrientedScenePose } from "./sceneMath.js";
+import { resolveSceneQuality } from "./sceneMath.js";
 
-const MAX_ROCKETS = 64;
 const MAX_BURST_PARTICLES = 512;
 const INTERP_DELAY_MS = 45;
 const EXPLOSION_RENDER_TICKS = 24;
@@ -18,7 +16,6 @@ const WHITE = new THREE.Color("#ffffff");
 const FOOD_CYAN = new THREE.Color("#22e6ff");
 const FOOD_YELLOW = new THREE.Color("#ffd54a");
 const FOOD_RICH = new THREE.Color("#ff8a1f");
-const ROCKET_COLOR = new THREE.Color("#f3f1ff");
 const BOUNDARY_SAFE = new THREE.Color("#22e6ff");
 const BOUNDARY_DANGER = new THREE.Color("#ff6b6b");
 const FRENZY_COLOR = new THREE.Color("#ff8a1f");
@@ -42,7 +39,6 @@ export function FxLayer({
   settings: Settings;
   followRef: React.MutableRefObject<CameraFollowTarget>;
 }) {
-  const rocketMesh = useRef<THREE.InstancedMesh>(null);
   const burstMesh = useRef<THREE.InstancedMesh>(null);
   const boundaryRef = useRef<THREE.Mesh>(null);
   const boundaryMaterialRef = useRef<THREE.MeshBasicMaterial>(null);
@@ -50,56 +46,31 @@ export function FxLayer({
   const frenzyMaterialRef = useRef<THREE.MeshBasicMaterial>(null);
   const dummy = useMemo(() => new THREE.Object3D(), []);
   const tempColor = useMemo(() => new THREE.Color(), []);
-  const rocketPose = useMemo<OrientedScenePose>(() => ({ x: 0, y: 0, z: 0, yaw: 0, pitch: 0 }), []);
-  const prevRocketById = useMemo(() => new Map<string, RocketProjectile>(), []);
   const quality = resolveSceneQuality(settings.graphics.quality);
 
   useFrame((_, dt) => {
-    const rockets = rocketMesh.current;
     const bursts = burstMesh.current;
-    if (!rockets || !bursts) return;
+    if (!bursts) return;
 
     const frame = socket.frameAt(INTERP_DELAY_MS);
     if (!frame) return;
     const state = frame.newer;
-    const previous = frame.older;
     const reducedMotion = settings.a11y.motion === "reduced";
     const alpha = reducedMotion ? 1 : frame.alpha;
 
-    prevRocketById.clear();
-    for (const rocket of previous.rockets ?? []) prevRocketById.set(rocket.id, rocket);
-
-    if (boundaryRef.current) boundaryRef.current.scale.setScalar(state.arenaRadius);
-
-    let rocketCount = 0;
-    for (const rocket of state.rockets ?? []) {
-      if (rocketCount >= MAX_ROCKETS) break;
-      const prior = prevRocketById.get(rocket.id) ?? rocket;
-      interpolateOrientedPose(prior, rocket, alpha, rocketPose);
-      dummy.position.set(rocketPose.x, rocketPose.y, rocketPose.z);
-      dummy.rotation.set(0, -rocketPose.yaw, rocketPose.pitch);
-      dummy.scale.set(1.05, 1, 1);
-      dummy.updateMatrix();
-      rockets.setMatrixAt(rocketCount, dummy.matrix);
-      rockets.setColorAt(rocketCount, ROCKET_COLOR);
-      rocketCount += 1;
-    }
-    rockets.count = rocketCount;
-    rockets.instanceMatrix.needsUpdate = true;
-    if (rockets.instanceColor) rockets.instanceColor.needsUpdate = true;
 
     let burstCount = 0;
     const renderTick = state.tick + alpha;
     for (const burst of state.explosions ?? []) {
       const life = Math.max(0, Math.min(1, (renderTick - burst.tick) / EXPLOSION_RENDER_TICKS));
-      const particleCount = burst.kind === "shark" ? 38 : 18;
-      const baseColor = skinBody.get(burst.skin) ?? (burst.kind === "rocket" ? FOOD_RICH : FOOD_CYAN);
+      const particleCount = burst.kind === "shark" ? 38 : burst.kind === "bite" ? 12 : 18;
+      const baseColor = skinBody.get(burst.skin) ?? (burst.kind === "frenzy" ? FOOD_RICH : FOOD_CYAN);
 
       for (let i = 0; i < particleCount && burstCount < quality.burstParticleBudget; i += 1) {
         const seed = hash(`${burst.id}-${i}`);
         const angle = (seed % 6283) / 1000;
         const speed = 0.15 + ((seed >>> 9) % 100) / 115;
-        const travel = reducedMotion ? 2.2 : life * speed * (burst.kind === "shark" ? 13 : 8);
+        const travel = reducedMotion ? 0.35 : life * speed * (burst.kind === "shark" ? 13 : burst.kind === "bite" ? 3.2 : 8);
         const rise = reducedMotion ? 0.15 : life * (((seed >>> 15) % 11) - 5) * 0.09;
         dummy.position.set(
           burst.x + Math.cos(angle) * travel,
@@ -165,10 +136,6 @@ export function FxLayer({
         />
       </mesh>
 
-      <instancedMesh ref={rocketMesh} args={[undefined, undefined, MAX_ROCKETS]} frustumCulled={false}>
-        <boxGeometry args={[2.2, 0.45, 0.7]} />
-        <meshBasicMaterial toneMapped={false} />
-      </instancedMesh>
 
       <instancedMesh ref={burstMesh} args={[undefined, undefined, MAX_BURST_PARTICLES]} frustumCulled={false}>
         <icosahedronGeometry args={[1, 0]} />

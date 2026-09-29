@@ -118,7 +118,7 @@ export function GameScreen({ room, identity, onQuit }: GameScreenProps) {
       <QuickA11y onQuit={handleQuit} onHelp={openHelp} onSettings={openSettings} collapsed={touch} />
       <div className="ability-rail">
         <DashButton socket={socket} compact={touch} keyName={keyLabel(settings.controls.keybinds.boost)} touchInputRef={touchInputRef} enabled={gameplayEnabled} />
-        <RocketButton socket={socket} compact={touch} keyName={keyLabel(settings.controls.keybinds.bite)} touchInputRef={touchInputRef} enabled={gameplayEnabled} />
+        <BiteButton socket={socket} compact={touch} keyName={keyLabel(settings.controls.keybinds.bite)} touchInputRef={touchInputRef} enabled={gameplayEnabled} />
       </div>
       {touch && <TouchControls inputRef={touchInputRef} flightSide={stickSide} enabled={inputEnabled} portraitLocked={portraitLocked} />}
       {settings.audio.captions && <Captions caption={caption} />}
@@ -202,8 +202,8 @@ function DashButton({ socket, compact, keyName, touchInputRef, enabled }: Abilit
   return <button type="button" className="ability-button dash-button" disabled={cooldown > 0 || !enabled} onPointerDown={pointerDown} onPointerUp={pointerEnd} onPointerCancel={pointerEnd} onLostPointerCapture={pointerEnd} onClick={click} aria-label={cooldown ? `Dash cooling down, ${cooldown} seconds` : "Dash"} title={cooldown ? `Dash: ${cooldown}s` : `Dash · ${keyName}`}><DashIcon /><span>{cooldown ? `${cooldown}s` : "DASH"}</span>{!compact && <small>{keyName}</small>}</button>;
 }
 
-function RocketButton({ socket, compact, keyName, touchInputRef, enabled }: AbilityButtonProps) {
-  const cooldown = useAbilityCooldown(socket, "rocketCooldownTick");
+function BiteButton({ socket, compact, keyName, touchInputRef, enabled }: AbilityButtonProps) {
+  const cooldown = useAbilityCooldown(socket, "biteCooldownTick");
   const pointerId = useRef<number | null>(null);
   const lastTouchAt = useRef(-Infinity);
   const release = useCallback(() => { pointerId.current = null; }, []);
@@ -229,7 +229,7 @@ function RocketButton({ socket, compact, keyName, touchInputRef, enabled }: Abil
     pointerId.current = e.pointerId;
     lastTouchAt.current = performance.now();
     try { e.currentTarget.setPointerCapture(e.pointerId); } catch { /* pointer ended */ }
-    socket.rocket();
+    socket.bite();
   };
   const pointerEnd = (e: React.PointerEvent<HTMLButtonElement>) => {
     if (e.pointerId !== pointerId.current) return;
@@ -238,13 +238,13 @@ function RocketButton({ socket, compact, keyName, touchInputRef, enabled }: Abil
   };
   const click = () => {
     if (performance.now() - lastTouchAt.current < 800) return;
-    if (enabled && cooldown <= 0) socket.rocket();
+    if (enabled && cooldown <= 0) socket.bite();
   };
 
-  return <button type="button" className="ability-button rocket-button" disabled={cooldown > 0 || !enabled} onPointerDown={pointerDown} onPointerUp={pointerEnd} onPointerCancel={pointerEnd} onLostPointerCapture={pointerEnd} onClick={click} aria-label={cooldown ? `Rocket cooling down, ${cooldown} seconds` : "Fire rocket"} title={cooldown ? `Rocket: ${cooldown}s` : `Current primary attack · ${keyName}`}><RocketIcon /><span>{cooldown ? `${cooldown}s` : "ROCKET"}</span>{!compact && <small>{keyName}</small>}</button>;
+  return <button type="button" className="ability-button bite-button" disabled={cooldown > 0 || !enabled} onPointerDown={pointerDown} onPointerUp={pointerEnd} onPointerCancel={pointerEnd} onLostPointerCapture={pointerEnd} onClick={click} aria-label={cooldown ? `Bite cooling down, ${cooldown} seconds` : "Bite"} title={cooldown ? `Bite: ${cooldown}s` : `Directional bite · ${keyName}`}><BiteIcon /><span>{cooldown ? `${cooldown}s` : "BITE"}</span>{!compact && <small>{keyName}</small>}</button>;
 }
 
-function useAbilityCooldown(socket: ReturnType<typeof useRoomSocket>, field: "dashCooldownTick" | "rocketCooldownTick") {
+function useAbilityCooldown(socket: ReturnType<typeof useRoomSocket>, field: "dashCooldownTick" | "biteCooldownTick") {
   const [cooldown, setCooldown] = useState(0);
   useEffect(() => { const update = () => { const state = socket.stateRef.current, shark = state?.snakes.find((item) => item.id === socket.youId); setCooldown(state && shark ? Math.max(0, Math.ceil((shark[field] - state.tick) / TICKS_PER_SECOND)) : 0); }; update(); const id = setInterval(update, 150); return () => clearInterval(id); }, [socket.stateRef, socket.youId, field]);
   return cooldown;
@@ -281,4 +281,4 @@ function FrenzyBanner({ socket }: { socket: ReturnType<typeof useRoomSocket> }) 
 }
 
 function DashIcon() { return <svg viewBox="0 0 32 24" aria-hidden="true"><path d="M2 6h13M1 12h11M4 18h11M17 2l13 10-13 10Z" /></svg>; }
-function RocketIcon() { return <svg viewBox="0 0 32 32" aria-hidden="true"><path d="M19 4c4-2 7-2 9-2 0 2 0 5-2 9L15 22l-6-6L19 4Z"/><path d="m10 16-6 1-2 6 8-2M15 22l-1 8 6-2 1-6M9 23l-6 6"/><circle cx="22" cy="8" r="3"/></svg>; }
+function BiteIcon() { return <svg viewBox="0 0 32 32" aria-hidden="true"><path d="M4 9c6-5 18-5 24 0-2 8-7 14-12 17C11 23 6 17 4 9Z"/><path d="m8 11 3 5 3-6 3 6 3-6 3 5"/></svg>; }

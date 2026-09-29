@@ -69,7 +69,7 @@ export function useGameAudio(socket: RoomSocket, settings: Settings): Caption | 
       if (!me.alive) return;
       if (me.score > lastScore.current) cue.current("eat");
       lastScore.current = me.score;
-      const dashing = me.lungeTicks > 0 || me.rocketTicks > 0;
+      const dashing = me.lungeTicks > 0;
       if (dashing && !lastBoost.current) cue.current("boost");
       lastBoost.current = dashing;
     }, 150);

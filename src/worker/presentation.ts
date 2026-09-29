@@ -1082,7 +1082,7 @@ const SERVICE_REASON_CODES: Readonly<Record<string, string>> = {
   "backup-taken": "K700", "backup-restored": "K710", "restore-drill": "K720", "backup-failed": "K799",
 };
 const GAME_REASON_CODES: Readonly<Record<string, string>> = {
-  join: "G100", leave: "G101", setHeading: "G110", setBoost: "G120", rocket: "G130", respawn: "G140", death: "G150", boot: "G160",
+  join: "G100", leave: "G101", setOrientation: "G110", setBoost: "G120", bite: "G130", respawn: "G140", death: "G150", boot: "G160",
 };
 function reasonCode(codes: Readonly<Record<string, string>>, action: string, fallback: string): string { const code = codes[action] ?? fallback; return /^[A-Z][0-9]{3}$/.test(code) ? code : fallback; }
 

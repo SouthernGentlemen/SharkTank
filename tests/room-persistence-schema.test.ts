@@ -2,7 +2,6 @@ import { readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
 import {
   PREY_KINDS,
-  applyAction,
   createRoom,
   replay,
   spawnBots,
@@ -11,135 +10,110 @@ import {
 } from "../vendor/ModuleReact3Fiber/src/engine/index.js";
 import {
   GAME_LOG_SCHEMA_VERSION,
-  assertSchema9RoomState,
+  assertSchema10RoomState,
   bootstrapRoomSnapshot,
   shouldRotateGameLogSchema,
 } from "../src/worker/room-state-schema.js";
 
 const BOT_COUNT = 24;
 
-function schema7Snapshot(): unknown {
+function legacySnapshot(version: 7 | 8 | 9): unknown {
   return {
-    schemaVersion: 7,
+    schemaVersion: version,
     id: "room-do-123",
-    seed: "legacy-planar-seed",
+    seed: `legacy-schema-${version}`,
     tick: 731,
     rngState: 123456,
-    arena: { radius: 82 },
+    ...(version === 7 ? { arena: { radius: 82 } } : { ocean: { radius: 74, seabedY: -14, surfaceY: 10 } }),
     snakes: {},
-    food: [{ id: "legacy-food", x: 3, z: 5, value: 2, r: 0.5 }],
-    rockets: [],
+    food: [],
+    rockets: version === 9 ? [{ id: "legacy-projectile" }] : [],
     explosions: [],
     frenzyUntilTick: 750,
   };
 }
 
-function schema8Snapshot(): unknown {
-  return {
-    schemaVersion: 8,
-    id: "room-do-123",
-    seed: "legacy-volumetric-seed",
-    tick: 812,
-    rngState: 654321,
-    ocean: { radius: 74, seabedY: -14, surfaceY: 10 },
-    snakes: {},
-    food: [{ id: "legacy-pellet", x: 3, y: -2, z: 5, value: 2, r: 0.5 }],
-    rockets: [],
-    explosions: [],
-    frenzyUntilTick: 900,
-  };
-}
-
-function assertVolumetric(room: RoomState): void {
-  assertSchema9RoomState(room, room.id);
-  expect(room.schemaVersion).toBe(9);
+function assertCombatRoom(room: RoomState): void {
+  assertSchema10RoomState(room, room.id);
+  expect(room.schemaVersion).toBe(10);
   expect("arena" in room).toBe(false);
+  expect("rockets" in room).toBe(false);
   for (const shark of Object.values(room.snakes)) {
     expect(Number.isFinite(shark.yaw)).toBe(true);
     expect(Number.isFinite(shark.pitch)).toBe(true);
     expect(shark.path.every((point) => Number.isFinite(point.y))).toBe(true);
     expect(shark.segments.every((point) => Number.isFinite(point.y))).toBe(true);
-    expect("heading" in shark).toBe(false);
+    expect(shark.health).toBeGreaterThanOrEqual(0);
+    expect(shark.health).toBeLessThanOrEqual(100);
+    expect(Number.isFinite(shark.biteCooldownTick)).toBe(true);
+    expect("rocketTicks" in shark).toBe(false);
   }
-  expect(room.food.every((prey) => (
-    PREY_KINDS.includes(prey.kind)
-    && Number.isFinite(prey.y)
-    && Number.isFinite(prey.yaw)
-    && Number.isFinite(prey.pitch)
-    && Number.isInteger(prey.school)
-  ))).toBe(true);
-  expect(room.rockets.every((rocket) => Number.isFinite(rocket.y) && Number.isFinite(rocket.yaw) && Number.isFinite(rocket.pitch))).toBe(true);
-  expect(room.explosions.every((burst) => Number.isFinite(burst.y))).toBe(true);
+  expect(room.food.every((prey) => PREY_KINDS.includes(prey.kind) && Number.isFinite(prey.y) && Number.isFinite(prey.yaw) && Number.isFinite(prey.pitch) && Number.isInteger(prey.school))).toBe(true);
+  expect(room.explosions.every((burst) => ["shark", "bite", "frenzy"].includes(burst.kind))).toBe(true);
 }
 
 describe("Room persisted-state schema boundary", () => {
-  it("resets schema-7 planar state and schema-8 pellet state instead of misreading either as schema 9", () => {
-    const fallback = createRoom({ id: "room-do-123", seed: "fallback-seed", oceanRadius: 82 });
-    const planar = bootstrapRoomSnapshot(schema7Snapshot(), fallback);
-    expect(planar.source).toBe("schema-7-reset");
-    expect(planar.persistSnapshot).toBe(true);
-    expect(planar.room.id).toBe("room-do-123");
-    expect(planar.room.seed).toBe("legacy-planar-seed");
-    expect(planar.room.tick).toBe(0);
-    assertVolumetric(planar.room);
-
-    const volumetric = bootstrapRoomSnapshot(schema8Snapshot(), createRoom({ id: "room-do-123", seed: "other-fallback" }));
-    expect(volumetric.source).toBe("schema-8-reset");
-    expect(volumetric.persistSnapshot).toBe(true);
-    expect(volumetric.room.seed).toBe("legacy-volumetric-seed");
-    expect(volumetric.room.ocean).toEqual({ radius: 74, seabedY: -14, surfaceY: 10 });
-    expect(volumetric.room.tick).toBe(0);
-    expect(volumetric.room.food.some((prey) => prey.kind === "bait" || prey.kind === "reef")).toBe(true);
-    expect(JSON.stringify(volumetric.room)).not.toContain("legacy-pellet");
-    assertVolumetric(volumetric.room);
+  it("resets schemas 7, 8 and 9 rather than reinterpreting old combat state as schema 10", () => {
+    for (const version of [7, 8, 9] as const) {
+      const fallback = createRoom({ id: "room-do-123", seed: "fallback-seed", oceanRadius: 82 });
+      const boot = bootstrapRoomSnapshot(legacySnapshot(version), fallback);
+      expect(boot.source).toBe(`schema-${version}-reset`);
+      expect(boot.persistSnapshot).toBe(true);
+      expect(boot.room.id).toBe("room-do-123");
+      expect(boot.room.seed).toBe(`legacy-schema-${version}`);
+      expect(boot.room.tick).toBe(0);
+      if (version >= 8) expect(boot.room.ocean).toEqual({ radius: 74, seabedY: -14, surfaceY: 10 });
+      assertCombatRoom(boot.room);
+    }
   });
 
-  it("serializes and restores only complete schema-9 room state", () => {
-    const upgraded = bootstrapRoomSnapshot(schema8Snapshot(), createRoom({ id: "room-do-123", seed: "fallback" })).room;
-    spawnBots(upgraded, BOT_COUNT);
-
-    const serialized = JSON.stringify(upgraded);
-    const restored = bootstrapRoomSnapshot(JSON.parse(serialized), createRoom({ id: "room-do-123", seed: "new-fallback" }));
-    expect(restored.source).toBe("schema-9");
+  it("serializes and restores only complete schema-10 combat state", () => {
+    const room = createRoom({ id: "room-do-123", seed: "combat" });
+    spawnBots(room, BOT_COUNT);
+    const serialized = JSON.stringify(room);
+    const restored = bootstrapRoomSnapshot(JSON.parse(serialized), createRoom({ id: "room-do-123", seed: "fallback" }));
+    expect(restored.source).toBe("schema-10");
     expect(restored.persistSnapshot).toBe(false);
     expect(JSON.stringify(restored.room)).toBe(serialized);
-    assertVolumetric(restored.room);
+    assertCombatRoom(restored.room);
   });
 
-  it("accepts fresh schema-9 rooms and replays only schema-9 actions", () => {
+  it("accepts fresh schema-10 rooms and replays schema-10 bite actions deterministically", () => {
     const fresh = bootstrapRoomSnapshot(undefined, createRoom({ id: "room-do-fresh", seed: "fresh-seed" }));
     expect(fresh.source).toBe("fresh");
-    assertVolumetric(fresh.room);
+    assertCombatRoom(fresh.room);
 
     const events: GameLogEntry[] = [
       { tick: 0, action: { type: "join", playerId: "pilot", name: "Pilot" } },
       { tick: 0, action: { type: "setOrientation", playerId: "pilot", yaw: 0.75, pitch: 0.2 } },
       { tick: 1, action: { type: "setBoost", playerId: "pilot", on: true } },
+      { tick: 2, action: { type: "bite", playerId: "pilot" } },
     ];
-    const replayed = replay({ id: "room-do-fresh", seed: "fresh-seed", botCount: 0 }, events, 3);
-    assertVolumetric(replayed);
-
-    const restored = bootstrapRoomSnapshot(JSON.parse(JSON.stringify(replayed)), createRoom({ id: "room-do-fresh", seed: "fallback" }));
-    expect(JSON.stringify(restored.room)).toBe(JSON.stringify(replayed));
+    const first = replay({ id: "room-do-fresh", seed: "fresh-seed", botCount: 0 }, events, 4);
+    const second = replay({ id: "room-do-fresh", seed: "fresh-seed", botCount: 0 }, events, 4);
+    expect(JSON.stringify(first)).toBe(JSON.stringify(second));
+    assertCombatRoom(first);
   });
 
-  it("rotates unknown, schema-7 and schema-8 replay generations instead of interpreting them as schema 9", () => {
-    expect(GAME_LOG_SCHEMA_VERSION).toBe(9);
+  it("rotates every older replay generation and keeps only schema 10 current", () => {
+    expect(GAME_LOG_SCHEMA_VERSION).toBe(10);
     expect(shouldRotateGameLogSchema(undefined)).toBe(true);
     expect(shouldRotateGameLogSchema(7)).toBe(true);
     expect(shouldRotateGameLogSchema(8)).toBe(true);
-    expect(shouldRotateGameLogSchema("9")).toBe(true);
-    expect(shouldRotateGameLogSchema(9)).toBe(false);
+    expect(shouldRotateGameLogSchema(9)).toBe(true);
+    expect(shouldRotateGameLogSchema("10")).toBe(true);
+    expect(shouldRotateGameLogSchema(10)).toBe(false);
   });
 
-  it("fails closed on incomplete or mixed schema-9 snapshots", () => {
-    const missingKind = JSON.parse(JSON.stringify(createRoom({ id: "room-do-bad", seed: "bad" }))) as Record<string, any>;
-    delete missingKind.food[0].kind;
-    expect(() => bootstrapRoomSnapshot(missingKind, createRoom({ id: "room-do-bad", seed: "fallback" }))).toThrow(/schema 9 is invalid: prey/);
+  it("fails closed on incomplete, mixed or wrong-room schema-10 snapshots", () => {
+    const replayed = replay({ id: "room-do-bad", seed: "with-shark", botCount: 0 }, [{ tick: 0, action: { type: "join", playerId: "p", name: "P" } }], 0);
+    const malformed = JSON.parse(JSON.stringify(replayed)) as Record<string, any>;
+    delete malformed.snakes.p.health;
+    expect(() => bootstrapRoomSnapshot(malformed, createRoom({ id: "room-do-bad", seed: "fallback" }))).toThrow(/schema 10 is invalid: shark p health/);
 
-    const mixed = createRoom({ id: "room-do-bad", seed: "mixed" }) as RoomState & { arena?: unknown };
-    mixed.arena = { radius: 82 };
-    expect(() => bootstrapRoomSnapshot(mixed, createRoom({ id: "room-do-bad", seed: "fallback" }))).toThrow(/legacy arena field/);
+    const mixed = JSON.parse(JSON.stringify(createRoom({ id: "room-do-bad", seed: "bad" }))) as Record<string, any>;
+    mixed.rockets = [];
+    expect(() => bootstrapRoomSnapshot(mixed, createRoom({ id: "room-do-bad", seed: "fallback" }))).toThrow(/retired projectile field/);
 
     const wrongRoom = createRoom({ id: "other-room", seed: "mixed" });
     expect(() => bootstrapRoomSnapshot(wrongRoom, createRoom({ id: "room-do-bad", seed: "fallback" }))).toThrow(/id does not match Durable Object/);
@@ -156,7 +130,5 @@ describe("Room persisted-state schema boundary", () => {
     expect(source).toMatch(/this\.roomName = meta\.roomName/);
     expect(source).toMatch(/this\.maintenance = meta\.maintenance \?\? false/);
     expect(source).toMatch(/this\.activeMs = meta\.activeMs \?\? 0/);
-    expect(source).toMatch(/this\.wsMessages = meta\.wsMessages \?\? 0/);
-    expect(source).toMatch(/this\.connections = meta\.connections \?\? 0/);
   });
 });

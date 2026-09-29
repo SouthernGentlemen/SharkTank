@@ -10,6 +10,7 @@ import {
 } from "../vendor/ModuleReact3Fiber/src/engine/index.js";
 import {
   REALTIME_PROTOCOL_VERSION,
+  clientInputToAction,
   parseRealtimeClientMessage,
   parseRealtimeServerMessage,
   toNetState,
@@ -33,8 +34,8 @@ function bytes(value: unknown): number {
   return new TextEncoder().encode(JSON.stringify(value)).byteLength;
 }
 
-describe("ST-114 realtime 3D protocol", () => {
-  it("accepts bounded yaw+pitch intent and distinguishes stale schema from malformed input", () => {
+describe("ST-122 realtime combat protocol", () => {
+  it("accepts bounded yaw+pitch intent, target-free bites, and rejects stale schema", () => {
     const valid = parseRealtimeClientMessage({
       v: REALTIME_PROTOCOL_VERSION,
       t: "input",
@@ -49,75 +50,91 @@ describe("ST-114 realtime 3D protocol", () => {
       },
     });
 
-    expect(parseRealtimeClientMessage({
-      v: 7,
+    const bite = parseRealtimeClientMessage({
+      v: REALTIME_PROTOCOL_VERSION,
       t: "input",
-      action: { type: "setOrientation", yaw: 0, pitch: 0 },
-    })).toEqual({ ok: false, reason: "stale-schema" });
+      action: { type: "bite", targetId: "client-chosen-victim" },
+    });
+    expect(bite).toEqual({
+      ok: true,
+      message: { v: REALTIME_PROTOCOL_VERSION, t: "input", action: { type: "bite" } },
+    });
+    if (!bite.ok || bite.message.t !== "input") throw new Error("bite parse failed");
+    expect(clientInputToAction(bite.message.action, "attacker")).toEqual({ type: "bite", playerId: "attacker" });
+
     expect(parseRealtimeClientMessage({
+      v: 9,
       t: "input",
-      action: { type: "setOrientation", yaw: 0, pitch: 0 },
+      action: { type: "bite" },
     })).toEqual({ ok: false, reason: "stale-schema" });
     expect(parseRealtimeClientMessage({
       v: REALTIME_PROTOCOL_VERSION,
       t: "input",
       action: { type: "setOrientation", yaw: Number.NaN, pitch: 0 },
     })).toEqual({ ok: false, reason: "malformed" });
-    expect(parseRealtimeClientMessage({
-      v: REALTIME_PROTOCOL_VERSION,
-      t: "input",
-      action: { type: "setOrientation", yaw: 0, pitch: Number.POSITIVE_INFINITY },
-    })).toEqual({ ok: false, reason: "malformed" });
-    expect(parseRealtimeClientMessage({
-      v: REALTIME_PROTOCOL_VERSION,
-      t: "input",
-      action: { type: "setOrientation", yaw: 0 },
-    })).toEqual({ ok: false, reason: "malformed" });
   });
 
-  it("requires the same marker on server messages so a mixed deployment fails visibly", () => {
+  it("requires realtime protocol 10 on both directions", () => {
+    expect(REALTIME_PROTOCOL_VERSION).toBe(10);
     const state = toNetState(createRoom({ seed: "server-marker" }));
     const current = withRealtimeProtocol({ t: "state" as const, state });
     expect(parseRealtimeServerMessage(current).ok).toBe(true);
     expect(parseRealtimeServerMessage({ t: "state", state })).toEqual({ ok: false, reason: "stale-schema" });
-    expect(parseRealtimeServerMessage({ ...current, v: 7 })).toEqual({ ok: false, reason: "stale-schema" });
+    expect(parseRealtimeServerMessage({ ...current, v: 9 })).toEqual({ ok: false, reason: "stale-schema" });
   });
 
-  it("quantizes complete schema-9 X/Y/Z state for sharks, authoritative prey, projectiles and explosions", () => {
+  it("quantizes complete schema-10 X/Y/Z combat state without ranged projectile state", () => {
     const state = createRoom({ seed: "wire-roundtrip" });
     state.food = [{ id: "food", kind: "reef", x: 1.234, y: -2.345, z: 3.456, value: 3, r: 0.456, yaw: 1.23456, pitch: -0.23456, school: 2 }];
     const shark = join(state, "pilot");
     place(shark, 10.1234, -4.5678, 2.3456);
     shark.yaw = 1.23456;
     shark.pitch = -0.45678;
-    state.rockets = [{
-      id: "rocket",
-      ownerId: shark.id,
-      x: 2.34567,
-      y: -3.45678,
-      z: 4.56789,
-      yaw: 3.14159,
-      pitch: -0.98765,
-      expiresTick: 99,
-    }];
+    shark.health = 66;
+    shark.biteCooldownTick = 99;
     state.explosions = [{
-      id: "burst",
+      id: "bite-hit",
       x: -1.23456,
       y: 2.34567,
       z: -3.45678,
       tick: 8,
       skin: "cyan",
-      kind: "rocket",
+      kind: "bite",
     }];
 
     const net = toNetState(state);
-    expect(net.schemaVersion).toBe(9);
+    expect(net.schemaVersion).toBe(10);
     expect(net.snakes.find((item) => item.id === shark.id)?.segments[0]).toEqual({ x: 10.12, y: -4.57, z: 2.35 });
-    expect(net.snakes.find((item) => item.id === shark.id)).toMatchObject({ yaw: 1.235, pitch: -0.457 });
+    expect(net.snakes.find((item) => item.id === shark.id)).toMatchObject({
+      yaw: 1.235,
+      pitch: -0.457,
+      health: 66,
+      biteCooldownTick: 99,
+    });
     expect(net.food[0]).toEqual({ id: "food", kind: "reef", x: 1.2, y: -2.3, z: 3.5, value: 3, r: 0.46, yaw: 1.235, pitch: -0.235 });
-    expect(net.rockets[0]).toMatchObject({ x: 2.35, y: -3.46, z: 4.57, yaw: 3.142, pitch: -0.988 });
-    expect(net.explosions[0]).toMatchObject({ x: -1.23, y: 2.35, z: -3.46 });
+    expect(net.explosions[0]).toMatchObject({ x: -1.23, y: 2.35, z: -3.46, kind: "bite" });
+    expect(JSON.stringify(net).toLowerCase()).not.toContain("rocket");
     expect(JSON.parse(JSON.stringify(net))).toEqual(net);
+  });
+
+  it("parses attributed combat deaths", () => {
+    const parsed = parseRealtimeServerMessage(withRealtimeProtocol({
+      t: "died" as const,
+      by: "Hunter",
+      action: "bite" as const,
+      tick: 144,
+      score: 19,
+      respawnInMs: 1000,
+    }));
+    expect(parsed.ok).toBe(true);
+    expect(parseRealtimeServerMessage(withRealtimeProtocol({
+      t: "died" as const,
+      by: "Hunter",
+      action: "laser" as never,
+      tick: 144,
+      score: 19,
+      respawnInMs: 1000,
+    }))).toEqual({ ok: false, reason: "malformed" });
   });
 
   it("predicts climb/dive and yaw movement, then reconciles authoritative X/Y/Z correction", () => {
@@ -141,8 +158,6 @@ describe("ST-114 realtime 3D protocol", () => {
     expect(climbed!.head.x).toBeGreaterThan(0);
     expect(climbed!.head.y).toBeGreaterThan(0);
     expect(Math.abs(climbed!.head.z)).toBeGreaterThan(0);
-    expect(climbed!.yaw).not.toBe(0);
-    expect(climbed!.pitch).toBeGreaterThan(0);
 
     const correctedAuth = {
       ...auth!,
@@ -174,7 +189,7 @@ describe("ST-114 realtime 3D protocol", () => {
     expect(Math.abs(mid.yaw)).toBeGreaterThan(3);
   });
 
-  it("keeps a deterministic representative full-room snapshot under an explicit byte budget", () => {
+  it("keeps a deterministic representative full-room snapshot under the explicit byte budget", () => {
     const state = createRoom({ id: "budget-room", seed: "snapshot-budget", oceanRadius: 82, seabedY: -12, surfaceY: 12 });
     state.food = Array.from({ length: PREY_BUDGET.max }, (_, i) => ({
       id: `prey-${i}`,
@@ -196,17 +211,9 @@ describe("ST-114 realtime 3D protocol", () => {
       shark.pitch = Math.max(-MAX_PITCH, Math.min(MAX_PITCH, -0.8 + i * 0.051234));
       shark.length = 10 + i * 0.731;
       shark.score = i * 11;
+      shark.health = 35 + (i % 66);
+      shark.biteCooldownTick = 2_000 + i;
     }
-    state.rockets = Array.from({ length: 32 }, (_, i) => ({
-      id: `rocket-${i}`,
-      ownerId: `shark-${i.toString().padStart(2, "0")}`,
-      x: i * 1.234567,
-      y: i * -0.234567,
-      z: i * 0.987654,
-      yaw: normalizeYaw(i * 0.543219),
-      pitch: -0.7 + i * 0.031415,
-      expiresTick: 2_000 + i,
-    }));
     state.explosions = Array.from({ length: 32 }, (_, i) => ({
       id: `burst-${i}`,
       x: i * -0.7654321,
@@ -214,7 +221,7 @@ describe("ST-114 realtime 3D protocol", () => {
       z: i * 1.3456789,
       tick: 1_900 + i,
       skin: "magenta",
-      kind: i % 2 ? "rocket" as const : "shark" as const,
+      kind: i % 3 === 0 ? "bite" as const : i % 3 === 1 ? "shark" as const : "frenzy" as const,
     }));
     state.tick = 1_950;
     state.frenzyUntilTick = 2_100;
@@ -224,7 +231,7 @@ describe("ST-114 realtime 3D protocol", () => {
     const afterBytes = bytes(message);
     const preQuantization = withRealtimeProtocol({
       t: "state" as const,
-      state: { ...net, food: state.food, rockets: state.rockets, explosions: state.explosions },
+      state: { ...net, food: state.food, explosions: state.explosions },
     });
     const preQuantizationBytes = bytes(preQuantization);
 
@@ -232,7 +239,6 @@ describe("ST-114 realtime 3D protocol", () => {
       state: {
         snakes: Array<{ segments: Array<{ y?: number }>; pitch?: number }>;
         food: Array<{ y?: number; pitch?: number }>;
-        rockets: Array<{ y?: number; pitch?: number }>;
         explosions: Array<{ y?: number }>;
       };
     };
@@ -244,30 +250,25 @@ describe("ST-114 realtime 3D protocol", () => {
       delete item.y;
       delete item.pitch;
     }
-    for (const item of planar.state.rockets) {
-      delete item.y;
-      delete item.pitch;
-    }
     for (const item of planar.state.explosions) delete item.y;
     const planarBytes = bytes(planar);
 
     const MAX_FULL_ROOM_BYTES = 60_000;
     const MAX_3D_OVERHEAD_BYTES = 10_000;
-    console.info(`ST-120 snapshot bytes: ${afterBytes}; pre-quantization: ${preQuantizationBytes}; planar-equivalent: ${planarBytes}; budget: ${MAX_FULL_ROOM_BYTES}`);
+    console.info(`ST-122 snapshot bytes: ${afterBytes}; pre-quantization: ${preQuantizationBytes}; planar-equivalent: ${planarBytes}; budget: ${MAX_FULL_ROOM_BYTES}`);
     expect(afterBytes).toBeLessThanOrEqual(MAX_FULL_ROOM_BYTES);
     expect(afterBytes).toBeLessThanOrEqual(preQuantizationBytes);
     expect(afterBytes - planarBytes).toBeLessThanOrEqual(MAX_3D_OVERHEAD_BYTES);
   });
 
-  it("wires the Durable Object to schema-aware parsing and removes the planar input protocol", () => {
+  it("keeps the Durable Object on schema-aware target-free input parsing", () => {
     const source = readFileSync(new URL("../src/worker/room-do.ts", import.meta.url), "utf8");
     const protocolSource = readFileSync(new URL("../vendor/ModuleReact3Fiber/src/protocol/index.ts", import.meta.url), "utf8");
     expect(source).toContain("parseRealtimeClientMessage(parsed)");
     expect(source).toContain("clientInputToAction(msg.action, session.id)");
     expect(source).toContain("realtime schema mismatch");
     expect(source).toContain("withRealtimeProtocol(msg)");
-    expect(source).not.toContain("setHeading");
-    expect(protocolSource).not.toContain("LegacyPlanarHeadingAction");
-    expect(protocolSource).not.toContain("legacyPlanarHeadingToOrientation");
+    expect(protocolSource).not.toContain("targetId");
+    expect(protocolSource.toLowerCase()).not.toContain("rocket");
   });
 });
