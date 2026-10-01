@@ -5,6 +5,7 @@ import { SKINS } from "../../engine/index.js";
 import type { RoomSocket } from "../net/useRoomSocket.js";
 import type { Settings } from "../settings/SettingsContext.js";
 import type { CameraFollowTarget } from "./CameraRig.js";
+import { cadenceDue, resolveClientPerformanceProfile } from "./performance.js";
 import { resolveSceneQuality } from "./sceneMath.js";
 
 const MAX_BURST_PARTICLES = 512;
@@ -46,9 +47,12 @@ export function FxLayer({
   const frenzyMaterialRef = useRef<THREE.MeshBasicMaterial>(null);
   const dummy = useMemo(() => new THREE.Object3D(), []);
   const tempColor = useMemo(() => new THREE.Color(), []);
+  const seedCache = useMemo(() => new Map<string, number>(), []);
   const quality = resolveSceneQuality(settings.graphics.quality);
+  const performanceProfile = resolveClientPerformanceProfile(settings.graphics.quality);
+  const lastBurstPassAt = useRef(-Infinity);
 
-  useFrame((_, dt) => {
+  useFrame(({ clock }, dt) => {
     const bursts = burstMesh.current;
     if (!bursts) return;
 
@@ -59,37 +63,48 @@ export function FxLayer({
     const alpha = reducedMotion ? 1 : frame.alpha;
 
 
-    let burstCount = 0;
-    const renderTick = state.tick + alpha;
-    for (const burst of state.explosions ?? []) {
-      const life = Math.max(0, Math.min(1, (renderTick - burst.tick) / EXPLOSION_RENDER_TICKS));
-      const particleCount = burst.kind === "shark" ? 38 : burst.kind === "bite" ? 12 : 18;
-      const baseColor = skinBody.get(burst.skin) ?? (burst.kind === "frenzy" ? FOOD_RICH : FOOD_CYAN);
+    const nowMs = clock.elapsedTime * 1000;
+    if (cadenceDue(lastBurstPassAt.current, nowMs, performanceProfile.effectUpdateMs)) {
+      lastBurstPassAt.current = nowMs;
+      let burstCount = 0;
+      const renderTick = state.tick + alpha;
+      for (const burst of state.explosions ?? []) {
+        const life = Math.max(0, Math.min(1, (renderTick - burst.tick) / EXPLOSION_RENDER_TICKS));
+        const particleCount = burst.kind === "shark" ? 38 : burst.kind === "bite" ? 12 : 18;
+        const baseColor = skinBody.get(burst.skin) ?? (burst.kind === "frenzy" ? FOOD_RICH : FOOD_CYAN);
+        let burstSeed = seedCache.get(burst.id);
+        if (burstSeed === undefined) {
+          if (seedCache.size >= 256) seedCache.clear();
+          burstSeed = hash(burst.id);
+          seedCache.set(burst.id, burstSeed);
+        }
 
-      for (let i = 0; i < particleCount && burstCount < quality.burstParticleBudget; i += 1) {
-        const seed = hash(`${burst.id}-${i}`);
-        const angle = (seed % 6283) / 1000;
-        const speed = 0.15 + ((seed >>> 9) % 100) / 115;
-        const travel = reducedMotion ? 0.35 : life * speed * (burst.kind === "shark" ? 13 : burst.kind === "bite" ? 3.2 : 8);
-        const rise = reducedMotion ? 0.15 : life * (((seed >>> 15) % 11) - 5) * 0.09;
-        dummy.position.set(
-          burst.x + Math.cos(angle) * travel,
-          burst.y + rise,
-          burst.z + Math.sin(angle) * travel,
-        );
-        dummy.rotation.set(0, 0, 0);
-        dummy.scale.setScalar(Math.max(0.05, (1 - life) * (0.16 + (seed % 5) * 0.035)));
-        dummy.updateMatrix();
-        bursts.setMatrixAt(burstCount, dummy.matrix);
-        const highlight = i % 4 === 0 ? WHITE : i % 3 === 0 ? FOOD_YELLOW : baseColor;
-        bursts.setColorAt(burstCount, highlight);
-        burstCount += 1;
+        for (let i = 0; i < particleCount && burstCount < quality.burstParticleBudget; i += 1) {
+          let seed = burstSeed ^ Math.imul(i + 1, 0x45d9f3b);
+          seed = Math.imul(seed ^ (seed >>> 16), 0x45d9f3b) >>> 0;
+          const angle = (seed % 6283) / 1000;
+          const speed = 0.15 + ((seed >>> 9) % 100) / 115;
+          const travel = reducedMotion ? 0.35 : life * speed * (burst.kind === "shark" ? 13 : burst.kind === "bite" ? 3.2 : 8);
+          const rise = reducedMotion ? 0.15 : life * (((seed >>> 15) % 11) - 5) * 0.09;
+          dummy.position.set(
+            burst.x + Math.cos(angle) * travel,
+            burst.y + rise,
+            burst.z + Math.sin(angle) * travel,
+          );
+          dummy.rotation.set(0, 0, 0);
+          dummy.scale.setScalar(Math.max(0.05, (1 - life) * (0.16 + (seed % 5) * 0.035)));
+          dummy.updateMatrix();
+          bursts.setMatrixAt(burstCount, dummy.matrix);
+          const highlight = i % 4 === 0 ? WHITE : i % 3 === 0 ? FOOD_YELLOW : baseColor;
+          bursts.setColorAt(burstCount, highlight);
+          burstCount += 1;
+        }
+        if (burstCount >= quality.burstParticleBudget) break;
       }
-      if (burstCount >= quality.burstParticleBudget) break;
+      bursts.count = burstCount;
+      bursts.instanceMatrix.needsUpdate = true;
+      if (bursts.instanceColor) bursts.instanceColor.needsUpdate = true;
     }
-    bursts.count = burstCount;
-    bursts.instanceMatrix.needsUpdate = true;
-    if (bursts.instanceColor) bursts.instanceColor.needsUpdate = true;
 
     if (boundaryMaterialRef.current && followRef.current.active) {
       const local = followRef.current.position;

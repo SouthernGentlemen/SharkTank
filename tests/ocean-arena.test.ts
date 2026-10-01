@@ -73,11 +73,12 @@ describe("ST-118 stylized ocean arena", () => {
 
     expect(scene).toContain("<WorldEnvironment socket={socket} settings={settings}");
     expect(world).toContain("socket.stateRef.current");
-    expect(world).toContain("state.arenaRadius");
-    expect(world).toContain("state.seabedY");
-    expect(world).toContain("state.surfaceY");
+    expect(world).toContain("state?.arenaRadius");
+    expect(world).toContain("state?.seabedY");
+    expect(world).toContain("state?.surfaceY");
     expect(world).toContain("state.frenzyUntilTick > state.tick");
-    expect(world).toContain("<ReefFormation");
+    expect(world).toContain("reefBaseRef");
+    expect(world).toContain("<instancedMesh ref={reefBaseRef}");
     expect(world).toContain("<WreckLandmark");
     expect(world).toContain("particulateBudget");
     expect(world).toContain("bubbleBudget");

@@ -5,6 +5,7 @@ import { PREY_BUDGET, TICKS_PER_SECOND, type PreyKind } from "../../engine/index
 import type { NetPrey } from "../../protocol/index.js";
 import type { RoomSocket } from "../net/useRoomSocket.js";
 import type { Settings } from "../settings/SettingsContext.js";
+import { cadenceDue, resolveClientPerformanceProfile } from "./performance.js";
 import {
   preyVisualFor,
   resolvePreyAnimation,
@@ -69,8 +70,13 @@ export function PreyLayer({ socket, settings }: { socket: RoomSocket; settings: 
   const pose = useMemo<OrientedScenePose>(() => ({ x: 0, y: 0, z: 0, yaw: 0, pitch: 0 }), []);
   const previousById = useMemo(() => new Map<string, NetPrey>(), []);
   const quality = resolvePreyPresentationQuality(settings.graphics.quality);
+  const performanceProfile = resolveClientPerformanceProfile(settings.graphics.quality);
+  const lastPresentationAt = useRef(-Infinity);
 
-  useFrame(() => {
+  useFrame(({ clock }) => {
+    const nowMs = clock.elapsedTime * 1000;
+    if (!cadenceDue(lastPresentationAt.current, nowMs, performanceProfile.preyUpdateMs)) return;
+    lastPresentationAt.current = nowMs;
     const body = bodyMesh.current;
     const head = headMesh.current;
     const tail = tailMesh.current;

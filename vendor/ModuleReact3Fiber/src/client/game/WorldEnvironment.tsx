@@ -10,6 +10,7 @@ import {
   resolveOceanArenaCues,
   resolveOceanEnvironmentQuality,
 } from "./oceanArena.js";
+import { cadenceDue, resolveClientPerformanceProfile } from "./performance.js";
 import { OCEAN_CUES, resolveSceneQuality } from "./sceneMath.js";
 
 const BACKGROUND = "#042737";
@@ -51,23 +52,25 @@ function placeRadial(
   );
 }
 
-function ReefFormation() {
-  return (
-    <group>
-      <mesh position={[-2.6, 1.6, -1.2]} rotation={[0.1, 0.2, -0.08]}>
-        <dodecahedronGeometry args={[3.5, 0]} />
-        <meshStandardMaterial color={REEF} roughness={0.92} metalness={0} />
-      </mesh>
-      <mesh position={[1.7, 2.6, 0.5]} rotation={[0.15, -0.5, 0.05]}>
-        <coneGeometry args={[2.6, 6.5, 7]} />
-        <meshStandardMaterial color={REEF_ACCENT} roughness={0.9} metalness={0} />
-      </mesh>
-      <mesh position={[3.9, 1.2, -1.3]} rotation={[0.35, 0.4, 0.2]}>
-        <dodecahedronGeometry args={[2.2, 0]} />
-        <meshStandardMaterial color={REEF} roughness={1} metalness={0} />
-      </mesh>
-    </group>
-  );
+function setPartMatrix(
+  mesh: THREE.InstancedMesh,
+  index: number,
+  root: THREE.Object3D,
+  part: THREE.Object3D,
+  composed: THREE.Matrix4,
+  x: number,
+  y: number,
+  z: number,
+  rotationX: number,
+  rotationY: number,
+  rotationZ: number,
+): void {
+  part.position.set(x, y, z);
+  part.rotation.set(rotationX, rotationY, rotationZ);
+  part.scale.set(1, 1, 1);
+  part.updateMatrix();
+  composed.multiplyMatrices(root.matrix, part.matrix);
+  mesh.setMatrixAt(index, composed);
 }
 
 function WreckLandmark() {
@@ -118,16 +121,21 @@ export function WorldEnvironment({ socket, settings }: { socket: RoomSocket; set
   const middleBoundaryRef = useRef<THREE.Mesh>(null);
   const upperBoundaryRef = useRef<THREE.Mesh>(null);
   const boundaryMaterialRef = useRef<THREE.MeshBasicMaterial>(null);
-  const boundaryMarkers = useRef<Array<THREE.Mesh | null>>([]);
-  const reefRefs = useRef<Array<THREE.Group | null>>([]);
+  const boundaryMarkerRef = useRef<THREE.InstancedMesh>(null);
+  const reefBaseRef = useRef<THREE.InstancedMesh>(null);
+  const reefSpireRef = useRef<THREE.InstancedMesh>(null);
+  const reefRockRef = useRef<THREE.InstancedMesh>(null);
   const wreckRef = useRef<THREE.Group>(null);
   const frenzyGroupRef = useRef<THREE.Group>(null);
   const frenzyBeamRef = useRef<THREE.Mesh>(null);
   const frenzyMaterialRef = useRef<THREE.MeshBasicMaterial>(null);
-  const lightShaftRefs = useRef<Array<THREE.Mesh | null>>([]);
+  const lightShaftRef = useRef<THREE.InstancedMesh>(null);
   const particulateRef = useRef<THREE.InstancedMesh>(null);
   const bubbleRef = useRef<THREE.InstancedMesh>(null);
   const dummy = useMemo(() => new THREE.Object3D(), []);
+  const reefRoot = useMemo(() => new THREE.Object3D(), []);
+  const reefPart = useMemo(() => new THREE.Object3D(), []);
+  const reefComposed = useMemo(() => new THREE.Matrix4(), []);
   const boundaryColor = useMemo(() => new THREE.Color(), []);
   const boundarySafeColor = useMemo(() => new THREE.Color(BOUNDARY), []);
   const boundaryDangerColor = useMemo(() => new THREE.Color(BOUNDARY_DANGER), []);
@@ -139,86 +147,206 @@ export function WorldEnvironment({ socket, settings }: { socket: RoomSocket; set
     () => makeEnvironmentSeeds(environmentQuality.bubbleBudget, 7118),
     [environmentQuality.bubbleBudget],
   );
-  const reefs = ENVIRONMENT_LANDMARKS.filter((landmark) => landmark.kind === "reef");
-  const wreck = ENVIRONMENT_LANDMARKS.find((landmark) => landmark.kind === "wreck");
+  const reefs = useMemo(
+    () => ENVIRONMENT_LANDMARKS.filter((landmark) => landmark.kind === "reef"),
+    [],
+  );
+  const wreck = useMemo(
+    () => ENVIRONMENT_LANDMARKS.find((landmark) => landmark.kind === "wreck"),
+    [],
+  );
+  const performanceProfile = resolveClientPerformanceProfile(settings.graphics.quality);
+  const lastEnvironmentPassAt = useRef(-Infinity);
+  const arenaDimensionsRef = useRef({ radius: Number.NaN, seabedY: Number.NaN, surfaceY: Number.NaN });
+  const layoutQualityRef = useRef<Settings["graphics"]["quality"] | null>(null);
+  const cuesRef = useRef(fallback);
+  const frenzyVolumeRef = useRef(fallbackFrenzy);
 
-  useFrame(({ clock }, dt) => {
+  useFrame(({ clock }) => {
     const state = socket.stateRef.current;
-    const cues = resolveOceanArenaCues(state
-      ? {
-          arenaRadius: state.arenaRadius,
-          seabedY: state.seabedY,
-          surfaceY: state.surfaceY,
-        }
-      : fallback);
+    const radius = state?.arenaRadius ?? fallback.radius;
+    const seabedY = state?.seabedY ?? fallback.seabedY;
+    const surfaceY = state?.surfaceY ?? fallback.surfaceY;
+    const dimensions = arenaDimensionsRef.current;
+    const layoutChanged =
+      dimensions.radius !== radius
+      || dimensions.seabedY !== seabedY
+      || dimensions.surfaceY !== surfaceY
+      || layoutQualityRef.current !== settings.graphics.quality;
+
+    if (layoutChanged) {
+      dimensions.radius = radius;
+      dimensions.seabedY = seabedY;
+      dimensions.surfaceY = surfaceY;
+      layoutQualityRef.current = settings.graphics.quality;
+      cuesRef.current = resolveOceanArenaCues({ arenaRadius: radius, seabedY, surfaceY });
+      frenzyVolumeRef.current = frenzyVolumeFor({
+        radius: cuesRef.current.radius,
+        seabedY: cuesRef.current.seabedY,
+        surfaceY: cuesRef.current.surfaceY,
+      });
+    }
+
+    const cues = cuesRef.current;
+    const frenzyVolume = frenzyVolumeRef.current;
     const t = reducedMotion ? 0 : clock.elapsedTime;
+    const nowMs = clock.elapsedTime * 1000;
+    const updateEnvironment = layoutChanged
+      || cadenceDue(lastEnvironmentPassAt.current, nowMs, performanceProfile.environmentUpdateMs);
 
-    if (surfaceRef.current) {
-      surfaceRef.current.position.y = cues.surfaceY;
-      surfaceRef.current.scale.set(cues.radius * 1.025, cues.radius * 1.025, 1);
-    }
-    if (seabedRef.current) {
-      seabedRef.current.position.y = cues.seabedY;
-      seabedRef.current.scale.set(cues.radius * 1.04, cues.radius * 1.04, 1);
-    }
-    if (surfaceBandsRef.current) {
-      surfaceBandsRef.current.position.y = cues.surfaceY - 0.06;
-      surfaceBandsRef.current.scale.set(cues.radius, cues.radius, 1);
-      if (!reducedMotion) surfaceBandsRef.current.rotation.z += dt * 0.018;
-    }
-    if (seabedCuesRef.current) {
-      seabedCuesRef.current.position.y = cues.seabedY + 0.045;
-      seabedCuesRef.current.scale.set(cues.radius, cues.radius, 1);
-      if (!reducedMotion) seabedCuesRef.current.rotation.z -= dt * 0.004;
-    }
-
-    for (const [mesh, y] of [
-      [lowerBoundaryRef.current, cues.seabedY + cues.height * 0.17],
-      [middleBoundaryRef.current, cues.midY],
-      [upperBoundaryRef.current, cues.surfaceY - cues.height * 0.17],
-    ] as const) {
-      if (!mesh) continue;
-      mesh.position.y = y;
-      mesh.scale.set(cues.radius, cues.radius, 1);
-    }
-
-    for (let i = 0; i < BOUNDARY_MARKER_COUNT; i += 1) {
-      const marker = boundaryMarkers.current[i];
-      if (!marker) continue;
-      const angle = (i / BOUNDARY_MARKER_COUNT) * Math.PI * 2;
-      placeRadial(marker, angle, 0.91, cues.radius, cues.midY);
-      marker.scale.y = cues.height * 0.32;
-    }
-
-    reefs.forEach((landmark, index) => {
-      const ref = reefRefs.current[index];
-      placeRadial(ref, landmark.angle, landmark.radialShare, cues.radius, cues.seabedY + 0.1);
-      if (ref) {
-        const scale = Math.max(0.8, Math.min(1.5, cues.radius / 82));
-        ref.scale.setScalar(scale);
+    if (layoutChanged) {
+      if (surfaceRef.current) {
+        surfaceRef.current.position.y = cues.surfaceY;
+        surfaceRef.current.scale.set(cues.radius * 1.025, cues.radius * 1.025, 1);
       }
-    });
-    if (wreck) {
-      placeRadial(wreckRef.current, wreck.angle, wreck.radialShare, cues.radius, cues.seabedY + 0.25);
+      if (seabedRef.current) {
+        seabedRef.current.position.y = cues.seabedY;
+        seabedRef.current.scale.set(cues.radius * 1.04, cues.radius * 1.04, 1);
+      }
+      if (surfaceBandsRef.current) {
+        surfaceBandsRef.current.position.y = cues.surfaceY - 0.06;
+        surfaceBandsRef.current.scale.set(cues.radius, cues.radius, 1);
+      }
+      if (seabedCuesRef.current) {
+        seabedCuesRef.current.position.y = cues.seabedY + 0.045;
+        seabedCuesRef.current.scale.set(cues.radius, cues.radius, 1);
+      }
+
+      const boundaryMeshes = [
+        [lowerBoundaryRef.current, cues.seabedY + cues.height * 0.17],
+        [middleBoundaryRef.current, cues.midY],
+        [upperBoundaryRef.current, cues.surfaceY - cues.height * 0.17],
+      ] as const;
+      for (const [mesh, y] of boundaryMeshes) {
+        if (!mesh) continue;
+        mesh.position.y = y;
+        mesh.scale.set(cues.radius, cues.radius, 1);
+      }
+
+      const boundaryMarkers = boundaryMarkerRef.current;
+      if (boundaryMarkers) {
+        for (let index = 0; index < BOUNDARY_MARKER_COUNT; index += 1) {
+          const angle = (index / BOUNDARY_MARKER_COUNT) * Math.PI * 2;
+          dummy.position.set(
+            Math.cos(angle) * 0.91 * cues.radius,
+            cues.midY,
+            Math.sin(angle) * 0.91 * cues.radius,
+          );
+          dummy.rotation.set(0, 0, 0);
+          dummy.scale.set(1, cues.height * 0.32, 1);
+          dummy.updateMatrix();
+          boundaryMarkers.setMatrixAt(index, dummy.matrix);
+        }
+        boundaryMarkers.count = BOUNDARY_MARKER_COUNT;
+        boundaryMarkers.instanceMatrix.needsUpdate = true;
+      }
+
+      const reefBase = reefBaseRef.current;
+      const reefSpire = reefSpireRef.current;
+      const reefRock = reefRockRef.current;
+      if (reefBase && reefSpire && reefRock) {
+        for (let index = 0; index < reefs.length; index += 1) {
+          const landmark = reefs[index];
+          const scale = Math.max(0.8, Math.min(1.5, cues.radius / 82));
+          reefRoot.position.set(
+            Math.cos(landmark.angle) * cues.radius * landmark.radialShare,
+            cues.seabedY + 0.1,
+            Math.sin(landmark.angle) * cues.radius * landmark.radialShare,
+          );
+          reefRoot.rotation.set(0, 0, 0);
+          reefRoot.scale.setScalar(scale);
+          reefRoot.updateMatrix();
+          setPartMatrix(reefBase, index, reefRoot, reefPart, reefComposed, -2.6, 1.6, -1.2, 0.1, 0.2, -0.08);
+          setPartMatrix(reefSpire, index, reefRoot, reefPart, reefComposed, 1.7, 2.6, 0.5, 0.15, -0.5, 0.05);
+          setPartMatrix(reefRock, index, reefRoot, reefPart, reefComposed, 3.9, 1.2, -1.3, 0.35, 0.4, 0.2);
+        }
+        for (const mesh of [reefBase, reefSpire, reefRock]) {
+          mesh.count = reefs.length;
+          mesh.instanceMatrix.needsUpdate = true;
+        }
+      }
+
+      if (wreck) {
+        placeRadial(wreckRef.current, wreck.angle, wreck.radialShare, cues.radius, cues.seabedY + 0.25);
+      }
+      if (frenzyGroupRef.current) {
+        frenzyGroupRef.current.position.y = frenzyVolume.center.y;
+        frenzyGroupRef.current.scale.set(frenzyVolume.radius, 1, frenzyVolume.radius);
+      }
+      if (frenzyBeamRef.current) {
+        frenzyBeamRef.current.scale.set(
+          1 / Math.max(1, frenzyVolume.radius),
+          frenzyVolume.halfHeight * 2,
+          1 / Math.max(1, frenzyVolume.radius),
+        );
+      }
+    }
+
+    if (updateEnvironment) {
+      lastEnvironmentPassAt.current = nowMs;
+      if (surfaceBandsRef.current) surfaceBandsRef.current.rotation.z = t * 0.018;
+      if (seabedCuesRef.current) seabedCuesRef.current.rotation.z = -t * 0.004;
+
+      const lightShafts = lightShaftRef.current;
+      if (lightShafts) {
+        for (let index = 0; index < environmentQuality.lightShaftCount; index += 1) {
+          const shaft = LIGHT_SHAFT_LAYOUT[index];
+          const angle = shaft.angle + (reducedMotion ? 0 : Math.sin(t * 0.08 + index) * 0.05);
+          dummy.position.set(
+            Math.cos(angle) * shaft.radialShare * cues.radius,
+            cues.midY,
+            Math.sin(angle) * shaft.radialShare * cues.radius,
+          );
+          dummy.rotation.set(0, 0, 0);
+          dummy.scale.set(shaft.scale, cues.height * 0.9, shaft.scale);
+          dummy.updateMatrix();
+          lightShafts.setMatrixAt(index, dummy.matrix);
+        }
+        lightShafts.count = environmentQuality.lightShaftCount;
+        lightShafts.instanceMatrix.needsUpdate = true;
+      }
+
+      const particulateMesh = particulateRef.current;
+      if (particulateMesh) {
+        particulates.forEach((seed, index) => {
+          const yShare = (seed.depthShare + t * seed.speed) % 1;
+          dummy.position.set(
+            Math.cos(seed.angle) * seed.radialShare * cues.radius,
+            cues.seabedY + yShare * cues.height,
+            Math.sin(seed.angle) * seed.radialShare * cues.radius,
+          );
+          dummy.rotation.set(0, 0, 0);
+          dummy.scale.setScalar(seed.size);
+          dummy.updateMatrix();
+          particulateMesh.setMatrixAt(index, dummy.matrix);
+        });
+        particulateMesh.count = particulates.length;
+        particulateMesh.instanceMatrix.needsUpdate = true;
+      }
+
+      const bubbleMesh = bubbleRef.current;
+      if (bubbleMesh) {
+        bubbles.forEach((seed, index) => {
+          const yShare = (seed.depthShare + t * seed.speed * 2.3) % 1;
+          const drift = reducedMotion ? 0 : Math.sin(t * 0.45 + seed.angle) * 0.012 * cues.radius;
+          dummy.position.set(
+            Math.cos(seed.angle) * seed.radialShare * cues.radius + drift,
+            cues.seabedY + yShare * cues.height,
+            Math.sin(seed.angle) * seed.radialShare * cues.radius,
+          );
+          dummy.rotation.set(0, 0, 0);
+          dummy.scale.setScalar(seed.size * 1.65);
+          dummy.updateMatrix();
+          bubbleMesh.setMatrixAt(index, dummy.matrix);
+        });
+        bubbleMesh.count = bubbles.length;
+        bubbleMesh.instanceMatrix.needsUpdate = true;
+      }
     }
 
     const frenzyOn = Boolean(state && state.frenzyUntilTick > state.tick);
-    const frenzyVolume = frenzyVolumeFor({
-      radius: cues.radius,
-      seabedY: cues.seabedY,
-      surfaceY: cues.surfaceY,
-    });
     if (frenzyGroupRef.current) {
-      frenzyGroupRef.current.position.y = frenzyVolume.center.y;
-      frenzyGroupRef.current.scale.set(frenzyVolume.radius, 1, frenzyVolume.radius);
-      if (frenzyOn && !reducedMotion) frenzyGroupRef.current.rotation.y += dt * 0.08;
-    }
-    if (frenzyBeamRef.current) {
-      frenzyBeamRef.current.scale.set(
-        1 / Math.max(1, frenzyVolume.radius),
-        frenzyVolume.halfHeight * 2,
-        1 / Math.max(1, frenzyVolume.radius),
-      );
+      frenzyGroupRef.current.rotation.y = frenzyOn && !reducedMotion ? t * 0.08 : 0;
     }
     if (frenzyMaterialRef.current) {
       frenzyMaterialRef.current.color.set(frenzyOn ? FRENZY_ACTIVE : FRENZY);
@@ -228,58 +356,14 @@ export function WorldEnvironment({ socket, settings }: { socket: RoomSocket; set
     }
 
     const local = state?.snakes.find((shark) => shark.id === socket.youId)?.segments[0];
-    const boundaryDanger = local
-      ? Math.max(0, Math.min(1, 1 - (state!.arenaRadius - Math.hypot(local.x, local.z)) / 14))
+    const boundaryDanger = local && state
+      ? Math.max(0, Math.min(1, 1 - (state.arenaRadius - Math.hypot(local.x, local.z)) / 14))
       : 0;
     if (boundaryMaterialRef.current) {
       boundaryMaterialRef.current.color.copy(
         boundaryColor.copy(boundarySafeColor).lerp(boundaryDangerColor, boundaryDanger),
       );
       boundaryMaterialRef.current.opacity = 0.2 + boundaryDanger * 0.3;
-    }
-
-    LIGHT_SHAFT_LAYOUT.slice(0, environmentQuality.lightShaftCount).forEach((shaft, index) => {
-      const mesh = lightShaftRefs.current[index];
-      if (!mesh) return;
-      placeRadial(mesh, shaft.angle + (reducedMotion ? 0 : Math.sin(t * 0.08 + index) * 0.05), shaft.radialShare, cues.radius, cues.midY);
-      mesh.scale.set(shaft.scale, cues.height * 0.9, shaft.scale);
-    });
-
-    const particulateMesh = particulateRef.current;
-    if (particulateMesh) {
-      particulates.forEach((seed, index) => {
-        const yShare = (seed.depthShare + t * seed.speed) % 1;
-        dummy.position.set(
-          Math.cos(seed.angle) * seed.radialShare * cues.radius,
-          cues.seabedY + yShare * cues.height,
-          Math.sin(seed.angle) * seed.radialShare * cues.radius,
-        );
-        dummy.rotation.set(0, 0, 0);
-        dummy.scale.setScalar(seed.size);
-        dummy.updateMatrix();
-        particulateMesh.setMatrixAt(index, dummy.matrix);
-      });
-      particulateMesh.count = particulates.length;
-      particulateMesh.instanceMatrix.needsUpdate = true;
-    }
-
-    const bubbleMesh = bubbleRef.current;
-    if (bubbleMesh) {
-      bubbles.forEach((seed, index) => {
-        const yShare = (seed.depthShare + t * seed.speed * 2.3) % 1;
-        const drift = reducedMotion ? 0 : Math.sin(t * 0.45 + seed.angle) * 0.012 * cues.radius;
-        dummy.position.set(
-          Math.cos(seed.angle) * seed.radialShare * cues.radius + drift,
-          cues.seabedY + yShare * cues.height,
-          Math.sin(seed.angle) * seed.radialShare * cues.radius,
-        );
-        dummy.rotation.set(0, 0, 0);
-        dummy.scale.setScalar(seed.size * 1.65);
-        dummy.updateMatrix();
-        bubbleMesh.setMatrixAt(index, dummy.matrix);
-      });
-      bubbleMesh.count = bubbles.length;
-      bubbleMesh.instanceMatrix.needsUpdate = true;
     }
   });
 
@@ -355,29 +439,27 @@ export function WorldEnvironment({ socket, settings }: { socket: RoomSocket; set
         <meshBasicMaterial color={BOUNDARY} transparent opacity={0.2} depthWrite={false} side={THREE.DoubleSide} />
       </mesh>
 
-      {Array.from({ length: BOUNDARY_MARKER_COUNT }, (_, index) => (
-        <mesh
-          key={index}
-          ref={(mesh) => { boundaryMarkers.current[index] = mesh; }}
-        >
-          <cylinderGeometry args={[0.08, 0.08, 1, 6]} />
-          <meshBasicMaterial color={BOUNDARY} transparent opacity={0.34} />
-        </mesh>
-      ))}
+      <instancedMesh
+        ref={boundaryMarkerRef}
+        args={[undefined, undefined, BOUNDARY_MARKER_COUNT]}
+        frustumCulled={false}
+      >
+        <cylinderGeometry args={[0.08, 0.08, 1, 6]} />
+        <meshBasicMaterial color={BOUNDARY} transparent opacity={0.34} />
+      </instancedMesh>
 
-      {reefs.map((landmark, index) => (
-        <group
-          key={landmark.id}
-          ref={(group) => { reefRefs.current[index] = group; }}
-          position={[
-            Math.cos(landmark.angle) * fallback.radius * landmark.radialShare,
-            fallback.seabedY,
-            Math.sin(landmark.angle) * fallback.radius * landmark.radialShare,
-          ]}
-        >
-          <ReefFormation />
-        </group>
-      ))}
+      <instancedMesh ref={reefBaseRef} args={[undefined, undefined, reefs.length]} frustumCulled={false}>
+        <dodecahedronGeometry args={[3.5, 0]} />
+        <meshStandardMaterial color={REEF} roughness={0.92} metalness={0} />
+      </instancedMesh>
+      <instancedMesh ref={reefSpireRef} args={[undefined, undefined, reefs.length]} frustumCulled={false}>
+        <coneGeometry args={[2.6, 6.5, 7]} />
+        <meshStandardMaterial color={REEF_ACCENT} roughness={0.9} metalness={0} />
+      </instancedMesh>
+      <instancedMesh ref={reefRockRef} args={[undefined, undefined, reefs.length]} frustumCulled={false}>
+        <dodecahedronGeometry args={[2.2, 0]} />
+        <meshStandardMaterial color={REEF} roughness={1} metalness={0} />
+      </instancedMesh>
 
       {wreck && (
         <group
@@ -427,27 +509,21 @@ export function WorldEnvironment({ socket, settings }: { socket: RoomSocket; set
         ))}
       </group>
 
-      {LIGHT_SHAFT_LAYOUT.slice(0, environmentQuality.lightShaftCount).map((shaft, index) => (
-        <mesh
-          key={index}
-          ref={(mesh) => { lightShaftRefs.current[index] = mesh; }}
-          position={[
-            Math.cos(shaft.angle) * fallback.radius * shaft.radialShare,
-            fallback.midY,
-            Math.sin(shaft.angle) * fallback.radius * shaft.radialShare,
-          ]}
-        >
-          <coneGeometry args={[3.4, 1, 10, 1, true]} />
-          <meshBasicMaterial
-            color={SURFACE_ACCENT}
-            transparent
-            opacity={0.055}
-            depthWrite={false}
-            side={THREE.DoubleSide}
-            blending={THREE.AdditiveBlending}
-          />
-        </mesh>
-      ))}
+      <instancedMesh
+        ref={lightShaftRef}
+        args={[undefined, undefined, LIGHT_SHAFT_LAYOUT.length]}
+        frustumCulled={false}
+      >
+        <coneGeometry args={[3.4, 1, 10, 1, true]} />
+        <meshBasicMaterial
+          color={SURFACE_ACCENT}
+          transparent
+          opacity={0.055}
+          depthWrite={false}
+          side={THREE.DoubleSide}
+          blending={THREE.AdditiveBlending}
+        />
+      </instancedMesh>
 
       <instancedMesh
         ref={particulateRef}

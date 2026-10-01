@@ -93,6 +93,7 @@ describe("ST-125 spatial underwater game audio", () => {
     const plan = read("../implementation_plan.md");
     expect(plan).not.toContain("### ST-125");
     expect(plan).not.toContain("### ST-126");
-    expect(plan).toContain("### ST-127");
+    expect(plan).not.toContain("### ST-127");
+    expect(plan).toContain("### ST-128");
   });
 });
