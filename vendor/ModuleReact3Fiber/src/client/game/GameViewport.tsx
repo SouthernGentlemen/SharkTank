@@ -20,8 +20,9 @@ export interface GameViewportProps {
 /**
  * The one production gameplay renderer.
  *
- * Authority is still planar for ST-111, but the viewport now owns one modular R3F ocean
- * scene with a perspective chase rig and explicit quality-scaled rendering boundaries.
+ * The viewport renders authoritative full X/Y/Z snapshots through one modular R3F ocean
+ * scene. Local prediction and camera presentation stay client-side; competitive authority
+ * remains in the Room Durable Object.
  */
 export function GameViewport({
   socket,

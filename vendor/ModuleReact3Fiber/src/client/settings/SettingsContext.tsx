@@ -84,7 +84,7 @@ export interface Settings {
     keybinds: Keybinds;
     turnAssist: boolean; // gentler steering — accessibility aid
     invertSteer: boolean;
-    /** On-screen thumbstick + ability pads. "auto" follows (pointer: coarse). */
+    /** Independent on-screen flight/look sticks plus ability pads. "auto" follows (pointer: coarse). */
     touchControls: "auto" | "on" | "off";
     /** Physical side of the flight stick. The look stick/actions mirror to the opposite side. */
     stickSide: "right" | "left";

@@ -1,114 +1,31 @@
 # Implementation plan
 
-## Owner direction — full-3D SharkTank rebuild
+## Owner direction — full-3D SharkTank acceptance and release
 
-SharkTank is moving from a planar `.io`-style game with a Canvas2D production renderer into one full volumetric React Three Fiber experience.
+The full-3D rebuild is now the current product baseline. This queue is current/future work only: validate the finished product across real quality/control modes, then release it through the existing governed path.
 
-This queue is the owner's direction for the rebuild. Work only the first open task, preserve the order of later tasks unless the owner explicitly changes it, and keep every task independently green on `main`.
+### Current product baseline
 
-### Product outcome
+- React Three Fiber / Three.js is the only gameplay renderer; there is no hidden Canvas2D gameplay fallback.
+- Competitive state is full X/Y/Z with authoritative yaw + pitch; roll/banking is presentation-only.
+- The Room Durable Object owns movement, scoring, combat, prey, Feeding Frenzy, Apex, rounds, results, resets and replayable state.
+- Deterministic engine/protocol/store code remains server-safe and framework-agnostic.
+- Room schema 11 and realtime protocol 11 are current.
+- Desktop uses W/S pitch, A/D yaw and arrow-key camera look, with optional mouse-look mirroring.
+- Mobile uses independent dual-stick flight/look plus simultaneous bite/burst ability pointers.
+- Score-relevant fish/prey are authoritative gameplay actors.
+- Shark combat is directional bite + burst; ordinary body overlap is non-lethal separation/deflection.
+- Local prediction and remote interpolation are presentation paths only and do not move authority client-side.
+- Accessibility remains DOM-first around the WebGL gameplay surface.
+- Quality scaling may reduce presentation cost but may not remove authoritative actors or competitive cues.
+- Durable Object names, migration tag `v1`, bindings, protected environments and release/deploy guards remain unchanged unless an explicit queued task requires otherwise.
+- Production remains on the accepted `v2.0.0` release until the queued release task completes.
 
-The finished `/play/` experience must be:
-
-- one React Three Fiber / Three.js gameplay renderer with no Canvas2D gameplay fallback;
-- a true X/Y/Z underwater world rather than a flat X/Z arena rendered with 3D primitives;
-- third-person shark swimming with authoritative yaw + pitch, visual banking/roll, chase-camera motion and real depth;
-- fully playable on phones and tablets with simultaneous dual analog touch controls;
-- fully playable with mouse + keyboard and keyboard-only controls;
-- populated by recognizable sharks, gameplay fish/prey and a stylized ocean environment;
-- realtime multiplayer with the Room Durable Object remaining authoritative over movement, scoring, combat, prey, rounds and replayable state;
-- readable and responsive enough for competitive play before visual spectacle is added;
-- accessible through the existing DOM HUD/settings/announcements/captions layer rather than trying to render all UI inside WebGL;
-- performant enough to target 60 FPS on normal desktop hardware and a stable 30-60 FPS quality-scaled mobile experience.
-
-### Current baseline being replaced
-
-The present production game mounts `GameCanvas.tsx`, which renders through `CanvasRenderingContext2D`. The repository also contains an R3F `Scene.tsx`, but that scene is not the production gameplay surface and is still mechanically planar: state uses `{ x, z }`, shark/food collision is 2D, orientation is a single heading angle, and the scene places actors near a constant Y plane.
-
-That split is temporary technical debt. The rebuild ends with one gameplay renderer and one 3D gameplay model.
-
-### Rebuild rules
-
-- **No permanent dual renderer.** Once R3F reaches current-playability parity, delete the Canvas2D gameplay path, sprite renderer and 2D-only drawing helpers. Do not maintain a hidden fallback game.
-- **DOM remains DOM.** Menus, HUD, leaderboard, dialogs, settings, captions, focus management and screen-reader output remain React/HTML unless a concrete gameplay reason requires otherwise.
-- **Server authority stays intact.** The client may predict and interpolate, but cannot author score, damage, prey consumption, kills, round state or authoritative movement.
-- **Three.js does not enter the Worker bundle.** Engine/protocol/store code must remain server-safe and framework-agnostic.
-- **Use full X/Y/Z state.** Three's Y axis is vertical; X/Z remain the horizontal plane. "Full 3D" means gameplay state, collision, prey, projectiles/abilities, spawning and camera targets all carry depth, not merely visual Y offsets.
-- **Keep orientation compact.** Authoritative shark steering uses yaw + pitch (or an equivalent normalized forward vector derived from them). Roll is visual banking driven by turn rate unless a later task proves roll must become gameplay state.
-- **Mobile is first-class, not a later port.** Touch input must support two simultaneous pointer captures, safe-area insets, orientation changes and coarse-pointer devices from the first 3D-control task onward.
-- **One control model across mobile and desktop.** The two mobile sticks map directly to the two desktop directional clusters so players learn one mental model instead of separate touch and keyboard games.
-- **Owner-default primary flight control:** the shark constantly swims forward like an aircraft through water. Left mobile stick is the WASD-equivalent flight stick: up/down pitches the shark to climb/dive and left/right yaws the shark. The shark visually banks into yaw; roll is not a separate authoritative input.
-- **Owner-default camera/look control:** right mobile stick is the arrow-key-equivalent look stick: up/down/left/right offsets the third-person chase camera around the shark for situational awareness and aiming. Releasing it smoothly recenters behind the shark.
-- **Desktop default:** W/S pitch up/down, A/D yaw left/right; Arrow Up/Down/Left/Right control the same chase-camera look offsets as the right mobile stick. This is the primary desktop scheme: keyboard-driven, jet-like flight through 3D water. Mouse look may be an optional mirror for the arrow-key look axis, but it must not be required to steer, climb, dive or fight.
-- **Abilities:** bite and burst remain separate actions from the two directional sticks/clusters and must be reachable without changing the primary pitch/yaw model. Mobile must support additional simultaneous ability pointers while both sticks are active.
-- **Shark-centric combat.** Directional bite + burst movement + bounded size advantage is the authoritative combat model. Contact is non-lethal separation/deflection, and ranged weapons are not part of the core kit.
-- **Fish are gameplay, not decoration.** Score-relevant prey is authoritative. Decorative distant schools/particles may be client-only only when they cannot affect score, collision or competitive information.
-- **Ocean, not empty space.** The final world needs a water surface, seabed, depth fog, caustic/light treatment, suspended particulate/bubbles, readable boundaries and landmarks such as reef/rock/wreck structures. The world remains stylized and performant rather than photorealistic.
-- **Assets ship locally.** No runtime hotlinking of models/textures/audio. Add only first-party or license-compatible assets with provenance that is safe for this MIT repository.
-- **Avoid dependency sprawl.** Keep React 19, R3F 9 and Three as the rendering baseline. Add a rendering/asset dependency only when a queued task demonstrates that the platform primitives are insufficient.
-- **Do not change stateful Cloudflare identity casually.** Keep Durable Object class names, migration tag `v1`, namespace bindings, R2 bindings, domain/DNS, secrets, protected environments and deployment guards unchanged unless a specific queued task explicitly requires otherwise.
-- **Safe state evolution is mandatory.** A gameplay schema bump may reset transient room simulation when necessary, but must preserve the Room/Lobby Durable Object identities and operational metadata. Existing stored snapshots and replay logs must never be misread as the new schema.
-- **No intermediate release by default.** Rebuild tasks may merge to `main` with the package version unchanged. Production stays on the accepted `v2.0.0` release until the final release task, unless the owner explicitly queues an earlier release.
-- **Every task must leave `main` buildable and testable.** Temporary compatibility adapters are allowed only when they are bounded to a later removal task already in this queue.
-
-### Experience targets
-
-The target play loop is:
-
-1. Enter an ocean arena and immediately understand where the shark is facing.
-2. Fly the shark through the water with jet-like pitch/yaw controls and a chase camera that can look independently.
-3. Hunt visible fish/prey to grow.
-4. Read nearby rivals by silhouette, size, motion and name/skin cues.
-5. Position above/below/behind another shark.
-6. Burst to close or escape.
-7. Land a directional bite instead of winning because two centers overlapped.
-8. Grow from agile scavenger toward an obvious apex threat.
-9. Converge on server-wide Feeding Frenzy events.
-10. Reach a clear round climax/result and immediately have a reason to play again.
-
-### Performance and network budgets
-
-These are acceptance targets, not permission to fake authority:
-
-- retain the current 32-shark tank target unless measurement proves a smaller cap is required;
-- keep score-relevant simulation deterministic and replayable;
-- prefer compact yaw/pitch/position fields over shipping render-only transforms;
-- keep high-frequency socket payloads bounded and measured after 3D coordinates are added;
-- use interpolation for remote actors and prediction/reconciliation for the local actor;
-- use instancing or equivalent batching for repeated fish, bubbles, particles and environmental props;
-- avoid React state updates per render frame;
-- quality presets may reduce shadows, particles, water detail, model LOD, render DPR and decorative schools, but may not remove authoritative actors or competitive cues;
-- mobile layout must respect display cutouts/safe areas and remain playable in landscape; portrait may present a rotate affordance if the gameplay viewport cannot meet minimum control spacing.
+Work only the first open task, preserve the order of later tasks unless the owner explicitly changes it, and keep every task independently green on `main`.
 
 ## Open tasks
 
 
-### ST-130 — [DOCS] Consolidate the repository around the full-3D architecture
-
-**Goal**
-
-Make current documentation describe the game that actually exists and remove 2D-era residue once the implementation is accepted.
-
-**Scope**
-
-- Update README and architecture documentation to describe the R3F-only gameplay boundary, 3D authority, controls, fish/prey, combat, rounds and performance model.
-- Update comments/module documentation that still describe snake.io, planar headings, one-stick touch or Canvas2D rendering.
-- Remove dead exports/files/tests left only for the old renderer/protocol.
-- Keep provenance/history CSVs as provenance inputs; do not turn docs into a changelog.
-- Keep operator/evidence/release documentation current and concise.
-
-**Non-goals**
-
-- No new governance framework.
-- No release yet.
-- No retrospective history dump into current-state docs.
-
-**Acceptance**
-
-- Repository search finds no reachable 2D gameplay renderer or stale instructions claiming the game is planar.
-- The documented command map and architecture match the built code.
-
----
 
 ### ST-131 — [TEST] Run full-3D product acceptance across quality and control modes
 

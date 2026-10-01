@@ -210,6 +210,6 @@ describe("ST-127 3D client performance contracts", () => {
     expect(plan).not.toContain("### ST-127");
     expect(plan).not.toContain("### ST-128");
     expect(plan).not.toContain("### ST-129");
-    expect(plan.indexOf("### ST-130")).toBeGreaterThan(0);
+    expect(plan.indexOf("### ST-131")).toBeGreaterThan(0);
   });
 });
