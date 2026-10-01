@@ -755,6 +755,7 @@ export class Lobby implements DurableObject {
       });
       return json({ ok: true, billingWindow: await this.billing(), history });
     }
+    if (path.endsWith("/profile-result")) return this.profileResult(request);
     if (path.endsWith("/profile")) return this.profile(request);
     if (path.endsWith("/report") && request.method === "POST") {
       const b = await safeJson<TankRoom & { topName?: string }>(request);
@@ -950,7 +951,9 @@ export class Lobby implements DurableObject {
     const next: StoredProfile = {
       name: sanitizeDisplayName(body.name ?? previous.name),
       skin,
-      best: Math.max(previous.best, clampInt(body.best ?? 0, 0, 1e9)),
+      // Public profile writes own cosmetics/settings only. Round scores are accepted
+      // exclusively from the Room Durable Object through /profile-result.
+      best: previous.best,
       settings,
       seenAt: Date.now(),
     };
@@ -967,6 +970,51 @@ export class Lobby implements DurableObject {
       // asked for and simply gets no server-side copy of it. Failing the save closed would
       // take the game down for everyone the moment someone decided to mint UUIDs.
       return json({ ok: true, profile: publicProfile(next), persisted: false });
+    this.countWrites(1);
+    await this.ctx.storage.put(key, next);
+    if (this.profileStats) {
+      this.profileStats.count += 1;
+      this.countWrites(1);
+      this.ctx.waitUntil(this.ctx.storage.put("profileStats", this.profileStats));
+    }
+    return json({ ok: true, profile: publicProfile(next), persisted: true });
+  }
+
+  private async profileResult(request: Request): Promise<Response> {
+    if (request.method !== "POST") return json({ ok: false, error: "method not allowed" }, 405);
+    const owner = request.headers.get("x-profile-id");
+    if (!owner || !/^[a-f0-9-]{36}$/.test(owner)) return json({ ok: false, error: "invalid profile" }, 400);
+    const body = await safeJson<{ best?: unknown; name?: unknown; skin?: unknown }>(request);
+    if (!body || typeof body.best !== "number" || !Number.isFinite(body.best)) {
+      return json({ ok: false, error: "invalid result" }, 400);
+    }
+
+    const key = `profile:${owner}`;
+    const stored = await this.ctx.storage.get<StoredProfile>(key);
+    this.usage.storageRowsRead += 1;
+    const fallbackName = typeof body.name === "string" ? sanitizeDisplayName(body.name) : "Player";
+    const fallbackSkin = typeof body.skin === "string" && SKINS.some((skin) => skin.id === body.skin)
+      ? body.skin
+      : DEFAULT_SKIN;
+    const previous: StoredProfile = stored ?? {
+      name: fallbackName,
+      skin: fallbackSkin,
+      best: 0,
+    };
+    const next: StoredProfile = {
+      ...previous,
+      best: Math.max(previous.best, clampInt(body.best, 0, 1e9)),
+      seenAt: Date.now(),
+    };
+
+    if (stored) {
+      this.countWrites(1);
+      await this.ctx.storage.put(key, next);
+      return json({ ok: true, profile: publicProfile(next), persisted: true });
+    }
+    if (!(await this.admitNewProfile())) {
+      return json({ ok: true, profile: publicProfile(next), persisted: false });
+    }
     this.countWrites(1);
     await this.ctx.storage.put(key, next);
     if (this.profileStats) {

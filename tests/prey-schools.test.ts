@@ -180,8 +180,8 @@ describe("ST-120 authoritative fish and prey schools", () => {
   it("ships only compact authoritative prey fields and keeps browser presentation out of Worker imports", () => {
     const state = createRoom({ seed: "wire-prey" });
     const net = toNetState(state);
-    expect(ROOM_SCHEMA_VERSION).toBe(10);
-    expect(REALTIME_PROTOCOL_VERSION).toBe(10);
+    expect(ROOM_SCHEMA_VERSION).toBe(11);
+    expect(REALTIME_PROTOCOL_VERSION).toBe(11);
     expect(net.food).toHaveLength(PREY_BUDGET.ambient);
     expect(net.food[0]).toMatchObject({
       id: state.food[0].id,

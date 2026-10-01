@@ -3,6 +3,7 @@
 // cheap. Key changes are announced to screen readers via the announcer.
 
 import { useEffect, useRef, useState } from "react";
+import { TICKS_PER_SECOND, roundTicksLeft } from "../../engine/index.js";
 import type { RoomSocket } from "../net/useRoomSocket.js";
 import { useAnnouncer } from "../a11y/announcer.js";
 
@@ -16,13 +17,26 @@ export interface HudStats {
   rank: number;
   players: number;
   alive: boolean;
+  roundNumber: number;
+  roundPhase: "active" | "apex" | "result";
+  roundSeconds: number;
 }
 
 const SPAWN_LENGTH = 10; // engine START_LENGTH; the baseline a size multiplier is read against
 
 /** Sample the live snapshot ~5×/s for HUD display without per-frame re-renders. */
 export function useHudStats(socket: RoomSocket): HudStats {
-  const [stats, setStats] = useState<HudStats>({ points: 0, size: 1, health: 100, rank: 0, players: 0, alive: false });
+  const [stats, setStats] = useState<HudStats>({
+    points: 0,
+    size: 1,
+    health: 100,
+    rank: 0,
+    players: 0,
+    alive: false,
+    roundNumber: 1,
+    roundPhase: "active",
+    roundSeconds: 0,
+  });
   useEffect(() => {
     const id = setInterval(() => {
       const s = socket.stateRef.current;
@@ -39,11 +53,19 @@ export function useHudStats(socket: RoomSocket): HudStats {
         rank,
         players: alive.length,
         alive: me?.alive ?? false,
+        roundNumber: s.round.number,
+        roundPhase: s.round.phase,
+        roundSeconds: Math.ceil(roundTicksLeft(s) / TICKS_PER_SECOND),
       });
     }, 200);
     return () => clearInterval(id);
   }, [socket]);
   return stats;
+}
+
+function formatRoundClock(seconds: number): string {
+  const safe = Math.max(0, Math.trunc(seconds));
+  return `${Math.floor(safe / 60)}:${String(safe % 60).padStart(2, "0")}`;
 }
 
 export function Hud({ socket }: { socket: RoomSocket }) {
@@ -66,6 +88,17 @@ export function Hud({ socket }: { socket: RoomSocket }) {
         <div className="hud-card__label">Points</div>
         <div className="hud-card__value" aria-label={`${stats.points} points`}>{stats.points}</div>
       </div>
+      <div className={`hud-card hud-card--round${stats.roundPhase === "apex" ? " is-apex" : ""}`}>
+        <div className="hud-card__label">Round {stats.roundNumber}</div>
+        <div
+          className="hud-card__value"
+          aria-label={`${stats.roundPhase} phase, ${stats.roundSeconds} seconds remaining`}
+        >
+          {stats.roundPhase === "apex" ? <span className="hud-card__phase">APEX </span> : null}
+          {stats.roundPhase === "result" ? <span className="hud-card__phase">NEXT </span> : null}
+          {formatRoundClock(stats.roundSeconds)}
+        </div>
+      </div>
       <div className="hud-card">
         <div className="hud-card__label">Rank</div>
         <div className="hud-card__value">
@@ -83,7 +116,7 @@ export function Hud({ socket }: { socket: RoomSocket }) {
       </div>
       <div className="sr-only" role="status" aria-live="off">
         {/* Snapshot the SRs can query on demand; live milestones go through announce(). */}
-        {stats.points} points, {stats.health} health, size {stats.size.toFixed(1)} times, rank {stats.rank} of {stats.players}.
+        Round {stats.roundNumber}, {stats.roundPhase} phase, {stats.roundSeconds} seconds remaining. {stats.points} points, {stats.health} health, size {stats.size.toFixed(1)} times, rank {stats.rank} of {stats.players}.
       </div>
     </div>
   );

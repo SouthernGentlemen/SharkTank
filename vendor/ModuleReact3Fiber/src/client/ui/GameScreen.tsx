@@ -7,7 +7,7 @@
 // `game-screen--touch` class rather than a media query alone.
 
 import { useCallback, useEffect, useRef, useState } from "react";
-import { FRENZY_RULES, TICKS_PER_SECOND, frenzyTiming } from "../../engine/index.js";
+import { FRENZY_RULES, TICKS_PER_SECOND, frenzyTiming, roundTicksLeft } from "../../engine/index.js";
 import { GameViewport } from "../game/GameViewport.js";
 import type { SnakeLabel } from "../game/Scene.js";
 import {
@@ -35,10 +35,11 @@ import { TouchControls, useTouchControls, useTouchPortraitLock } from "./TouchCo
 export interface GameScreenProps {
   room: { id: string; name: string };
   identity: { name: string; skin: string };
+  onAuthoritativeResult?: (score: number) => void;
   onQuit: () => void;
 }
 
-export function GameScreen({ room, identity, onQuit }: GameScreenProps) {
+export function GameScreen({ room, identity, onAuthoritativeResult, onQuit }: GameScreenProps) {
   const { settings } = useSettings();
   const { announce } = useAnnouncer();
   const socket = useRoomSocket(room.id, identity, room.name);
@@ -52,6 +53,8 @@ export function GameScreen({ room, identity, onQuit }: GameScreenProps) {
   const stickSide = settings.controls.stickSide;
   const touchLayout = touchLayoutForFlightSide(stickSide);
   const portraitLocked = useTouchPortraitLock(touch);
+  const roundUi = useRoundPresentation(socket, onAuthoritativeResult);
+  const [dismissedResultRound, setDismissedResultRound] = useState(0);
 
   useEffect(() => {
     announce(`Entered ${room.name}. Playing as ${identity.name}.`);
@@ -90,14 +93,14 @@ export function GameScreen({ room, identity, onQuit }: GameScreenProps) {
   }, [settings.controls.keybinds.pause, settings.controls.singleKeyShortcuts, settingsOpen, helpOpen, socket.death]);
 
   useEffect(() => {
-    if (socket.death) setPaused(false);
-  }, [socket.death]);
+    if (socket.death || roundUi?.phase === "result") setPaused(false);
+  }, [socket.death, roundUi?.phase]);
 
   // Every modal ownership transition disables gameplay input, which also releases held
   // flight/look/ability state in useLocalInput.
   const dialogOpen = settingsOpen || helpOpen || paused;
   const inputEnabled = !dialogOpen && !socket.death;
-  const gameplayEnabled = inputEnabled && !portraitLocked;
+  const gameplayEnabled = inputEnabled && !portraitLocked && roundUi?.phase !== "result";
 
   return (
     <main
@@ -120,15 +123,22 @@ export function GameScreen({ room, identity, onQuit }: GameScreenProps) {
         <DashButton socket={socket} compact={touch} keyName={keyLabel(settings.controls.keybinds.boost)} touchInputRef={touchInputRef} enabled={gameplayEnabled} />
         <BiteButton socket={socket} compact={touch} keyName={keyLabel(settings.controls.keybinds.bite)} touchInputRef={touchInputRef} enabled={gameplayEnabled} />
       </div>
-      {touch && <TouchControls inputRef={touchInputRef} flightSide={stickSide} enabled={inputEnabled} portraitLocked={portraitLocked} />}
+      {touch && <TouchControls inputRef={touchInputRef} flightSide={stickSide} enabled={gameplayEnabled} portraitLocked={portraitLocked} />}
       {settings.audio.captions && <Captions caption={caption} />}
+
+      {roundUi?.phase === "result" && dismissedResultRound !== roundUi.number && (
+        <RoundResult
+          round={roundUi}
+          onContinue={() => setDismissedResultRound(roundUi.number)}
+        />
+      )}
 
       {/* Connection banner. Always mounted — see conn-banner:empty in theme.css. */}
       <div role="status" className="conn-banner">
         {socket.status === "open" ? "" : socket.status === "connecting" ? "Connecting…" : socket.status === "incompatible" ? "Game update required. Reload to reconnect." : "Reconnecting…"}
       </div>
 
-      {socket.death && (
+      {socket.death && roundUi?.phase !== "result" && (
         <DeathOverlay death={socket.death} onRespawn={socket.respawn} onQuit={handleQuit} />
       )}
 
@@ -143,6 +153,105 @@ export function GameScreen({ room, identity, onQuit }: GameScreenProps) {
       {settingsOpen && <Settings onClose={closeSettings} />}
       {helpOpen && <HelpOverlay onClose={closeHelp} />}
     </main>
+  );
+}
+
+interface RoundUiState {
+  number: number;
+  phase: "active" | "apex" | "result";
+  secondsLeft: number;
+  apexName: string | null;
+  winnerName: string | null;
+  winnerScore: number | null;
+  localScore: number;
+}
+
+function useRoundPresentation(
+  socket: ReturnType<typeof useRoomSocket>,
+  onAuthoritativeResult?: (score: number) => void,
+): RoundUiState | null {
+  const { announce } = useAnnouncer();
+  const [round, setRound] = useState<RoundUiState | null>(null);
+  const announcedKey = useRef("");
+  const reportedRound = useRef(0);
+
+  useEffect(() => {
+    const update = () => {
+      const state = socket.stateRef.current;
+      if (!state) return;
+      const apex = state.round.apexId
+        ? state.snakes.find((shark) => shark.id === state.round.apexId)
+        : null;
+      const winner = state.round.result?.winner ?? null;
+      const local = state.snakes.find((shark) => shark.id === socket.youId);
+      setRound({
+        number: state.round.number,
+        phase: state.round.phase,
+        secondsLeft: Math.ceil(roundTicksLeft(state) / TICKS_PER_SECOND),
+        apexName: apex?.name ?? null,
+        winnerName: winner?.name ?? null,
+        winnerScore: winner?.score ?? null,
+        localScore: local?.score ?? 0,
+      });
+    };
+    update();
+    const id = setInterval(update, 200);
+    return () => clearInterval(id);
+  }, [socket.stateRef, socket.youId]);
+
+  useEffect(() => {
+    if (!round) return;
+    const key = `${round.number}:${round.phase}`;
+    if (key === announcedKey.current) return;
+    announcedKey.current = key;
+
+    if (round.phase === "active") {
+      announce(`Round ${round.number} started. Five minutes on the authoritative round clock.`);
+    } else if (round.phase === "apex") {
+      announce(
+        `Apex climax. ${round.apexName ?? "The current leader"} is marked as the Apex. ${round.secondsLeft} seconds remain.`,
+        "assertive",
+      );
+    } else {
+      const result = round.winnerName
+        ? `${round.winnerName} wins round ${round.number} with ${round.winnerScore ?? 0} points.`
+        : `Round ${round.number} ended with no winner.`;
+      announce(`${result} Next round starts in ${round.secondsLeft} seconds.`, "assertive");
+      if (reportedRound.current !== round.number) {
+        reportedRound.current = round.number;
+        onAuthoritativeResult?.(round.localScore);
+      }
+    }
+  }, [round, announce, onAuthoritativeResult]);
+
+  return round;
+}
+
+function RoundResult({
+  round,
+  onContinue,
+}: {
+  round: RoundUiState;
+  onContinue: () => void;
+}) {
+  return (
+    <div className="round-result-layer">
+      <section className="panel round-result-card" aria-labelledby="round-result-title">
+        <p className="round-result-kicker">ROUND {round.number} COMPLETE</p>
+        <h2 id="round-result-title">
+          {round.winnerName ? `${round.winnerName} wins` : "Round complete"}
+        </h2>
+        <p>
+          {round.winnerName
+            ? `${round.winnerScore ?? 0} points. Your final score: ${round.localScore}.`
+            : `Your final score: ${round.localScore}.`}
+        </p>
+        <p className="round-result-next">Next round starts in {round.secondsLeft}s.</p>
+        <button type="button" className="btn btn--primary btn--lg" autoFocus onClick={onContinue}>
+          Ready for next round
+        </button>
+      </section>
+    </div>
   );
 }
 

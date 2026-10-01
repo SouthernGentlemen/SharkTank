@@ -1,6 +1,6 @@
 import { PREY_KINDS, ROOM_SCHEMA_VERSION, createRoom, type RoomState } from "module-react3fiber/engine";
 
-export const PREVIOUS_ROOM_SCHEMA_VERSION = 9 as const;
+export const PREVIOUS_ROOM_SCHEMA_VERSION = 10 as const;
 export const OLDEST_SUPPORTED_ROOM_SCHEMA_VERSION = 7 as const;
 export const GAME_LOG_SCHEMA_VERSION = ROOM_SCHEMA_VERSION;
 
@@ -9,7 +9,8 @@ export type RoomSnapshotSource =
   | "schema-7-reset"
   | "schema-8-reset"
   | "schema-9-reset"
-  | "schema-10";
+  | "schema-10-reset"
+  | "schema-11";
 
 export interface RoomSnapshotBootResult {
   room: RoomState;
@@ -19,10 +20,10 @@ export interface RoomSnapshotBootResult {
 
 const PREY_KIND_SET = new Set<string>(PREY_KINDS);
 const DEATH_ACTIONS = new Set(["bite", "boundary", "retire"]);
-const RESETTABLE_SCHEMAS = new Set([7, 8, 9]);
+const RESETTABLE_SCHEMAS = new Set([7, 8, 9, 10]);
 
 export function bootstrapRoomSnapshot(stored: unknown, fallback: RoomState): RoomSnapshotBootResult {
-  assertSchema10RoomState(fallback, fallback.id);
+  assertSchema11RoomState(fallback, fallback.id);
 
   if (stored === undefined || stored === null) {
     return { room: fallback, source: "fresh", persistSnapshot: false };
@@ -36,15 +37,16 @@ export function bootstrapRoomSnapshot(stored: unknown, fallback: RoomState): Roo
     const seed = requiredString(record.seed, `schema-${String(version)} room seed`);
     if (id !== fallback.id) throw new Error(`room snapshot id ${id} does not match Durable Object ${fallback.id}`);
 
-    // Schema 10 replaces contact/projectile combat with health + directional bites.
-    // Earlier snapshots cannot be reinterpreted safely. Reset only transient gameplay,
-    // retaining stable Room identity/seed and trustworthy volumetric ocean bounds.
+    // Schema 11 adds server-owned round/Apex/result state. Older snapshots cannot be
+    // reinterpreted safely because their score/growth state has no round boundary.
+    // Reset only transient gameplay while retaining stable Room identity/seed and
+    // trustworthy volumetric ocean bounds. Operational metadata is stored separately.
     const legacyOcean = version >= 8 ? asRecord(record.ocean) : null;
     const radius = legacyOcean && finite(legacyOcean.radius) ? legacyOcean.radius as number : fallback.ocean.radius;
     const seabedY = legacyOcean && finite(legacyOcean.seabedY) ? legacyOcean.seabedY as number : fallback.ocean.seabedY;
     const surfaceY = legacyOcean && finite(legacyOcean.surfaceY) ? legacyOcean.surfaceY as number : fallback.ocean.surfaceY;
     const room = createRoom({ id, seed, oceanRadius: radius, seabedY, surfaceY });
-    assertSchema10RoomState(room, fallback.id);
+    assertSchema11RoomState(room, fallback.id);
     return {
       room,
       source: `schema-${version}-reset` as RoomSnapshotSource,
@@ -53,8 +55,8 @@ export function bootstrapRoomSnapshot(stored: unknown, fallback: RoomState): Roo
   }
 
   if (record && version === ROOM_SCHEMA_VERSION) {
-    assertSchema10RoomState(stored, fallback.id);
-    return { room: stored, source: "schema-10", persistSnapshot: false };
+    assertSchema11RoomState(stored, fallback.id);
+    return { room: stored, source: "schema-11", persistSnapshot: false };
   }
 
   throw new Error(`unsupported room snapshot schema ${String(version)}`);
@@ -64,7 +66,7 @@ export function shouldRotateGameLogSchema(storedVersion: unknown): boolean {
   return storedVersion !== GAME_LOG_SCHEMA_VERSION;
 }
 
-export function assertSchema10RoomState(value: unknown, expectedId?: string): asserts value is RoomState {
+export function assertSchema11RoomState(value: unknown, expectedId?: string): asserts value is RoomState {
   const room = asRecord(value);
   if (!room || room.schemaVersion !== ROOM_SCHEMA_VERSION) invalid("schemaVersion");
   if (typeof room.id !== "string" || !room.id) invalid("id");
@@ -138,6 +140,41 @@ export function assertSchema10RoomState(value: unknown, expectedId?: string): as
   })) invalid("explosions");
 
   if (!finite(room.frenzyUntilTick)) invalid("frenzyUntilTick");
+
+  const round = asRecord(room.round);
+  if (
+    !round
+    || !finite(round.number)
+    || !Number.isInteger(round.number)
+    || round.number < 1
+    || (round.phase !== "active" && round.phase !== "apex" && round.phase !== "result")
+    || !finite(round.startTick)
+    || !finite(round.apexStartTick)
+    || !finite(round.endTick)
+    || !finite(round.resultEndTick)
+    || (round.apexId !== null && typeof round.apexId !== "string")
+    || round.startTick < 0
+    || round.apexStartTick <= round.startTick
+    || round.endTick <= round.apexStartTick
+    || round.resultEndTick <= round.endTick
+  ) invalid("round");
+  const result = round.result === null ? null : asRecord(round.result);
+  if (round.phase === "result" && !result) invalid("round result");
+  if (round.phase !== "result" && result) invalid("round result outside result phase");
+  if (result) {
+    if (!finite(result.roundNumber) || !Number.isInteger(result.roundNumber) || !finite(result.endedTick)) invalid("round result identity");
+    if (result.winner !== null) {
+      const winner = asRecord(result.winner);
+      if (
+        !winner
+        || typeof winner.id !== "string"
+        || typeof winner.name !== "string"
+        || typeof winner.skin !== "string"
+        || !finite(winner.score)
+        || typeof winner.alive !== "boolean"
+      ) invalid("round result winner");
+    }
+  }
 }
 
 function asRecord(value: unknown): Record<string, unknown> | null {

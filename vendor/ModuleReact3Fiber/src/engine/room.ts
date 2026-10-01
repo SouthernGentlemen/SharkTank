@@ -16,7 +16,7 @@ import {
   yawPitchToward,
 } from "./geometry3d.js";
 import { nextRandom, seedToNumber } from "./rng.js";
-import type { Action, DeathAction, OceanVolume, Prey, PreyKind, RoomState, ScoreEntry, Snake, Vec3 } from "./types.js";
+import type { Action, DeathAction, OceanVolume, Prey, PreyKind, RoomState, RoundState, ScoreEntry, Snake, Vec3 } from "./types.js";
 
 // ── Tuning ────────────────────────────────────────────────────────────────────
 // Ticking at 30Hz (vs 20) means fresher snapshots → less perceived lag. Per-tick speeds
@@ -25,7 +25,7 @@ import type { Action, DeathAction, OceanVolume, Prey, PreyKind, RoomState, Score
 export const TICKS_PER_SECOND = 20; // responsive authority; shark snapshots contain only one body point
 // 32 sharks share a tank, so the arena grew with the population — enough water that a
 // full lobby is dense rather than a permanent scrum at the wall.
-export const ROOM_SCHEMA_VERSION = 10 as const;
+export const ROOM_SCHEMA_VERSION = 11 as const;
 const OCEAN_RADIUS = 82;
 export const DEFAULT_SEABED_Y = -12;
 export const DEFAULT_SURFACE_Y = 12;
@@ -106,6 +106,15 @@ const FRENZY_PERIOD = FRENZY_RULES.periodTicks;
 const FRENZY_TICKS = FRENZY_RULES.durationTicks;
 const FRENZY_SPEED = FRENZY_RULES.speedMultiplier;
 const FRENZY_CHUM = FRENZY_RULES.chumCount;
+
+export const ROUND_RULES = {
+  activeTicks: TICKS_PER_SECOND * 5 * 60,
+  apexTicks: TICKS_PER_SECOND * 45,
+  resultTicks: TICKS_PER_SECOND * 10,
+  apexSpeedMultiplier: 1.08,
+  apexKillBonusScore: 12,
+  apexKillBonusGrowth: 1.2,
+} as const;
 // With 24 bots in the tank, a high retire score let two or three monsters accumulate and
 // farm every fresh spawn. A lower ceiling keeps the size ladder climbable.
 const BOT_RETIRE_SCORE = 240;
@@ -188,6 +197,20 @@ export interface CreateRoomOptions {
   surfaceY?: number;
 }
 
+function makeRoundState(number: number, startTick: number): RoundState {
+  const endTick = startTick + ROUND_RULES.activeTicks;
+  return {
+    number,
+    phase: "active",
+    startTick,
+    apexStartTick: endTick - ROUND_RULES.apexTicks,
+    endTick,
+    resultEndTick: endTick + ROUND_RULES.resultTicks,
+    apexId: null,
+    result: null,
+  };
+}
+
 export function createRoom(opts: CreateRoomOptions = {}): RoomState {
   const seed = opts.seed ?? "seed-fixed";
   const radius = Number.isFinite(opts.oceanRadius) && (opts.oceanRadius as number) >= 8
@@ -209,6 +232,7 @@ export function createRoom(opts: CreateRoomOptions = {}): RoomState {
     food: [],
     explosions: [],
     frenzyUntilTick: 0,
+    round: makeRoundState(1, 0),
   };
   for (let i = 0; i < PREY_BUDGET.ambient; i += 1) spawnAmbientFood(state);
   return state;
@@ -618,15 +642,125 @@ function retireFrenzyFood(state: RoomState): void {
 }
 
 /** Open and close the event from authoritative ticks; expired event food is retired here. */
+function openFrenzy(state: RoomState): void {
+  retireFrenzyFood(state);
+  state.frenzyUntilTick = state.tick + FRENZY_TICKS;
+  dropChum(state);
+}
+
 function stepFrenzy(state: RoomState): void {
   state.frenzyUntilTick ??= 0;
   if (state.frenzyUntilTick > 0 && state.tick >= state.frenzyUntilTick) {
     retireFrenzyFood(state);
     state.frenzyUntilTick = 0;
   }
-  if (state.tick % FRENZY_PERIOD !== 0 || state.tick === 0) return;
-  state.frenzyUntilTick = state.tick + FRENZY_TICKS;
-  dropChum(state);
+  if (state.round.phase === "result") return;
+
+  // The Apex phase ends in one guaranteed shared Feeding Frenzy. Normal periodic
+  // frenzies remain active-round pressure; the final one is tied to the round clock.
+  if (
+    state.round.phase === "apex"
+    && state.tick === state.round.endTick - FRENZY_TICKS
+  ) {
+    openFrenzy(state);
+    return;
+  }
+  if (state.round.phase !== "active" || state.tick % FRENZY_PERIOD !== 0 || state.tick === 0) return;
+  openFrenzy(state);
+}
+
+function scoreEntries(state: RoomState): ScoreEntry[] {
+  return Object.values(state.snakes)
+    .map((shark) => ({
+      id: shark.id,
+      name: shark.name,
+      skin: shark.skin,
+      score: shark.score,
+      alive: shark.alive,
+    }))
+    .sort((a, b) => b.score - a.score || (a.id < b.id ? -1 : a.id > b.id ? 1 : 0));
+}
+
+function updateApexLeader(state: RoomState): void {
+  if (state.round.phase !== "apex") {
+    state.round.apexId = null;
+    return;
+  }
+  state.round.apexId = scoreEntries(state)[0]?.id ?? null;
+}
+
+function beginApex(state: RoomState): void {
+  state.round.phase = "apex";
+  state.round.result = null;
+  updateApexLeader(state);
+}
+
+function concludeRound(state: RoomState): void {
+  const winner = scoreEntries(state)[0] ?? null;
+  state.round.phase = "result";
+  state.round.apexId = null;
+  state.round.result = {
+    roundNumber: state.round.number,
+    winner,
+    endedTick: state.tick,
+  };
+  retireFrenzyFood(state);
+  state.frenzyUntilTick = 0;
+  for (const shark of Object.values(state.snakes)) {
+    shark.boosting = false;
+    shark.chargeTicks = 0;
+    shark.lungeTicks = 0;
+    shark.targetYaw = shark.yaw;
+    shark.targetPitch = shark.pitch;
+  }
+}
+
+function resetCompetitiveRound(state: RoomState): void {
+  const identities = Object.values(state.snakes)
+    .map((shark) => ({ id: shark.id, name: shark.name, skin: shark.skin, isBot: shark.isBot }))
+    .sort((a, b) => (a.id < b.id ? -1 : a.id > b.id ? 1 : 0));
+  const nextNumber = state.round.number + 1;
+
+  state.snakes = {};
+  state.food = [];
+  state.explosions = [];
+  state.frenzyUntilTick = 0;
+  state.round = makeRoundState(nextNumber, state.tick);
+
+  for (const identity of identities) {
+    state.snakes[identity.id] = makeSnake(
+      state,
+      identity.id,
+      identity.name,
+      identity.skin,
+      identity.isBot,
+    );
+  }
+  for (let i = 0; i < PREY_BUDGET.ambient; i += 1) spawnAmbientFood(state);
+}
+
+function advanceRoundLifecycle(state: RoomState): boolean {
+  if (state.round.phase === "result") {
+    if (state.tick >= state.round.resultEndTick) {
+      // Publish a pristine next-round state at the transition tick. Simulation resumes
+      // on the following tick, so score/growth cannot change inside the reset itself.
+      resetCompetitiveRound(state);
+      return false;
+    }
+    return false;
+  }
+
+  if (state.tick >= state.round.endTick) {
+    concludeRound(state);
+    return false;
+  }
+  if (state.round.phase === "active" && state.tick >= state.round.apexStartTick) beginApex(state);
+  return true;
+}
+
+export function roundTicksLeft(state: Pick<RoomState, "tick" | "round">): number {
+  const until = state.round.phase === "result" ? state.round.resultEndTick : state.round.endTick;
+  return Math.max(0, until - state.tick);
 }
 
 // ── Actions ──────────────────────────────────────────────────────────────────────
@@ -634,25 +768,32 @@ export function applyAction(state: RoomState, action: Action): RoomState {
   switch (action.type) {
     case "join": {
       if (!state.snakes[action.playerId]) {
-        state.snakes[action.playerId] = makeSnake(
+        const joined = makeSnake(
           state,
           action.playerId,
           (action.name ?? "Player").slice(0, 16),
           action.skin ?? DEFAULT_SKIN,
           action.isBot ?? false,
         );
+        if (state.round.phase === "result") {
+          joined.alive = false;
+          joined.health = 0;
+          joined.respawnTick = state.round.resultEndTick;
+          joined.segments = [];
+        }
+        state.snakes[action.playerId] = joined;
       }
       return state;
     }
     case "leave": {
       const s = state.snakes[action.playerId];
-      if (s) scatterAsFood(state, s); // dropping out feeds the arena, like a death
+      if (s && state.round.phase !== "result") scatterAsFood(state, s);
       delete state.snakes[action.playerId];
       return state;
     }
     case "setOrientation": {
       const s = state.snakes[action.playerId];
-      if (s && s.alive && Number.isFinite(action.yaw) && Number.isFinite(action.pitch)) {
+      if (state.round.phase !== "result" && s && s.alive && Number.isFinite(action.yaw) && Number.isFinite(action.pitch)) {
         s.targetYaw = normalizeYaw(action.yaw);
         s.targetPitch = clampPitch(action.pitch);
       }
@@ -660,7 +801,7 @@ export function applyAction(state: RoomState, action: Action): RoomState {
     }
     case "setBoost": {
       const s = state.snakes[action.playerId];
-      if (s && s.alive) {
+      if (state.round.phase !== "result" && s && s.alive) {
         // Space/click is an immediate, server-timed impact dash. The two-second
         // cooldown is authoritative, so key repeat and packet spam cannot bypass it.
         s.dashCooldownTick ??= 0;
@@ -677,7 +818,7 @@ export function applyAction(state: RoomState, action: Action): RoomState {
     }
     case "bite": {
       const s = state.snakes[action.playerId];
-      if (s?.alive && s.segments[0] && state.tick >= s.biteCooldownTick) {
+      if (state.round.phase !== "result" && s?.alive && s.segments[0] && state.tick >= s.biteCooldownTick) {
         s.biteCooldownTick = state.tick + COMBAT.biteCooldownTicks;
         // Choosing to attack ends spawn grace: protected sharks cannot deal free damage.
         if (state.tick < s.invulnTick) s.invulnTick = state.tick;
@@ -687,7 +828,7 @@ export function applyAction(state: RoomState, action: Action): RoomState {
     }
     case "respawn": {
       const s = state.snakes[action.playerId];
-      if (s && !s.alive && state.tick >= s.respawnTick) {
+      if (state.round.phase !== "result" && s && !s.alive && state.tick >= s.respawnTick) {
         const fresh = makeSnake(state, s.id, s.name, s.skin, s.isBot);
         state.snakes[s.id] = fresh;
       }
@@ -702,6 +843,11 @@ export function applyAction(state: RoomState, action: Action): RoomState {
 /** Advance the simulation by one tick. Mutates and returns `state`. */
 export function step(state: RoomState): RoomState {
   state.tick += 1;
+
+  // Result windows advance only the authoritative round clock. All competitive state is
+  // frozen until the next server-owned reset; no client input can advance the round.
+  if (!advanceRoundLifecycle(state)) return state;
+
   state.explosions ??= [];
   state.explosions = state.explosions.filter((burst) => state.tick - burst.tick < EXPLOSION_TICKS);
 
@@ -754,6 +900,7 @@ export function step(state: RoomState): RoomState {
   // Cap total food (corpse drops otherwise pile up into thousands of dots) — drop oldest.
   if (state.food.length > PREY_BUDGET.max) state.food.splice(0, state.food.length - PREY_BUDGET.max);
 
+  updateApexLeader(state);
   return state;
 }
 
@@ -768,6 +915,9 @@ function moveSnake(state: RoomState, s: Snake): void {
   if (s.boosting) s.chargeTicks = Math.min(16, s.chargeTicks + 1);
   if (s.lungeTicks > 0) s.lungeTicks -= 1;
   if (isFrenzy(state)) speed *= FRENZY_SPEED;
+  if (state.round.phase === "apex" && state.round.apexId === s.id) {
+    speed *= ROUND_RULES.apexSpeedMultiplier;
+  }
 
   const head = s.path[0];
   const forward = forwardFromYawPitch(s.yaw, s.pitch);
@@ -881,8 +1031,9 @@ function resolveBite(state: RoomState, attacker: Snake): void {
     COMBAT.killGrowthMin,
     Math.min(COMBAT.killGrowthMax, target.length * COMBAT.killGrowthLengthScale),
   );
-  attacker.score += scoreReward;
-  attacker.length += growthReward;
+  const apexBounty = state.round.phase === "apex" && state.round.apexId === target.id;
+  attacker.score += scoreReward + (apexBounty ? ROUND_RULES.apexKillBonusScore : 0);
+  attacker.length += growthReward + (apexBounty ? ROUND_RULES.apexKillBonusGrowth : 0);
   killSnake(state, target, attacker.id, "bite");
 }
 
@@ -977,6 +1128,7 @@ function scatterAsFood(state: RoomState, s: Snake): void {
 // ── Bot AI ───────────────────────────────────────────────────────────────────────
 interface BotWorldView {
   frenzy: boolean;
+  apexId: string | null;
   livingSharks: Snake[];
   schoolValue: number[];
 }
@@ -991,7 +1143,12 @@ function makeBotWorldView(state: RoomState): BotWorldView {
       schoolValue[actor.school] += actor.value;
     }
   }
-  return { frenzy: isFrenzy(state), livingSharks, schoolValue };
+  return {
+    frenzy: isFrenzy(state),
+    apexId: state.round.phase === "apex" ? state.round.apexId : null,
+    livingSharks,
+    schoolValue,
+  };
 }
 
 function boundaryEscapeTarget(state: RoomState, s: Snake): Vec3 | null {
@@ -1082,11 +1239,17 @@ function steerBot(state: RoomState, s: Snake, view: BotWorldView): void {
       threat = rival;
       threatDistance = distance;
     }
+    const apexTarget = view.apexId === rival.id;
+    const huntRadius = apexTarget ? BOT_AI_BUDGET.huntRadius * 1.35 : BOT_AI_BUDGET.huntRadius;
     if (
-      s.length >= rival.length * BOT_AI_BUDGET.huntLengthRatio
+      (apexTarget || s.length >= rival.length * BOT_AI_BUDGET.huntLengthRatio)
       && state.tick >= rival.invulnTick
-      && distance < BOT_AI_BUDGET.huntRadius
-      && distance < quarryDistance
+      && distance < huntRadius
+      && (
+        apexTarget
+          ? view.apexId !== quarry?.id || distance < quarryDistance
+          : view.apexId !== quarry?.id && distance < quarryDistance
+      )
     ) {
       quarry = rival;
       quarryDistance = distance;
@@ -1105,7 +1268,7 @@ function steerBot(state: RoomState, s: Snake, view: BotWorldView): void {
 
   const preyTarget = choosePreyTarget(state, head, view);
   const shouldHuntRival = quarry?.segments[0]
-    && (!preyTarget || quarryDistance < Math.min(12, preyTarget.distance * 0.8));
+    && (view.apexId === quarry.id || !preyTarget || quarryDistance < Math.min(12, preyTarget.distance * 0.8));
 
   let targetPoint: Vec3 | null = null;
   let targetDistance = Infinity;
@@ -1152,10 +1315,7 @@ function botPhase(id: string): number {
 // ── Derived views ────────────────────────────────────────────────────────────────
 /** Leaderboard rows, highest score first. */
 export function leaderboard(state: RoomState, limit = 10): ScoreEntry[] {
-  return Object.values(state.snakes)
-    .map((s) => ({ id: s.id, name: s.name, skin: s.skin, score: s.score, alive: s.alive }))
-    .sort((a, b) => b.score - a.score)
-    .slice(0, limit);
+  return scoreEntries(state).slice(0, limit);
 }
 
 export function playerCount(state: RoomState): number {

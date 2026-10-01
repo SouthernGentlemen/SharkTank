@@ -3,7 +3,7 @@
 // into the Room Durable Object.
 
 import { clampPitch, normalizeYaw } from "../engine/geometry3d.js";
-import type { Action, DeathAction, Explosion, OceanVolume, Prey, RoomState, ScoreEntry, Snake, Vec3 } from "../engine/types.js";
+import type { Action, DeathAction, Explosion, OceanVolume, Prey, RoomState, RoundState, ScoreEntry, Snake, Vec3 } from "../engine/types.js";
 export { isFamilyFriendlyName, sanitizeDisplayName } from "./name-policy.js";
 
 // ── HTTP: health / tank / profile ─────────────────────────────────────────────
@@ -50,7 +50,7 @@ export interface ErrorResponse {
 }
 
 // ── WebSocket: realtime play (client ⇄ Room DO) ───────────────────────────────
-export const REALTIME_PROTOCOL_VERSION = 10 as const;
+export const REALTIME_PROTOCOL_VERSION = 11 as const;
 
 export interface OrientationInputAction {
   type: "setOrientation";
@@ -93,8 +93,10 @@ export type NetExplosion = Pick<
 >;
 
 /** The per-tick world snapshot broadcast to every connected client. */
+export type NetRoundState = RoundState;
+
 export interface NetState {
-  schemaVersion: 10;
+  schemaVersion: 11;
   tick: number;
   arenaRadius: number;
   seabedY: number;
@@ -104,6 +106,8 @@ export interface NetState {
   explosions: NetExplosion[];
   /** Tick the running Feeding Frenzy ends at; 0 or past when none is running. */
   frenzyUntilTick: number;
+  /** Complete server-owned round/Apex/result truth for late join and reconnect. */
+  round: NetRoundState;
 }
 
 export type ServerMessagePayload =
@@ -167,14 +171,55 @@ export function parseRealtimeClientMessage(value: unknown): RealtimeParseResult<
   return { ok: false, reason: "malformed" };
 }
 
+function finite(value: unknown): value is number {
+  return typeof value === "number" && Number.isFinite(value);
+}
+
+function isScoreEntry(value: unknown): value is ScoreEntry {
+  if (!record(value)) return false;
+  return typeof value.id === "string"
+    && typeof value.name === "string"
+    && typeof value.skin === "string"
+    && finite(value.score)
+    && typeof value.alive === "boolean";
+}
+
+function isNetRoundState(value: unknown): value is NetRoundState {
+  if (!record(value)) return false;
+  const phase = value.phase;
+  if (
+    !finite(value.number)
+    || !Number.isInteger(value.number)
+    || value.number < 1
+    || (phase !== "active" && phase !== "apex" && phase !== "result")
+    || !finite(value.startTick)
+    || !finite(value.apexStartTick)
+    || !finite(value.endTick)
+    || !finite(value.resultEndTick)
+    || (value.apexId !== null && typeof value.apexId !== "string")
+    || (value.startTick as number) < 0
+    || (value.apexStartTick as number) <= (value.startTick as number)
+    || (value.endTick as number) <= (value.apexStartTick as number)
+    || (value.resultEndTick as number) <= (value.endTick as number)
+  ) return false;
+  if (value.result === null) return phase !== "result";
+  if (phase !== "result" || !record(value.result)) return false;
+  const result = value.result;
+  return finite(result.roundNumber)
+    && Number.isInteger(result.roundNumber)
+    && finite(result.endedTick)
+    && (result.winner === null || isScoreEntry(result.winner));
+}
+
 function isNetState(value: unknown): value is NetState {
   return record(value)
-    && value.schemaVersion === 10
+    && value.schemaVersion === 11
     && typeof value.tick === "number"
     && Number.isFinite(value.tick)
     && Array.isArray(value.snakes)
     && Array.isArray(value.food)
-    && Array.isArray(value.explosions);
+    && Array.isArray(value.explosions)
+    && isNetRoundState(value.round);
 }
 
 export function parseRealtimeServerMessage(value: unknown): RealtimeParseResult<ServerMessage> {
@@ -233,6 +278,15 @@ export function toNetState(state: RoomState): NetState {
     seabedY: round(state.ocean.seabedY, 1),
     surfaceY: round(state.ocean.surfaceY, 1),
     frenzyUntilTick: state.frenzyUntilTick ?? 0,
+    round: {
+      ...state.round,
+      result: state.round.result
+        ? {
+            ...state.round.result,
+            winner: state.round.result.winner ? { ...state.round.result.winner } : null,
+          }
+        : null,
+    },
     snakes: Object.values(state.snakes).map((s) => ({
       id: s.id,
       name: s.name,
@@ -286,4 +340,4 @@ export function roomSocketPath(roomId: string): string {
   return `/room/${encodeURIComponent(roomId)}/ws`;
 }
 
-export type { Action, DeathAction, Explosion, OceanVolume, Prey, PreyKind, RoomState, ScoreEntry, Snake, Vec3 } from "../engine/types.js";
+export type { Action, DeathAction, Explosion, OceanVolume, Prey, PreyKind, RoomState, RoundPhase, RoundResult, RoundState, ScoreEntry, Snake, Vec3 } from "../engine/types.js";

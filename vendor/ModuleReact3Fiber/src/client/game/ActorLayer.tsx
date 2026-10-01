@@ -108,6 +108,7 @@ export function ActorLayer({
   const pectoralRightMesh = useRef<THREE.InstancedMesh>(null);
   const eyeMesh = useRef<THREE.InstancedMesh>(null);
   const pupilMesh = useRef<THREE.InstancedMesh>(null);
+  const apexMarkerRef = useRef<THREE.Mesh>(null);
   const predictor = useMemo(() => new LocalPredictor(), []);
   const root = useMemo(() => new THREE.Object3D(), []);
   const part = useMemo(() => new THREE.Object3D(), []);
@@ -156,6 +157,9 @@ export function ActorLayer({
     const previous = frame.older;
     const reducedMotion = settings.a11y.motion === "reduced";
     const alpha = reducedMotion ? 1 : frame.alpha;
+    const apexId = state.round.phase === "apex" ? state.round.apexId : null;
+    const apexMarker = apexMarkerRef.current;
+    let apexVisible = false;
 
     prevById.clear();
     for (const shark of previous.snakes) prevById.set(shark.id, shark);
@@ -216,6 +220,15 @@ export function ActorLayer({
         position.set(interpolatedPose.x, interpolatedPose.y, interpolatedPose.z);
         yaw = interpolatedPose.yaw;
         pitch = interpolatedPose.pitch;
+      }
+
+      if (apexMarker && shark.id === apexId) {
+        apexVisible = true;
+        apexMarker.visible = true;
+        apexMarker.position.copy(position);
+        apexMarker.position.y += 2.35 * sharkScale;
+        apexMarker.rotation.set(0, reducedMotion ? 0 : (state.tick + alpha) * 0.035, 0);
+        apexMarker.scale.setScalar(Math.max(0.72, sharkScale * 0.46));
       }
 
       const motion = motionById.get(shark.id) ?? { yaw, roll: 0 };
@@ -293,9 +306,10 @@ export function ActorLayer({
         0.36, 0.9, 0.25,
       );
 
-      const glow = shark.boosting
+      const activityGlow = shark.boosting
         ? Math.min(0.72, 0.25 + (shark.chargeTicks ?? 0) * 0.07)
         : isMe ? 0.18 : 0;
+      const glow = Math.max(activityGlow, shark.id === apexId ? 0.42 : 0);
       const renderColor = glow ? tempColor.copy(bodyColor).lerp(WHITE, glow) : bodyColor;
       setPartColor(sharkParts, sharkCount, renderColor);
       sharkCount += 1;
@@ -341,6 +355,8 @@ export function ActorLayer({
         }
       }
     }
+
+    if (apexMarker && !apexVisible) apexMarker.visible = false;
 
     commitInstances(sharkParts, sharkCount);
     eyes.count = eyeCount;
@@ -467,6 +483,10 @@ export function ActorLayer({
         <sphereGeometry args={[1, 6, 6]} />
         <meshBasicMaterial toneMapped={false} />
       </instancedMesh>
+      <mesh ref={apexMarkerRef} visible={false} frustumCulled={false}>
+        <octahedronGeometry args={[1, 0]} />
+        <meshBasicMaterial color="#ffd54a" wireframe toneMapped={false} />
+      </mesh>
     </>
   );
 }

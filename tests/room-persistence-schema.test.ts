@@ -10,14 +10,14 @@ import {
 } from "../vendor/ModuleReact3Fiber/src/engine/index.js";
 import {
   GAME_LOG_SCHEMA_VERSION,
-  assertSchema10RoomState,
+  assertSchema11RoomState,
   bootstrapRoomSnapshot,
   shouldRotateGameLogSchema,
 } from "../src/worker/room-state-schema.js";
 
 const BOT_COUNT = 24;
 
-function legacySnapshot(version: 7 | 8 | 9): unknown {
+function legacySnapshot(version: 7 | 8 | 9 | 10): unknown {
   return {
     schemaVersion: version,
     id: "room-do-123",
@@ -34,8 +34,8 @@ function legacySnapshot(version: 7 | 8 | 9): unknown {
 }
 
 function assertCombatRoom(room: RoomState): void {
-  assertSchema10RoomState(room, room.id);
-  expect(room.schemaVersion).toBe(10);
+  assertSchema11RoomState(room, room.id);
+  expect(room.schemaVersion).toBe(11);
   expect("arena" in room).toBe(false);
   expect("rockets" in room).toBe(false);
   for (const shark of Object.values(room.snakes)) {
@@ -53,8 +53,8 @@ function assertCombatRoom(room: RoomState): void {
 }
 
 describe("Room persisted-state schema boundary", () => {
-  it("resets schemas 7, 8 and 9 rather than reinterpreting old combat state as schema 10", () => {
-    for (const version of [7, 8, 9] as const) {
+  it("resets schemas 7, 8, 9 and 10 rather than reinterpreting old combat state as schema 11", () => {
+    for (const version of [7, 8, 9, 10] as const) {
       const fallback = createRoom({ id: "room-do-123", seed: "fallback-seed", oceanRadius: 82 });
       const boot = bootstrapRoomSnapshot(legacySnapshot(version), fallback);
       expect(boot.source).toBe(`schema-${version}-reset`);
@@ -67,18 +67,18 @@ describe("Room persisted-state schema boundary", () => {
     }
   });
 
-  it("serializes and restores only complete schema-10 combat state", () => {
+  it("serializes and restores only complete schema-11 combat state", () => {
     const room = createRoom({ id: "room-do-123", seed: "combat" });
     spawnBots(room, BOT_COUNT);
     const serialized = JSON.stringify(room);
     const restored = bootstrapRoomSnapshot(JSON.parse(serialized), createRoom({ id: "room-do-123", seed: "fallback" }));
-    expect(restored.source).toBe("schema-10");
+    expect(restored.source).toBe("schema-11");
     expect(restored.persistSnapshot).toBe(false);
     expect(JSON.stringify(restored.room)).toBe(serialized);
     assertCombatRoom(restored.room);
   });
 
-  it("accepts fresh schema-10 rooms and replays schema-10 bite actions deterministically", () => {
+  it("accepts fresh schema-11 rooms and replays schema-11 bite actions deterministically", () => {
     const fresh = bootstrapRoomSnapshot(undefined, createRoom({ id: "room-do-fresh", seed: "fresh-seed" }));
     expect(fresh.source).toBe("fresh");
     assertCombatRoom(fresh.room);
@@ -95,21 +95,22 @@ describe("Room persisted-state schema boundary", () => {
     assertCombatRoom(first);
   });
 
-  it("rotates every older replay generation and keeps only schema 10 current", () => {
-    expect(GAME_LOG_SCHEMA_VERSION).toBe(10);
+  it("rotates every older replay generation and keeps only schema 11 current", () => {
+    expect(GAME_LOG_SCHEMA_VERSION).toBe(11);
     expect(shouldRotateGameLogSchema(undefined)).toBe(true);
     expect(shouldRotateGameLogSchema(7)).toBe(true);
     expect(shouldRotateGameLogSchema(8)).toBe(true);
     expect(shouldRotateGameLogSchema(9)).toBe(true);
-    expect(shouldRotateGameLogSchema("10")).toBe(true);
-    expect(shouldRotateGameLogSchema(10)).toBe(false);
+    expect(shouldRotateGameLogSchema("11")).toBe(true);
+    expect(shouldRotateGameLogSchema(10)).toBe(true);
+    expect(shouldRotateGameLogSchema(11)).toBe(false);
   });
 
-  it("fails closed on incomplete, mixed or wrong-room schema-10 snapshots", () => {
+  it("fails closed on incomplete, mixed or wrong-room schema-11 snapshots", () => {
     const replayed = replay({ id: "room-do-bad", seed: "with-shark", botCount: 0 }, [{ tick: 0, action: { type: "join", playerId: "p", name: "P" } }], 0);
     const malformed = JSON.parse(JSON.stringify(replayed)) as Record<string, any>;
     delete malformed.snakes.p.health;
-    expect(() => bootstrapRoomSnapshot(malformed, createRoom({ id: "room-do-bad", seed: "fallback" }))).toThrow(/schema 10 is invalid: shark p health/);
+    expect(() => bootstrapRoomSnapshot(malformed, createRoom({ id: "room-do-bad", seed: "fallback" }))).toThrow(/schema 11 is invalid: shark p health/);
 
     const mixed = JSON.parse(JSON.stringify(createRoom({ id: "room-do-bad", seed: "bad" }))) as Record<string, any>;
     mixed.rockets = [];

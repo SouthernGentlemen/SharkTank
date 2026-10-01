@@ -445,7 +445,15 @@ export default {
         const fwd = new URL(request.url);
         fwd.searchParams.set("roomId", roomId);
         fwd.searchParams.set("roomName", name);
-        return stub.fetch(new Request(fwd.toString(), request));
+        const headers = new Headers(request.headers);
+        // Never trust a caller-authored profile header. The HttpOnly cookie is the
+        // existing profile identity boundary and only the Worker may translate it.
+        headers.delete("x-profile-id");
+        const playerProfile = cookie(request, "wg_player");
+        if (playerProfile && /^[a-f0-9-]{36}$/.test(playerProfile)) {
+          headers.set("x-profile-id", playerProfile);
+        }
+        return stub.fetch(new Request(fwd.toString(), { method: request.method, headers }));
       }
 
       // ── HTTP API ───────────────────────────────────────────────────────────

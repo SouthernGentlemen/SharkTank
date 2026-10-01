@@ -90,6 +90,10 @@ export function useRoomSocket(
   // Record a snapshot as the latest AND append it to the interpolation buffer.
   const pushSnapshot = useCallback((state: NetState) => {
     stateRef.current = state;
+    const currentPlayerId = youIdRef.current;
+    if (currentPlayerId && state.snakes.some((shark) => shark.id === currentPlayerId && shark.alive)) {
+      setDeath(null);
+    }
     const now = performance.now();
     newestAtRef.current = now;
     const buf = bufferRef.current;
