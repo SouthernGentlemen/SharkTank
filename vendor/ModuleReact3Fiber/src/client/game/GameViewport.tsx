@@ -1,7 +1,7 @@
 import { Canvas } from "@react-three/fiber";
 import { useEffect, useRef, useState } from "react";
 import type { RoomSocket } from "../net/useRoomSocket.js";
-import type { Settings } from "../settings/SettingsContext.js";
+import { keyLabel, type Settings } from "../settings/SettingsContext.js";
 import { Scene, type SnakeLabel } from "./Scene.js";
 import { resolveRenderDpr } from "./performance.js";
 import { CAMERA_PROJECTION, resolveSceneQuality } from "./sceneMath.js";
@@ -61,9 +61,10 @@ export function GameViewport({
 
   useLocalInput(socket, settings, inputEnabled, inputRef, surfaceRef, touchInputRef, touchControls);
 
+  const k = settings.controls.keybinds;
   const label = touchControls
-    ? "Shark Tank. The flight stick pitches and yaws. The opposite stick looks around. Dash and primary attack remain separate touch controls."
-    : "Shark Tank. W and S climb or dive; A and D turn. Arrow keys look around. Space bursts, F uses the current primary attack, Escape pauses, and mouse look is optional.";
+    ? "Shark Tank 3D gameplay view. The flight stick pitches and yaws. The opposite stick looks around. Dash and bite remain separate touch controls. Gameplay status, leaderboard, and 3D navigation cues are available in the surrounding DOM interface."
+    : `Shark Tank 3D gameplay view. ${keyLabel(k.pitchUp)} and ${keyLabel(k.pitchDown)} pitch up or down; ${keyLabel(k.yawLeft)} and ${keyLabel(k.yawRight)} yaw left or right. ${keyLabel(k.lookUp)}, ${keyLabel(k.lookDown)}, ${keyLabel(k.lookLeft)}, and ${keyLabel(k.lookRight)} look around. ${keyLabel(k.boost)} bursts, ${keyLabel(k.bite)} bites, ${keyLabel(k.pause)} pauses, and mouse look is optional. Gameplay status, leaderboard, and 3D navigation cues are available in the surrounding DOM interface.`;
 
   return (
     <div

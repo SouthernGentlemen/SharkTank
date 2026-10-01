@@ -19,6 +19,7 @@ import {
 import { useRoomSocket } from "../net/useRoomSocket.js";
 import { keyLabel, useSettings } from "../settings/SettingsContext.js";
 import { useAnnouncer } from "../a11y/announcer.js";
+import { useFocusTrap } from "../a11y/useFocusTrap.js";
 import { useGameAudio } from "../audio/useGameAudio.js";
 import { Hud } from "./Hud.js";
 import { Leaderboard } from "./Leaderboard.js";
@@ -125,7 +126,7 @@ export function GameScreen({ room, identity, onAuthoritativeResult, onQuit }: Ga
       {touch && <TouchControls inputRef={touchInputRef} flightSide={stickSide} enabled={gameplayEnabled} portraitLocked={portraitLocked} />}
       {settings.audio.captions && <Captions caption={caption} />}
 
-      {roundUi?.phase === "result" && dismissedResultRound !== roundUi.number && (
+      {roundUi?.phase === "result" && dismissedResultRound !== roundUi.number && !dialogOpen && (
         <RoundResult
           round={roundUi}
           onContinue={() => setDismissedResultRound(roundUi.number)}
@@ -233,20 +234,30 @@ function RoundResult({
   round: RoundUiState;
   onContinue: () => void;
 }) {
+  const ref = useRef<HTMLElement>(null);
+  useFocusTrap(ref, true, onContinue);
+
   return (
     <div className="round-result-layer">
-      <section className="panel round-result-card" aria-labelledby="round-result-title">
+      <section
+        ref={ref}
+        className="panel round-result-card"
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="round-result-title"
+        aria-describedby="round-result-summary round-result-next"
+      >
         <p className="round-result-kicker">ROUND {round.number} COMPLETE</p>
         <h2 id="round-result-title">
           {round.winnerName ? `${round.winnerName} wins` : "Round complete"}
         </h2>
-        <p>
+        <p id="round-result-summary">
           {round.winnerName
             ? `${round.winnerScore ?? 0} points. Your final score: ${round.localScore}.`
             : `Your final score: ${round.localScore}.`}
         </p>
-        <p className="round-result-next">Next round starts in {round.secondsLeft}s.</p>
-        <button type="button" className="btn btn--primary btn--lg" autoFocus onClick={onContinue}>
+        <p id="round-result-next" className="round-result-next">Next round starts in {round.secondsLeft}s.</p>
+        <button type="button" className="btn btn--primary btn--lg" onClick={onContinue}>
           Ready for next round
         </button>
       </section>

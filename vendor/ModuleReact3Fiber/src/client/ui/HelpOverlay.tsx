@@ -11,7 +11,8 @@ export function HelpOverlay({ onClose }: { onClose: () => void }) {
   // Documenting keys to someone holding a phone is worse than documenting nothing.
   const touch = useTouchControls(settings);
   const stick = settings.controls.stickSide === "left" ? "left" : "right";
-  const pads = stick === "left" ? "right" : "left";
+  const look = stick === "left" ? "right" : "left";
+  const pads = look;
 
   return (
     <div className="scrim">
@@ -29,7 +30,8 @@ export function HelpOverlay({ onClose }: { onClose: () => void }) {
 
         {touch ? (
           <div className="control-grid">
-            <Control icon="steer" label="Steer"><span>Hold the {stick} half</span><small>The stick appears under your thumb; the shark swims that way while you hold.</small></Control>
+            <Control icon="steer" label="Fly"><span>{stick} flight stick</span><small>Up/down pitches to climb or dive; left/right yaws while the shark keeps swimming forward.</small></Control>
+            <Control icon="steer" label="Look"><span>{look} look stick</span><small>Offsets the chase camera in four directions; release to recenter behind the shark.</small></Control>
             <Control icon="dash" label="Dash"><span>{pads} pad</span><small>2s cooldown · half that during a frenzy</small></Control>
             <Control icon="bite" label="Bite"><span>{pads} pad</span><small>Directional close-range attack · aim with the shark</small></Control>
             <Control icon="menu" label="Tools"><span>Gear button</span><small>Exit, audio, display, and full settings</small></Control>

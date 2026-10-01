@@ -3,6 +3,7 @@ import type { NetPrey, NetSnake } from "../../protocol/index.js";
 import { audio, SFX_CAPTION, type Sfx } from "./AudioManager.js";
 import {
   AUDIO_LIMITS,
+  audioDistance,
   directionCaption,
   emitterCapForQuality,
   isFreshAudioEvent,
@@ -72,10 +73,19 @@ export function useGameAudio(socket: RoomSocket, settings: Settings): Caption | 
           key: options.key,
           minIntervalMs: options.minIntervalMs,
         });
-    if (played && options.caption !== false) {
-      emitCaption.current(options.caption ?? SFX_CAPTION[type]);
+
+    // Captions are the visual equivalent of a gameplay-relevant sound, not a receipt
+    // from Web Audio. Keep them available when audio is muted, blocked before a user
+    // gesture, or unsupported, while still respecting the cue's audible spatial range.
+    const captionReachable = !options.position
+      || audioDistance(audio.getListenerPose().position, options.position)
+        <= (options.range ?? AUDIO_LIMITS.audibleRange);
+    const captioned = options.caption !== false && captionsOnRef.current && captionReachable;
+    if (captioned) {
+      const captionText = typeof options.caption === "string" ? options.caption : SFX_CAPTION[type];
+      emitCaption.current(captionText);
     }
-    return played;
+    return played || captioned;
   });
 
   useEffect(() => {

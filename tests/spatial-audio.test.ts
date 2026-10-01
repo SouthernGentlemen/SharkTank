@@ -70,6 +70,8 @@ describe("ST-125 spatial underwater game audio", () => {
     expect(hook).toContain("state.frenzyUntilTick");
     expect(hook).toContain("selectSpatialEmitters");
     expect(hook).toContain("settings.graphics.quality");
+    expect(hook).toContain("captionReachable");
+    expect(hook).toContain("return played || captioned");
     expect(hook).not.toContain("socket.send");
     expect(hook).not.toContain("applyAction(");
   });
@@ -94,6 +96,7 @@ describe("ST-125 spatial underwater game audio", () => {
     expect(plan).not.toContain("### ST-125");
     expect(plan).not.toContain("### ST-126");
     expect(plan).not.toContain("### ST-127");
-    expect(plan).toContain("### ST-128");
+    expect(plan).not.toContain("### ST-128");
+    expect(plan).toContain("### ST-129");
   });
 });

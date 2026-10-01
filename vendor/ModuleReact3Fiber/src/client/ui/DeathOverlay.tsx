@@ -5,7 +5,7 @@
 // respawn timer runs. So the scrim is click-through, the card itself is the only thing
 // that takes pointer events, and there is no focus trap — focus is placed on Respawn
 // (the primary action) and Tab walks out of the card normally. It is still announced
-// assertively, and Escape still exits the tank via the game screen's handler.
+// assertively, while the always-reachable tools rail keeps the explicit exit action available.
 
 import { useEffect, useRef, useState } from "react";
 import { useAnnouncer } from "../a11y/announcer.js";
