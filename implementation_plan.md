@@ -83,41 +83,6 @@ These are acceptance targets, not permission to fake authority:
 ## Open tasks
 
 
-### ST-124 — [FEAT] Add round structure and an Apex climax
-
-**Goal**
-
-Give the game a beginning, escalation, climax, result and replay loop instead of one endless room lifetime.
-
-**Owner-default round shape**
-
-Use a roughly 5-minute active round as the first tuning target, followed by a short result/reset window. Exact constants may be tuned from tests but must stay deterministic and server-owned.
-
-**Scope**
-
-- Add explicit round state, round number, start/end ticks and result state to the authoritative room.
-- Reset competitive gameplay cleanly between rounds without recreating the Durable Object or losing operational metadata.
-- Define the winner from a documented score/rank rule.
-- Give the current leader a readable Apex marker/identity in the 3D world and DOM leaderboard.
-- Increase pressure toward the end of the round through a deterministic final frenzy/event rather than an arbitrary client animation.
-- Add result presentation and one-action return into the next round.
-- Preserve personal best/profile semantics and update them only from authoritative results.
-- Ensure reconnect/late-join behavior explains the current round state immediately.
-
-**Non-goals**
-
-- No account-based ranked matchmaking.
-- No seasonal ladder.
-- No paid progression.
-
-**Acceptance**
-
-- A complete deterministic test can simulate start -> active play -> climax -> result -> next round.
-- Joining at any phase yields correct state.
-- Room persistence and operational evidence survive round resets.
-
----
-
 ### ST-125 — [FEAT] Build spatial underwater game audio
 
 **Goal**

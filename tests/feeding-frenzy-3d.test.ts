@@ -88,7 +88,7 @@ describe("ST-123 3D server-wide Feeding Frenzy", () => {
       JSON.parse(JSON.stringify(first)),
       createRoom({ id: "frenzy", seed: "fallback" }),
     );
-    expect(restored.source).toBe("schema-10");
+    expect(restored.source).toBe("schema-11");
     expect(frenzyTiming(restored.room)).toEqual(frenzyTiming(first));
   });
 
@@ -140,9 +140,9 @@ describe("ST-123 3D server-wide Feeding Frenzy", () => {
     expect(state.food.length).toBeLessThanOrEqual(PREY_BUDGET.max);
   });
 
-  it("rejects client-authored frenzy timing while preserving schema/protocol 10", () => {
-    expect(ROOM_SCHEMA_VERSION).toBe(10);
-    expect(REALTIME_PROTOCOL_VERSION).toBe(10);
+  it("rejects client-authored frenzy timing while preserving schema/protocol 11", () => {
+    expect(ROOM_SCHEMA_VERSION).toBe(11);
+    expect(REALTIME_PROTOCOL_VERSION).toBe(11);
     expect(parseRealtimeClientMessage({
       v: REALTIME_PROTOCOL_VERSION,
       t: "input",
@@ -155,6 +155,7 @@ describe("ST-123 3D server-wide Feeding Frenzy", () => {
       "explosions",
       "food",
       "frenzyUntilTick",
+      "round",
       "schemaVersion",
       "seabedY",
       "snakes",

@@ -74,8 +74,8 @@ describe("ST-122 realtime combat protocol", () => {
     })).toEqual({ ok: false, reason: "malformed" });
   });
 
-  it("requires realtime protocol 10 on both directions", () => {
-    expect(REALTIME_PROTOCOL_VERSION).toBe(10);
+  it("requires realtime protocol 11 on both directions", () => {
+    expect(REALTIME_PROTOCOL_VERSION).toBe(11);
     const state = toNetState(createRoom({ seed: "server-marker" }));
     const current = withRealtimeProtocol({ t: "state" as const, state });
     expect(parseRealtimeServerMessage(current).ok).toBe(true);
@@ -83,7 +83,7 @@ describe("ST-122 realtime combat protocol", () => {
     expect(parseRealtimeServerMessage({ ...current, v: 9 })).toEqual({ ok: false, reason: "stale-schema" });
   });
 
-  it("quantizes complete schema-10 X/Y/Z combat state without ranged projectile state", () => {
+  it("quantizes complete schema-11 X/Y/Z combat state without ranged projectile state", () => {
     const state = createRoom({ seed: "wire-roundtrip" });
     state.food = [{ id: "food", kind: "reef", x: 1.234, y: -2.345, z: 3.456, value: 3, r: 0.456, yaw: 1.23456, pitch: -0.23456, school: 2 }];
     const shark = join(state, "pilot");
@@ -103,7 +103,7 @@ describe("ST-122 realtime combat protocol", () => {
     }];
 
     const net = toNetState(state);
-    expect(net.schemaVersion).toBe(10);
+    expect(net.schemaVersion).toBe(11);
     expect(net.snakes.find((item) => item.id === shark.id)?.segments[0]).toEqual({ x: 10.12, y: -4.57, z: 2.35 });
     expect(net.snakes.find((item) => item.id === shark.id)).toMatchObject({
       yaw: 1.235,

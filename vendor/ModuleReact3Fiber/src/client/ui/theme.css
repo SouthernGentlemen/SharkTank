@@ -547,3 +547,21 @@ body {
 
 .frenzy-banner--reduced-motion,.frenzy-banner--ended{animation:none}
 .frenzy-banner--ended{border-color:#8ee9dc;background:rgba(8,74,78,.94);box-shadow:0 10px 24px rgba(8,74,78,.3)}
+
+
+/* ── ST-124 authoritative round/Apex presentation ── */
+.hud-card--round{min-width:118px}
+.hud-card--round.is-apex{border-color:#ffd54a;box-shadow:0 0 0 1px rgba(255,213,74,.28)}
+.hud-card__phase{font-size:.72em;letter-spacing:.08em;color:#ffd54a}
+.game-leaderboard__row.is-apex{outline:1px solid #ffd54a;background:rgba(255,213,74,.11)}
+.game-leaderboard__apex{display:inline-block;margin-left:6px;padding:1px 4px;border:1px solid #ffd54a;border-radius:4px;color:#ffd54a;font-size:.56rem;font-weight:900;letter-spacing:.08em;vertical-align:middle}
+.round-result-layer{position:absolute;inset:0;z-index:14;display:grid;place-items:center;padding:calc(16px + var(--safe-t)) calc(16px + var(--safe-r)) calc(16px + var(--safe-b)) calc(16px + var(--safe-l));background:rgba(6,5,12,.58);pointer-events:none}
+.round-result-card{pointer-events:auto;width:min(440px,100%);display:grid;gap:10px;padding:24px;text-align:center}
+.round-result-card h2,.round-result-card p{margin:0}
+.round-result-kicker{color:#ffd54a;font-size:.76rem;font-weight:900;letter-spacing:.14em}
+.round-result-next{color:var(--text-muted);font-variant-numeric:tabular-nums}
+@media (max-width:560px){
+  .hud-card--round{min-width:94px}
+  .game-leaderboard__apex{margin-left:3px;padding:0 3px;font-size:.48rem}
+  .round-result-card{padding:18px}
+}

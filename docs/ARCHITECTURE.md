@@ -48,7 +48,16 @@ Feeding Frenzy is an authoritative 3D convergence event owned by the Room simula
 
 While the event is active, the authoritative movement multiplier is 1.16 and the authoritative dash cooldown multiplier is 0.5. Bots use the same X/Y/Z prey coordinates, ocean geometry, event state, movement and dash action as players; there is no bot-only teleport or scoring path. Event chum is retired when the authoritative end tick is reached so long-lived Rooms do not accumulate event-only actors.
 
-Realtime snapshots keep schema/protocol 10 and carry the existing authoritative `tick` plus `frenzyUntilTick`. Shared engine rules derive whether the event is active, its start/end ticks and remaining duration, so late join/reconnect does not depend on a browser timer. The client adds presentation only: the central beacon/column changes state, the HUD shows the server-derived countdown and bounded modifiers, and audio/caption hooks announce start/end. Reduced-motion mode removes pulsing/rotation without hiding state; low-quality mode reduces landmark ring complexity without removing the navigation cue.
+Realtime snapshots use schema/protocol 11 and carry authoritative `tick`, `frenzyUntilTick`, and round state. Shared engine rules derive whether the event is active and its remaining duration, so late join/reconnect does not depend on a browser timer. Normal play keeps the deterministic 75-second cadence; the Apex phase guarantees one final 20-second frenzy ending exactly at the round boundary. The client adds presentation only: the central beacon/column changes state, the HUD shows the server-derived countdown and bounded modifiers, and audio/caption hooks announce start/end. Reduced-motion mode removes pulsing/rotation without hiding state; low-quality mode reduces landmark ring complexity without removing the navigation cue.
+
+## Round and Apex authority
+
+Each Room runs a server-owned five-minute competitive round (6,000 ticks at 20 Hz), with the final 45 seconds designated as the Apex phase and a 10-second result/reset window. The highest score wins; score ties resolve by stable shark id so replay produces the same winner. During Apex, the current score leader is the authoritative Apex target. That shark receives a bounded 1.08× swim modifier, carries a visible geometric marker, and is worth a 12-point / 1.2-growth elimination bounty. Bots see the same Apex id and can pursue it through the ordinary combat path.
+
+At the round end the Room freezes competitive simulation, records the winner, removes event-only chum, and rejects movement/combat/respawn inputs until reset. The next round resets score, growth, health, death/respawn state, prey, effects, and frenzy state while retaining Room id/seed/ocean, connected player identity/cosmetics, Durable Object identity, and separately stored operational metadata. Late joins receive the complete active/Apex/result state in their welcome snapshot; joining during the result window waits inertly for the next server reset.
+
+Schema 11 deliberately resets schema-10-or-older transient Room snapshots rather than guessing a round boundary, while preserving stable identity/seed/ocean values and rotating incompatible replay logs. Personal best writes are accepted only from authoritative Room results; public profile writes own cosmetics/settings and cannot submit score.
+
 
 ## Static assets and security
 

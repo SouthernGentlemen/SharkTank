@@ -82,8 +82,27 @@ export interface Explosion {
   kind: "shark" | "bite" | "frenzy";
 }
 
+export type RoundPhase = "active" | "apex" | "result";
+
+export interface RoundResult {
+  roundNumber: number;
+  winner: ScoreEntry | null;
+  endedTick: number;
+}
+
+export interface RoundState {
+  number: number;
+  phase: RoundPhase;
+  startTick: number;
+  apexStartTick: number;
+  endTick: number;
+  resultEndTick: number;
+  apexId: string | null;
+  result: RoundResult | null;
+}
+
 export interface RoomState {
-  schemaVersion: 10;
+  schemaVersion: 11;
   id: string;
   seed: string;
   tick: number;
@@ -93,6 +112,7 @@ export interface RoomState {
   food: Prey[];
   explosions: Explosion[];
   frenzyUntilTick: number;
+  round: RoundState;
 }
 
 /** Player/bot intents applied to authoritative state on the server. */

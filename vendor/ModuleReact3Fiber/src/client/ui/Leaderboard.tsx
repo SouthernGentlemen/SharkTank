@@ -13,6 +13,8 @@ export function Leaderboard({ socket }: { socket: RoomSocket }) {
   const { announce } = useAnnouncer();
   const lastRank = useRef<number>(0);
   const entries = socket.leaderboard;
+  const round = socket.stateRef.current?.round;
+  const apexId = round?.phase === "apex" ? round.apexId : null;
 
   useEffect(() => {
     const idx = entries.findIndex((e) => e.id === socket.youId);
@@ -32,13 +34,21 @@ export function Leaderboard({ socket }: { socket: RoomSocket }) {
         {entries.length === 0 && <li className="text-muted">Waiting for scores…</li>}
         {entries.map((e, i) => {
           const me = e.id === socket.youId;
+          const apex = e.id === apexId;
+          const classes = `game-leaderboard__row${me ? " is-me" : ""}${apex ? " is-apex" : ""}`;
           return (
-            <li key={e.id} className={me ? "game-leaderboard__row is-me" : "game-leaderboard__row"} aria-current={me ? "true" : undefined}>
+            <li key={e.id} className={classes} aria-current={me ? "true" : undefined}>
               <span className="game-leaderboard__rank">{i + 1}</span>
               <svg className="game-leaderboard__dot" viewBox="0 0 10 10" aria-hidden="true"><circle cx="5" cy="5" r="5" fill={skinColor(e.skin)} /></svg>
               <span className="game-leaderboard__name">
                 {e.name}
                 {me && <span className="sr-only"> (you)</span>}
+                {apex && (
+                  <>
+                    <span className="game-leaderboard__apex" aria-hidden="true">APEX</span>
+                    <span className="sr-only"> Apex target</span>
+                  </>
+                )}
               </span>
               <span className="game-leaderboard__score">{e.score}</span>
             </li>

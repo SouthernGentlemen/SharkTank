@@ -132,6 +132,7 @@ function Shell({ baseUrl }: { baseUrl: string }) {
             <GameScreen
               room={room}
               identity={{ name: name || "Player", skin }}
+              onAuthoritativeResult={(score) => setBest((current) => Math.max(current, score))}
               onQuit={() => setScreen("tank")}
             />
           </Suspense>

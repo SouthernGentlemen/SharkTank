@@ -89,7 +89,7 @@ async function verifyRoomWebSocket() {
         if (error) reject(error); else resolve(value);
       };
       timer = setTimeout(() => finish(new Error("timed out waiting for welcome")), 5_000);
-      socket.addEventListener("open", () => socket.send(JSON.stringify({ v: 10, t: "hello", name: "Acceptance Shark", skin: "cyan", debugLanguage: "ts" })), { once: true });
+      socket.addEventListener("open", () => socket.send(JSON.stringify({ v: 11, t: "hello", name: "Acceptance Shark", skin: "cyan", debugLanguage: "ts" })), { once: true });
       socket.addEventListener("message", (event) => {
         let message;
         try { message = JSON.parse(String(event.data)); } catch { return; }
@@ -98,7 +98,7 @@ async function verifyRoomWebSocket() {
       socket.addEventListener("error", () => finish(new Error("WebSocket error")), { once: true });
       socket.addEventListener("close", (event) => { if (!settled) finish(new Error(`closed before welcome (code ${event.code})`)); }, { once: true });
     });
-    if (welcome?.v !== 10) fail(`WebSocket welcome expected realtime schema 10, got ${welcome?.v}`);
+    if (welcome?.v !== 11) fail(`WebSocket welcome expected realtime schema 11, got ${welcome?.v}`);
     if (welcome?.roomId !== "room-1") fail(`WebSocket welcome expected room-1, got ${welcome?.roomId}`);
     if (typeof welcome?.youId !== "string" || !welcome.youId) fail("WebSocket welcome lost player identity");
     if (!welcome?.state || typeof welcome.state.tick !== "number") fail("WebSocket welcome lost authoritative room state");
@@ -123,7 +123,7 @@ async function verifyRoomWebSocket() {
       };
       socket.addEventListener("message", onMessage);
       socket.send(JSON.stringify({ t: "debug", language: "ts" }));
-      socket.send(JSON.stringify({ v: 10, t: "ping", ts }));
+      socket.send(JSON.stringify({ v: 11, t: "ping", ts }));
     });
     if (!staleFrameSurvived) fail("legacy debug frame disconnected the room socket");
   } catch (error) {
