@@ -82,6 +82,8 @@ export interface SnakeLabel {
   y: number;
   color: string;
   me: boolean;
+  apex: boolean;
+  distance: number;
 }
 
 export function ActorLayer({
@@ -116,6 +118,8 @@ export function ActorLayer({
   const position = useMemo(() => new THREE.Vector3(), []);
   const interpolatedPose = useMemo<OrientedScenePose>(() => ({ x: 0, y: 0, z: 0, yaw: 0, pitch: 0 }), []);
   const projected = useMemo(() => new THREE.Vector3(), []);
+  const cameraForward = useMemo(() => new THREE.Vector3(), []);
+  const toLabel = useMemo(() => new THREE.Vector3(), []);
   const tempColor = useMemo(() => new THREE.Color(), []);
   const prevById = useMemo(() => new Map<string, NetSnake>(), []);
   const motionById = useMemo(() => new Map<string, { yaw: number; roll: number }>(), []);
@@ -163,6 +167,7 @@ export function ActorLayer({
 
     prevById.clear();
     for (const shark of previous.snakes) prevById.set(shark.id, shark);
+    camera.getWorldDirection(cameraForward);
 
     const authoritativeMe = socket.stateRef.current?.snakes.find((shark) => shark.id === socket.youId) ?? null;
     const staleness = Math.max(0, (performance.now() - socket.newestAtRef.current) / 1000);
@@ -336,21 +341,29 @@ export function ActorLayer({
       }
 
       if (wantLabels) {
-        projected.copy(position);
-        projected.y += 1.25 * sharkScale;
-        projected.project(camera);
-        if (projected.z < 1) {
-          const x = (projected.x * 0.5 + 0.5) * size.width;
-          const y = (-projected.y * 0.5 + 0.5) * size.height;
-          if (x > -60 && y > -60 && x < size.width + 60 && y < size.height + 60) {
-            labels.push({
-              id: shark.id,
-              name: isMe ? `${shark.name} (you)` : shark.name,
-              x: Math.max(52, Math.min(size.width - 52, x)),
-              y: Math.max(52, Math.min(size.height - 6, y)),
-              color: `#${bodyColor.getHexString()}`,
-              me: isMe,
-            });
+        const isApex = shark.id === apexId;
+        const labelDistance = camera.position.distanceTo(position);
+        toLabel.copy(position).sub(camera.position);
+        const inFront = toLabel.dot(cameraForward) > 0;
+        if (inFront && (isMe || isApex || labelDistance <= 54)) {
+          projected.copy(position);
+          projected.y += 1.25 * sharkScale;
+          projected.project(camera);
+          if (projected.z >= -1 && projected.z <= 1) {
+            const x = (projected.x * 0.5 + 0.5) * size.width;
+            const y = (-projected.y * 0.5 + 0.5) * size.height;
+            if (x > -60 && y > -60 && x < size.width + 60 && y < size.height + 60) {
+              labels.push({
+                id: shark.id,
+                name: isMe ? `${shark.name} (you)` : shark.name,
+                x: Math.max(52, Math.min(size.width - 52, x)),
+                y: Math.max(52, Math.min(size.height - 6, y)),
+                color: `#${bodyColor.getHexString()}`,
+                me: isMe,
+                apex: isApex,
+                distance: labelDistance,
+              });
+            }
           }
         }
       }
@@ -367,15 +380,17 @@ export function ActorLayer({
     if (pupils.instanceColor) pupils.instanceColor.needsUpdate = true;
 
     if (wantLabels && labelsRef) {
-      if (labels.length > 11) {
+      if (labels.length > 7) {
         const middleX = size.width / 2;
         const middleY = size.height / 2;
-        labels.sort((a, b) => (
-          a.me ? -1
-            : b.me ? 1
-              : Math.hypot(a.x - middleX, a.y - middleY) - Math.hypot(b.x - middleX, b.y - middleY)
-        ));
-        labels.length = 11;
+        labels.sort((a, b) => {
+          const aPriority = a.me ? 0 : a.apex ? 1 : 2;
+          const bPriority = b.me ? 0 : b.apex ? 1 : 2;
+          if (aPriority !== bPriority) return aPriority - bPriority;
+          if (Math.abs(a.distance - b.distance) > 0.5) return a.distance - b.distance;
+          return Math.hypot(a.x - middleX, a.y - middleY) - Math.hypot(b.x - middleX, b.y - middleY);
+        });
+        labels.length = 7;
       }
       labelsRef.current = labels;
     } else if (labelsRef && labelsRef.current.length) {

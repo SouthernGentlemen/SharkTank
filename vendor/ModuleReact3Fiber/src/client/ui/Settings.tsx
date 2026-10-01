@@ -139,7 +139,7 @@ function GraphicsPanel() {
   return (
     <div className="stack">
       <Choice label="Quality" value={g.quality} onChange={(v) => update("graphics", { quality: v })} options={[{ v: "low", l: "Low" }, { v: "medium", l: "Medium" }, { v: "high", l: "High" }]} />
-      <Toggle label="Show minimap" checked={g.showMinimap} onChange={(v) => update("graphics", { showMinimap: v })} />
+      <Toggle label="Show depth radar" checked={g.showMinimap} onChange={(v) => update("graphics", { showMinimap: v })} />
       <Toggle label="Show ground grid" checked={g.showGrid} onChange={(v) => update("graphics", { showGrid: v })} />
       <Toggle label="Camera motion" hint="Smooth camera follow. Turn off to reduce motion." checked={g.cameraShake} onChange={(v) => update("graphics", { cameraShake: v })} />
     </div>

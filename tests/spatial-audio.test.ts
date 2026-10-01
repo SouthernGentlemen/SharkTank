@@ -89,10 +89,10 @@ describe("ST-125 spatial underwater game audio", () => {
     expect(REALTIME_PROTOCOL_VERSION).toBe(11);
   });
 
-  it("removes only ST-125 from the current-only queue", () => {
+  it("keeps ST-125 delivered as the current-only queue advances through ST-126", () => {
     const plan = read("../implementation_plan.md");
     expect(plan).not.toContain("### ST-125");
-    expect(plan).toContain("### ST-126");
-    expect(plan.indexOf("### ST-126")).toBeLessThan(plan.indexOf("### ST-127"));
+    expect(plan).not.toContain("### ST-126");
+    expect(plan).toContain("### ST-127");
   });
 });
