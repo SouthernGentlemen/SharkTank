@@ -83,32 +83,6 @@ These are acceptance targets, not permission to fake authority:
 ## Open tasks
 
 
-### ST-129 — [TEST] Prove 3D authority, replay, reconnect and mobile input end to end
-
-**Goal**
-
-Create the acceptance wall for the new game before old compatibility code and documentation are finalized.
-
-**Scope**
-
-- Add deterministic engine cases for 3D movement, boundary handling, prey, bite combat, frenzy and round reset.
-- Prove replay reproduces 3D world state for the supported log generation.
-- Prove WebSocket validation rejects malformed 3D input.
-- Prove local prediction/reconciliation math against authoritative movement fixtures.
-- Prove stale-client/protocol mismatch behavior if version negotiation exists.
-- Prove reconnect, death, respawn, late join and round transition flows.
-- Add mobile multi-pointer control cases for simultaneous sticks + ability.
-- Add R3F/client smoke coverage appropriate to the current test environment without pretending jsdom renders WebGL.
-- Keep `npm run check` the canonical credential-free gate.
-
-**Acceptance**
-
-- Every core gameplay state transition has deterministic server-side coverage.
-- Replay and reconnect are not weaker than they were in the planar game.
-- The build has no hidden dependency on the deleted Canvas2D renderer.
-
----
-
 ### ST-130 — [DOCS] Consolidate the repository around the full-3D architecture
 
 **Goal**
