@@ -1,6 +1,7 @@
 import { useFrame, useThree } from "@react-three/fiber";
 import { useEffect, useMemo } from "react";
 import * as THREE from "three";
+import { audio } from "../audio/AudioManager.js";
 import type { LocalInput } from "./useLocalInput.js";
 import {
   CAMERA_PROJECTION,
@@ -89,6 +90,15 @@ export function CameraRig({
     smoothChaseCameraPose(current, goal, dt, reducedMotion, current);
     camera.position.set(current.position.x, current.position.y, current.position.z);
     camera.lookAt(current.lookAt.x, current.lookAt.y, current.lookAt.z);
+
+    const fx = current.lookAt.x - current.position.x;
+    const fy = current.lookAt.y - current.position.y;
+    const fz = current.lookAt.z - current.position.z;
+    audio.setListener(
+      current.position,
+      Math.atan2(fz, fx),
+      Math.atan2(fy, Math.max(0.0001, Math.hypot(fx, fz))),
+    );
 
     if (camera instanceof THREE.PerspectiveCamera) {
       const targetFov = follow.active

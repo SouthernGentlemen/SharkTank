@@ -83,35 +83,6 @@ These are acceptance targets, not permission to fake authority:
 ## Open tasks
 
 
-### ST-125 — [FEAT] Build spatial underwater game audio
-
-**Goal**
-
-Make movement, prey and combat feel physical without sacrificing captions or user control.
-
-**Scope**
-
-- Replace the minimal synth-only presentation where useful with local, license-safe audio assets and/or improved synthesis.
-- Add underwater ambience, swim/burst rush, bite impact, prey consumption, hit/death, frenzy and round-result cues.
-- Spatialize nearby world cues where Web Audio makes that reliable; keep critical state cues understandable without spatial audio.
-- Preserve user-gesture audio start, volume controls, background-tab suspension and cleanup.
-- Expand captions for every gameplay-relevant sound cue.
-- Keep music opt-in unless the owner changes the current default.
-
-**Non-goals**
-
-- No voice chat.
-- No licensed commercial soundtrack.
-- No critical gameplay information that exists only in audio.
-
-**Acceptance**
-
-- Combat and prey interactions have distinct readable sound signatures.
-- Captions cover the same gameplay-relevant events.
-- Audio stops/suspends correctly on lifecycle transitions.
-
----
-
 ### ST-126 — [A11Y] Replace planar navigation UI with depth-aware competitive cues
 
 **Goal**
