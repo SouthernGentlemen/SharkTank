@@ -59,6 +59,15 @@ At the round end the Room freezes competitive simulation, records the winner, re
 Schema 11 deliberately resets schema-10-or-older transient Room snapshots rather than guessing a round boundary, while preserving stable identity/seed/ocean values and rotating incompatible replay logs. Personal best writes are accepted only from authoritative Room results; public profile writes own cosmetics/settings and cannot submit score.
 
 
+## Spatial underwater audio presentation
+
+Underwater audio is a browser-only presentation layer over schema/protocol 11 snapshots. The chase camera supplies a throttled listener transform, while gameplay cues consume authoritative shark, prey, explosion, Feeding Frenzy and round/Apex state already present on the client. Audio never sends gameplay actions, changes scores, chooses targets, or creates a parallel simulation.
+
+The Web Audio graph uses bounded HRTF world emitters where supported, deterministic distance attenuation, restrained rear filtering, representative nearby-shark/prey cues, distinct combat/prey signatures, and a low underwater ambience. World one-shots are range-limited, rate-limited and voice-capped; low quality uses a smaller emitter budget. Browsers without spatial panning fall back to stereo or gain-only presentation without affecting gameplay.
+
+Audio context startup remains user-gesture safe. Hidden tabs suspend the context; leaving play stops ambience, music and transient voices; page teardown disposes the graph. Music remains opt-in at the existing zero default. Master/SFX/music controls continue to own gain, and captions mirror gameplay-relevant cue types while the existing visual HUD, Frenzy, Apex and round state remain independently readable.
+
+
 ## Static assets and security
 
 Wrangler keeps `run_worker_first` enabled with `html_handling` and `not_found_handling` set to `none`. The Worker explicitly fetches Vite's built `/index.html` through the `ASSETS` binding only for the game shell. Known assets keep their own paths; unknown application and asset paths remain ordinary 404s.
