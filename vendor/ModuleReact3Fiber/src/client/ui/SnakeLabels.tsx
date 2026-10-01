@@ -12,7 +12,7 @@ export function SnakeLabels({ labelsRef }: { labelsRef: React.MutableRefObject<S
 
   useEffect(() => {
     const tick = () => {
-      setLabels(labelsRef.current.slice(0, 12));
+      setLabels(labelsRef.current.slice(0, 7));
     };
     tick();
     timer.current = setInterval(tick, 100);
@@ -22,9 +22,22 @@ export function SnakeLabels({ labelsRef }: { labelsRef: React.MutableRefObject<S
   return (
     <svg className="snake-label-layer" width="100%" height="100%" aria-hidden="true">
       {labels.map((l) => (
-        <g key={l.id} className={l.me ? "snake-label is-me" : "snake-label"} transform={`translate(${l.x} ${l.y - 28})`}>
-          <rect x="-68" y="-12" width="136" height="24" rx="6" fill={l.color} stroke={l.me ? "#fff" : "rgba(0,0,0,0.35)"} strokeWidth={l.me ? 2 : 1} />
-          <text x="0" y="4" textAnchor="middle">{l.name}</text>
+        <g
+          key={l.id}
+          className={`snake-label${l.me ? " is-me" : ""}${l.apex ? " is-apex" : ""}`}
+          transform={`translate(${l.x} ${l.y - 28})`}
+        >
+          <rect
+            x="-68"
+            y="-12"
+            width="136"
+            height="24"
+            rx="6"
+            fill={l.color}
+            stroke={l.me ? "#fff" : l.apex ? "#ffd54a" : "rgba(0,0,0,0.35)"}
+            strokeWidth={l.me || l.apex ? 2 : 1}
+          />
+          <text x="0" y="4" textAnchor="middle">{l.name}{l.apex ? " · APEX" : ""}</text>
         </g>
       ))}
     </svg>

@@ -314,7 +314,7 @@ body {
    direction — their background is a hard-coded dark rgba while the icon stroke follows
    --text, which measured 1.08:1 in light mode — so they are pinned here too. Anything
    genuinely on a themed surface (the respawn card, the settings panel) is unaffected. */
-.hud-card, .conn-banner, .game-leaderboard, .game-minimap, .game-tools, .gearbox__popover {
+.hud-card, .conn-banner, .game-leaderboard, .game-depth-radar, .game-tools, .gearbox__popover {
   --overlay-scrim: rgba(6, 5, 12, 0.72);
   --surface-3: #2b2750;
   --text: #f3f1ff;
@@ -326,10 +326,10 @@ body {
 }
 /* Keep honouring the contrast preferences on top of the pinned palette. */
 @media (prefers-contrast: more) {
-  .hud-card, .conn-banner, .game-leaderboard, .game-minimap, .game-tools, .gearbox__popover { --text-faint: var(--text-muted); --border: var(--border-strong); }
+  .hud-card, .conn-banner, .game-leaderboard, .game-depth-radar, .game-tools, .gearbox__popover { --text-faint: var(--text-muted); --border: var(--border-strong); }
 }
 :root[data-contrast="high"] .hud-card, :root[data-contrast="high"] .conn-banner,
-:root[data-contrast="high"] .game-leaderboard, :root[data-contrast="high"] .game-minimap,
+:root[data-contrast="high"] .game-leaderboard, :root[data-contrast="high"] .game-depth-radar,
 :root[data-contrast="high"] .game-tools, :root[data-contrast="high"] .gearbox__popover {
   --text: #ffffff; --text-muted: #eae7ff; --text-faint: #eae7ff; --border: #ffffff; --border-strong: #ffffff;
 }
@@ -339,7 +339,7 @@ body {
 .hud-card__label { color:var(--text-muted); font-size:.78rem; line-height:1.2; }
 .hud-card__value { font-size:1.55rem; font-weight:800; line-height:1.15; font-variant-numeric:tabular-nums; white-space:nowrap; }
 .hud-card__sub { color:var(--text-muted); font-size:.9rem; font-weight:700; }
-.game-leaderboard, .game-minimap, .conn-banner { pointer-events:none; }
+.game-leaderboard, .game-depth-radar, .conn-banner { pointer-events:none; }
 /* The leaderboard grows with the tank (ten rows at 32 sharks) and the ability rail is
    pinned above the minimap, so on a short window the two used to meet. Cap the board to
    the space that is actually free rather than letting rows run under the pads. */
@@ -359,7 +359,7 @@ body {
 .game-tools--collapsed .gearbox__popover{grid-template-columns:repeat(3,52px);max-width:calc(100vw - 24px)}
 
 /* ── Ability pads ── */
-.ability-rail{position:absolute;z-index:13;right:calc(12px + var(--safe-r));bottom:calc(150px + var(--safe-b));display:grid;gap:12px;justify-items:end}
+.ability-rail{position:absolute;z-index:13;right:calc(12px + var(--safe-r));bottom:calc(174px + var(--safe-b));display:grid;gap:12px;justify-items:end}
 .ability-button{position:relative;width:150px;min-height:104px;display:grid;grid-template-columns:48px 1fr;grid-template-rows:1fr auto;align-items:center;gap:0 8px;padding:12px;border:2px solid #fff;border-radius:18px;color:#fff;cursor:pointer;font:900 .86rem/1 var(--font-ui);letter-spacing:.05em;box-shadow:0 7px 0 rgba(0,0,0,.34);touch-action:manipulation;-webkit-tap-highlight-color:transparent}
 .ability-button:active:not(:disabled){transform:translateY(3px);box-shadow:0 4px 0 rgba(0,0,0,.34)}
 .ability-button:disabled{opacity:.54;cursor:not-allowed;filter:saturate(.55)}
@@ -414,7 +414,8 @@ body {
 .game-screen--touch .ability-button{width:84px;min-height:84px;grid-template-columns:1fr;grid-template-rows:1fr auto;justify-items:center;gap:2px;padding:8px;border-radius:20px}
 .game-screen--touch .ability-button svg{grid-row:auto;width:38px;height:38px}
 .game-screen--touch .ability-button span{font-size:.66rem;letter-spacing:.06em}
-.game-screen--touch .game-minimap{display:none}
+.game-screen--touch .game-depth-radar{top:auto;right:auto;bottom:calc(12px + var(--safe-b));left:50%;transform:translateX(-50%);width:min(300px,36vw);max-height:96px;padding:6px 8px}
+.game-screen--touch .game-depth-radar__heading{font-size:.62rem}.game-screen--touch .game-depth-radar__depth{font-size:.62rem}.game-screen--touch .game-depth-radar__cue{grid-template-columns:16px minmax(0,1fr) auto;gap:4px;padding:2px 3px;font-size:.62rem}.game-screen--touch .game-depth-radar__detail{display:none}
 .game-screen--flight-left .ability-rail{right:calc(12px + var(--safe-r));left:auto;justify-items:end}
 .game-screen--flight-left .game-tools{right:calc(12px + var(--safe-r));left:auto}
 .game-screen--flight-left .gearbox__popover{left:auto;right:0}
@@ -441,7 +442,7 @@ body {
   .game-leaderboard h2 { margin-bottom: 3px !important; font-size: .65rem !important; }
   .game-leaderboard li { grid-template-columns: 12px 8px 1fr auto !important; gap: 3px !important; font-size: .7rem !important; }
   .game-leaderboard li:nth-child(n+5) { display: none !important; }
-  .game-minimap { display: none !important; }
+  .game-screen:not(.game-screen--touch) .game-depth-radar { width:min(210px,46vw); right:calc(6px + var(--safe-r)); bottom:calc(6px + var(--safe-b)); }
   .game-tools{gap:2px;padding:4px}
   .game-tools>.icon-button,.game-tools>.gearbox>.icon-button{width:48px;height:48px}
   .gearbox__popover{grid-template-columns:repeat(5,48px);bottom:58px}
@@ -479,14 +480,14 @@ body {
    leaderboard — the pads landed on top of the scores. Lay them along the bottom edge
    instead, clear of the minimap, and trim the leaderboard to what actually fits. */
 @media (max-height: 640px) {
-  .game-screen:not(.game-screen--touch) .ability-rail{grid-auto-flow:column;gap:10px;bottom:calc(12px + var(--safe-b));right:calc(164px + var(--safe-r))}
+  .game-screen:not(.game-screen--touch) .ability-rail{grid-auto-flow:column;gap:10px;bottom:calc(12px + var(--safe-b));right:calc(260px + var(--safe-r))}
   .game-screen:not(.game-screen--touch) .ability-button{width:140px;min-height:74px;grid-template-columns:36px 1fr;padding:9px}
   .game-screen:not(.game-screen--touch) .ability-button svg{width:36px;height:36px}
   .game-leaderboard{max-height:calc(100dvh - 130px)}
   .game-leaderboard li:nth-child(n+8){display:none!important}
 }
 @media (max-height: 480px) {
-  .game-minimap{display:none}
+  .game-screen:not(.game-screen--touch) .game-depth-radar{bottom:calc(92px + var(--safe-b))}
   .game-screen:not(.game-screen--touch) .ability-rail{right:calc(12px + var(--safe-r))}
   .game-leaderboard li:nth-child(n+6){display:none!important}
 }
@@ -540,7 +541,8 @@ body {
 .game-leaderboard__row.is-me{background:var(--surface-3);font-weight:700}
 .game-leaderboard__rank{color:var(--text-muted);text-align:right}.game-leaderboard__dot{width:10px;height:10px}
 .game-leaderboard__name{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.game-leaderboard__score{font-variant-numeric:tabular-nums}
-.game-minimap{position:absolute;bottom:12px;right:12px;width:140px;height:140px;border:1px solid var(--border);border-radius:var(--radius);overflow:hidden;z-index:10}.game-minimap__canvas{display:block}
+.game-depth-radar{position:absolute;bottom:calc(12px + var(--safe-b));right:calc(12px + var(--safe-r));z-index:10;width:min(244px,42vw);max-height:150px;overflow:hidden;padding:8px 10px;border:1px solid var(--border);border-radius:var(--radius);background:var(--overlay-scrim);color:var(--text)}
+.game-depth-radar__header{display:flex;align-items:baseline;justify-content:space-between;gap:8px;margin-bottom:5px}.game-depth-radar__heading{font-size:.72rem;font-weight:900;letter-spacing:.1em}.game-depth-radar__depth{color:var(--text-muted);font-size:.68rem;font-variant-numeric:tabular-nums}.game-depth-radar__list{list-style:none;margin:0;padding:0;display:grid;gap:3px}.game-depth-radar__cue{display:grid;grid-template-columns:18px minmax(0,1fr) auto;align-items:center;gap:5px;padding:3px 4px;border-left:3px solid currentColor;border-radius:4px;background:rgba(255,255,255,.045);font-size:.69rem;line-height:1.15}.game-depth-radar__cue--apex{border-left-style:double}.game-depth-radar__cue--rival{border-left-style:dashed}.game-depth-radar__cue--prey{border-left-style:dotted}.game-depth-radar__cue--frenzy{border-left-style:solid}.game-depth-radar__marker{font-weight:900;text-align:center}.game-depth-radar__identity{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-weight:800}.game-depth-radar__detail{color:var(--text-muted);font-weight:600}.game-depth-radar__vector{display:grid;grid-auto-flow:column;gap:5px;align-items:center;white-space:nowrap;font-variant-numeric:tabular-nums}.game-depth-radar__vertical{font-weight:900}.game-depth-radar__range{color:var(--text-muted);font-weight:700}.game-depth-radar__empty,.game-depth-radar__self-apex{margin:0;padding:3px 4px;font-size:.69rem;font-weight:800}.game-depth-radar__self-apex{border-left:4px double currentColor}.game-depth-radar--semantic-only{position:absolute!important;width:1px!important;height:1px!important;padding:0!important;margin:-1px!important;overflow:hidden!important;clip:rect(0,0,0,0)!important;white-space:nowrap!important;border:0!important}
 
 .snake-label-layer{position:absolute;inset:0;z-index:9;overflow:hidden;pointer-events:none}
 .snake-label text{fill:#0b0a14;font:600 .75rem ui-sans-serif,system-ui,sans-serif;paint-order:stroke;stroke:rgba(255,255,255,.12);stroke-width:.4px}.snake-label.is-me text{font-size:.85rem;font-weight:800}

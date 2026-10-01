@@ -83,35 +83,6 @@ These are acceptance targets, not permission to fake authority:
 ## Open tasks
 
 
-### ST-126 — [A11Y] Replace planar navigation UI with depth-aware competitive cues
-
-**Goal**
-
-Remove UI assumptions that only make sense in a top-down plane and make 3D threats/objectives readable.
-
-**Scope**
-
-- Audit the existing minimap, labels, leaderboard, ability rail and frenzy banner against the full-3D game.
-- Replace the planar minimap with a depth-aware radar/compass or remove it if the 3D world and threat cues make it unnecessary.
-- Add lightweight above/below indication for off-camera nearby threats/prey where needed.
-- Make the Apex player discoverable without permanent screen clutter.
-- Keep labels bounded/occlusion-aware enough that a full tank does not become a wall of names.
-- Tune desktop and mobile HUD density independently while sharing the same information hierarchy.
-- Preserve semantic DOM equivalents for critical information.
-
-**Non-goals**
-
-- No diegetic-only HUD requirement.
-- No giant cockpit UI.
-
-**Acceptance**
-
-- Players can locate important threats/objectives in depth without a top-down coordinate mental model.
-- Mobile HUD does not overlap either touch stick or ability controls.
-- Critical cues remain accessible outside WebGL.
-
----
-
 ### ST-127 — [PERF] Harden the 3D client for desktop and mobile frame budgets
 
 **Goal**

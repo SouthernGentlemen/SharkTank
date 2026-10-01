@@ -22,7 +22,7 @@ import { useAnnouncer } from "../a11y/announcer.js";
 import { useGameAudio } from "../audio/useGameAudio.js";
 import { Hud } from "./Hud.js";
 import { Leaderboard } from "./Leaderboard.js";
-import { Minimap, MinimapSummary } from "./Minimap.js";
+import { DepthRadar } from "./DepthRadar.js";
 import { DeathOverlay } from "./DeathOverlay.js";
 import { Settings } from "./Settings.js";
 import { QuickA11y } from "./QuickA11y.js";
@@ -116,8 +116,7 @@ export function GameScreen({ room, identity, onAuthoritativeResult, onQuit }: Ga
       <Hud socket={socket} />
       <Leaderboard socket={socket} />
       <FrenzyBanner socket={socket} reducedMotion={settings.a11y.motion === "reduced"} />
-      {settings.graphics.showMinimap && <Minimap socket={socket} />}
-      <MinimapSummary socket={socket} />
+      <DepthRadar socket={socket} visible={settings.graphics.showMinimap} compact={touch} />
       <QuickA11y onQuit={handleQuit} onHelp={openHelp} onSettings={openSettings} collapsed={touch} />
       <div className="ability-rail">
         <DashButton socket={socket} compact={touch} keyName={keyLabel(settings.controls.keybinds.boost)} touchInputRef={touchInputRef} enabled={gameplayEnabled} />
