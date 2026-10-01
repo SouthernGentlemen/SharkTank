@@ -251,7 +251,7 @@ body {
 
 /* ── Modal / dialog scrim ── */
 .scrim {
-  position: fixed; inset: 0; z-index: 100;
+  position: fixed; inset: 0; z-index: 200;
   display: grid; place-items: center; padding: 24px;
   background: var(--overlay-scrim);
 }
@@ -381,7 +381,7 @@ body {
 @keyframes frenzy-pulse{50%{box-shadow:0 10px 40px rgba(255,213,74,.62)}}
 
 /* ── Respawn card (non-modal on purpose — see DeathOverlay.tsx) ── */
-.scrim--respawn{pointer-events:none;background:rgba(6,5,12,.5);padding:16px}
+.scrim--respawn{z-index:100;pointer-events:none;background:rgba(6,5,12,.5);padding:16px}
 .respawn-card{pointer-events:auto;width:min(380px,100%);max-height:calc(100dvh - 32px);overflow:auto;text-align:center}
 .respawn-card h2{margin:0;font-size:clamp(1.3rem,4.5vw,1.75rem)}
 .respawn-card p{margin:0;color:var(--text-muted)}
@@ -557,7 +557,7 @@ body {
 .hud-card__phase{font-size:.72em;letter-spacing:.08em;color:#ffd54a}
 .game-leaderboard__row.is-apex{outline:1px solid #ffd54a;background:rgba(255,213,74,.11)}
 .game-leaderboard__apex{display:inline-block;margin-left:6px;padding:1px 4px;border:1px solid #ffd54a;border-radius:4px;color:#ffd54a;font-size:.56rem;font-weight:900;letter-spacing:.08em;vertical-align:middle}
-.round-result-layer{position:absolute;inset:0;z-index:14;display:grid;place-items:center;padding:calc(16px + var(--safe-t)) calc(16px + var(--safe-r)) calc(16px + var(--safe-b)) calc(16px + var(--safe-l));background:rgba(6,5,12,.58);pointer-events:none}
+.round-result-layer{position:absolute;inset:0;z-index:200;display:grid;place-items:center;padding:calc(16px + var(--safe-t)) calc(16px + var(--safe-r)) calc(16px + var(--safe-b)) calc(16px + var(--safe-l));background:rgba(6,5,12,.58);pointer-events:auto}
 .round-result-card{pointer-events:auto;width:min(440px,100%);display:grid;gap:10px;padding:24px;text-align:center}
 .round-result-card h2,.round-result-card p{margin:0}
 .round-result-kicker{color:#ffd54a;font-size:.76rem;font-weight:900;letter-spacing:.14em}

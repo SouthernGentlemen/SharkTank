@@ -208,6 +208,7 @@ describe("ST-127 3D client performance contracts", () => {
     expect(ROOM_SCHEMA_VERSION).toBe(11);
     expect(REALTIME_PROTOCOL_VERSION).toBe(11);
     expect(plan).not.toContain("### ST-127");
-    expect(plan.indexOf("### ST-128")).toBeGreaterThan(0);
+    expect(plan).not.toContain("### ST-128");
+    expect(plan.indexOf("### ST-129")).toBeGreaterThan(0);
   });
 });

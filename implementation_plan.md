@@ -83,36 +83,6 @@ These are acceptance targets, not permission to fake authority:
 ## Open tasks
 
 
-### ST-128 — [A11Y] Re-prove accessibility after the full-3D control and renderer change
-
-**Goal**
-
-Keep SharkTank unusually accessible for a realtime 3D browser game instead of losing existing guarantees during the rewrite.
-
-**Scope**
-
-- Re-audit keyboard-only gameplay through the WASD flight stick, arrow-key look stick, bite, burst, pause, respawn and exit.
-- Re-audit focus handling across menu/tank/game/death/settings/help transitions.
-- Re-audit reduced motion across camera follow, banking, shake, particles and frenzy.
-- Preserve high-contrast/colorblind identification that does not rely on hue alone.
-- Keep live announcements bounded so 32 actors do not spam assistive technology.
-- Ensure captions cover gameplay-relevant spatial audio.
-- Keep touch targets and control spacing appropriate on supported mobile layouts.
-- Ensure the WebGL canvas has an accurate accessible description while meaningful state stays available through DOM summaries.
-
-**Non-goals**
-
-- No claim that a visual 3D action game can be made equivalent to a text game.
-- No removal of competitive visual cues solely to simplify audits.
-
-**Acceptance**
-
-- Existing accessibility tests are updated rather than deleted.
-- Keyboard-only path can complete a full round loop.
-- Reduced-motion mode retains complete gameplay state and control.
-
----
-
 ### ST-129 — [TEST] Prove 3D authority, replay, reconnect and mobile input end to end
 
 **Goal**
