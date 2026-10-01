@@ -12,6 +12,7 @@ import type { NetSnake } from "../../protocol/index.js";
 import type { RoomSocket } from "../net/useRoomSocket.js";
 import type { Settings } from "../settings/SettingsContext.js";
 import type { CameraFollowTarget } from "./CameraRig.js";
+import { cadenceDue, resolveClientPerformanceProfile } from "./performance.js";
 import { LocalPredictor } from "./prediction.js";
 import {
   advanceBankRoll,
@@ -123,6 +124,9 @@ export function ActorLayer({
   const tempColor = useMemo(() => new THREE.Color(), []);
   const prevById = useMemo(() => new Map<string, NetSnake>(), []);
   const motionById = useMemo(() => new Map<string, { yaw: number; roll: number }>(), []);
+  const labelBuffer = useMemo<SnakeLabel[]>(() => [], []);
+  const lastLabelPassAt = useRef(-Infinity);
+  const performanceProfile = resolveClientPerformanceProfile(settings.graphics.quality);
 
   useFrame((_, dt) => {
     const body = bodyMesh.current;
@@ -167,10 +171,10 @@ export function ActorLayer({
 
     prevById.clear();
     for (const shark of previous.snakes) prevById.set(shark.id, shark);
-    camera.getWorldDirection(cameraForward);
 
+    const nowMs = performance.now();
     const authoritativeMe = socket.stateRef.current?.snakes.find((shark) => shark.id === socket.youId) ?? null;
-    const staleness = Math.max(0, (performance.now() - socket.newestAtRef.current) / 1000);
+    const staleness = Math.max(0, (nowMs - socket.newestAtRef.current) / 1000);
     const predicted = inputRef
       ? predictor.step(authoritativeMe, inputRef.current, dt, staleness, {
           seabedY: state.seabedY,
@@ -180,8 +184,15 @@ export function ActorLayer({
         })
       : null;
 
-    const labels: SnakeLabel[] = [];
-    const wantLabels = settings.a11y.colorblindLabels && labelsRef;
+    const labels = labelBuffer;
+    const wantLabels = Boolean(settings.a11y.colorblindLabels && labelsRef);
+    const updateLabels = wantLabels
+      && cadenceDue(lastLabelPassAt.current, nowMs, performanceProfile.labelUpdateMs);
+    if (updateLabels) {
+      lastLabelPassAt.current = nowMs;
+      labels.length = 0;
+      camera.getWorldDirection(cameraForward);
+    }
     let sharkCount = 0;
     let eyeCount = 0;
 
@@ -340,7 +351,7 @@ export function ActorLayer({
         }
       }
 
-      if (wantLabels) {
+      if (updateLabels) {
         const isApex = shark.id === apexId;
         const labelDistance = camera.position.distanceTo(position);
         toLabel.copy(position).sub(camera.position);
@@ -379,7 +390,7 @@ export function ActorLayer({
     pupils.instanceMatrix.needsUpdate = true;
     if (pupils.instanceColor) pupils.instanceColor.needsUpdate = true;
 
-    if (wantLabels && labelsRef) {
+    if (updateLabels && labelsRef) {
       if (labels.length > 7) {
         const middleX = size.width / 2;
         const middleY = size.height / 2;
@@ -393,7 +404,7 @@ export function ActorLayer({
         labels.length = 7;
       }
       labelsRef.current = labels;
-    } else if (labelsRef && labelsRef.current.length) {
+    } else if (!wantLabels && labelsRef && labelsRef.current.length) {
       labelsRef.current = [];
     }
 

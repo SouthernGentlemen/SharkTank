@@ -83,39 +83,6 @@ These are acceptance targets, not permission to fake authority:
 ## Open tasks
 
 
-### ST-127 — [PERF] Harden the 3D client for desktop and mobile frame budgets
-
-**Goal**
-
-Prove the new scene can carry the target actor counts before polish expands further.
-
-**Scope**
-
-- Measure draw calls, geometry/material count, render DPR and representative frame cost.
-- Instance/batch fish, bubbles, particles and repeated props.
-- Add actor/environment LOD only where measurements justify it.
-- Bound shadow use and disable/reduce it by quality preset as needed.
-- Tune fog, caustics, particles, decorative schools and post-like effects by graphics quality.
-- Add adaptive or capped DPR behavior appropriate to mobile.
-- Avoid allocating transient vectors/objects inside hot `useFrame` loops where practical.
-- Keep socket and simulation work independent from render FPS.
-- Add a low-quality path that is still the same 3D game, never a Canvas2D fallback.
-
-**Performance targets**
-
-- Desktop target: 60 FPS under a representative populated scene.
-- Mobile target: stable 30 FPS minimum on the low preset with controls remaining responsive; higher presets may target 60 on capable devices.
-- Server target: the full deterministic room remains within the existing tick cadence without runaway bot/prey cost.
-- Network target: representative snapshot payload and messages/second remain explicitly measured and bounded.
-
-**Acceptance**
-
-- Performance tests/bench fixtures capture actor counts and payload sizes.
-- Quality changes affect presentation cost, not authoritative world truth.
-- No 2D renderer is restored as a performance escape hatch.
-
----
-
 ### ST-128 — [A11Y] Re-prove accessibility after the full-3D control and renderer change
 
 **Goal**

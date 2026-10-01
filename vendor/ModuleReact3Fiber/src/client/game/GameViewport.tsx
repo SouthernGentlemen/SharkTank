@@ -1,8 +1,9 @@
 import { Canvas } from "@react-three/fiber";
-import { useRef } from "react";
+import { useEffect, useRef, useState } from "react";
 import type { RoomSocket } from "../net/useRoomSocket.js";
 import type { Settings } from "../settings/SettingsContext.js";
 import { Scene, type SnakeLabel } from "./Scene.js";
+import { resolveRenderDpr } from "./performance.js";
 import { CAMERA_PROJECTION, resolveSceneQuality } from "./sceneMath.js";
 import type { TwinStickState } from "./mobileControls.js";
 import { useLocalInput, type LocalInput } from "./useLocalInput.js";
@@ -39,6 +40,24 @@ export function GameViewport({
     cameraLookPitch: 0,
   });
   const quality = resolveSceneQuality(settings.graphics.quality);
+  const [deviceDpr, setDeviceDpr] = useState(() => (
+    typeof window === "undefined" ? 1 : window.devicePixelRatio
+  ));
+  useEffect(() => {
+    const updateDpr = () => {
+      const next = Number.isFinite(window.devicePixelRatio) && window.devicePixelRatio > 0
+        ? window.devicePixelRatio
+        : 1;
+      setDeviceDpr((previous) => Math.abs(previous - next) < 0.01 ? previous : next);
+    };
+    window.addEventListener("resize", updateDpr);
+    window.visualViewport?.addEventListener("resize", updateDpr);
+    return () => {
+      window.removeEventListener("resize", updateDpr);
+      window.visualViewport?.removeEventListener("resize", updateDpr);
+    };
+  }, []);
+  const renderDpr = resolveRenderDpr(settings.graphics.quality, touchControls, deviceDpr);
 
   useLocalInput(socket, settings, inputEnabled, inputRef, surfaceRef, touchInputRef, touchControls);
 
@@ -62,7 +81,7 @@ export function GameViewport({
           near: CAMERA_PROJECTION.near,
           far: CAMERA_PROJECTION.far,
         }}
-        dpr={quality.dpr}
+        dpr={renderDpr}
         gl={{ alpha: false, antialias: quality.antialias }}
       >
         <Scene socket={socket} settings={settings} labelsRef={labelsRef} inputRef={inputRef} />

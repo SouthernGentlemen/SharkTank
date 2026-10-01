@@ -257,11 +257,11 @@ class AudioManagerImpl {
 
   setListener(position: AudioPoint, yaw: number, pitch: number): void {
     if (!Number.isFinite(position.x) || !Number.isFinite(position.y) || !Number.isFinite(position.z)) return;
-    this.listenerPose = {
-      position: { x: position.x, y: position.y, z: position.z },
-      yaw: Number.isFinite(yaw) ? yaw : 0,
-      pitch: Number.isFinite(pitch) ? pitch : 0,
-    };
+    this.listenerPose.position.x = position.x;
+    this.listenerPose.position.y = position.y;
+    this.listenerPose.position.z = position.z;
+    this.listenerPose.yaw = Number.isFinite(yaw) ? yaw : 0;
+    this.listenerPose.pitch = Number.isFinite(pitch) ? pitch : 0;
     if (!this.ctx || this.ctx.state !== "running") return;
     const nowMs = this.ctx.currentTime * 1000;
     if (nowMs - this.lastListenerAt < AUDIO_LIMITS.listenerUpdateMs) return;

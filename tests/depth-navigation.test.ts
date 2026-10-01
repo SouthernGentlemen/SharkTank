@@ -158,7 +158,8 @@ describe("ST-126 depth-aware competitive cues", () => {
     expect(css).toContain("bottom:calc(12px + var(--safe-b))");
     expect(css).not.toContain(".game-minimap");
     expect(plan).not.toContain("### ST-126");
-    expect(plan.indexOf("### ST-127")).toBeGreaterThan(0);
+    expect(plan).not.toContain("### ST-127");
+    expect(plan.indexOf("### ST-128")).toBeGreaterThan(0);
   });
 
   it("does not change the server/wire identity for presentation-only navigation", () => {

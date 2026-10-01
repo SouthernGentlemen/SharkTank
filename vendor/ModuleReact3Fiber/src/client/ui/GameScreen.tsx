@@ -111,7 +111,7 @@ export function GameScreen({ room, identity, onAuthoritativeResult, onQuit }: Ga
     >
       <GameViewport socket={socket} settings={settings} inputEnabled={gameplayEnabled} labelsRef={labelsRef} touchInputRef={touchInputRef} touchControls={touch} />
 
-      {settings.a11y.colorblindLabels && <SnakeLabels labelsRef={labelsRef} />}
+      {settings.a11y.colorblindLabels && <SnakeLabels labelsRef={labelsRef} quality={settings.graphics.quality} />}
 
       <Hud socket={socket} />
       <Leaderboard socket={socket} />
@@ -354,7 +354,19 @@ function BiteButton({ socket, compact, keyName, touchInputRef, enabled }: Abilit
 
 function useAbilityCooldown(socket: ReturnType<typeof useRoomSocket>, field: "dashCooldownTick" | "biteCooldownTick") {
   const [cooldown, setCooldown] = useState(0);
-  useEffect(() => { const update = () => { const state = socket.stateRef.current, shark = state?.snakes.find((item) => item.id === socket.youId); setCooldown(state && shark ? Math.max(0, Math.ceil((shark[field] - state.tick) / TICKS_PER_SECOND)) : 0); }; update(); const id = setInterval(update, 150); return () => clearInterval(id); }, [socket.stateRef, socket.youId, field]);
+  useEffect(() => {
+    const update = () => {
+      const state = socket.stateRef.current;
+      const shark = state?.snakes.find((item) => item.id === socket.youId);
+      const next = state && shark
+        ? Math.max(0, Math.ceil((shark[field] - state.tick) / TICKS_PER_SECOND))
+        : 0;
+      setCooldown((previous) => previous === next ? previous : next);
+    };
+    update();
+    const id = setInterval(update, 150);
+    return () => clearInterval(id);
+  }, [socket.stateRef, socket.youId, field]);
   return cooldown;
 }
 

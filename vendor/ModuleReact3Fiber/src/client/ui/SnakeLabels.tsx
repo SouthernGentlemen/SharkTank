@@ -4,9 +4,17 @@
 // (aria-hidden) — the leaderboard already conveys names/scores semantically.
 
 import { useEffect, useRef, useState } from "react";
+import { resolveClientPerformanceProfile } from "../game/performance.js";
+import type { SceneQuality } from "../game/sceneMath.js";
 import type { SnakeLabel } from "../game/Scene.js";
 
-export function SnakeLabels({ labelsRef }: { labelsRef: React.MutableRefObject<SnakeLabel[]> }) {
+export function SnakeLabels({
+  labelsRef,
+  quality,
+}: {
+  labelsRef: React.MutableRefObject<SnakeLabel[]>;
+  quality: SceneQuality;
+}) {
   const [labels, setLabels] = useState<SnakeLabel[]>([]);
   const timer = useRef<ReturnType<typeof setInterval> | null>(null);
 
@@ -15,9 +23,10 @@ export function SnakeLabels({ labelsRef }: { labelsRef: React.MutableRefObject<S
       setLabels(labelsRef.current.slice(0, 7));
     };
     tick();
-    timer.current = setInterval(tick, 100);
+    const interval = resolveClientPerformanceProfile(quality).labelUpdateMs;
+    timer.current = setInterval(tick, interval);
     return () => { if (timer.current) clearInterval(timer.current); };
-  }, [labelsRef]);
+  }, [labelsRef, quality]);
 
   return (
     <svg className="snake-label-layer" width="100%" height="100%" aria-hidden="true">
