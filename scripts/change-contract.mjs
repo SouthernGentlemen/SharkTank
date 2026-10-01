@@ -22,6 +22,13 @@ export const IMMUTABLE_HISTORY_BODY_EXCEPTIONS = Object.freeze(new Map([
     missingProvenance: true,
     reason: "The protected ST-116 PR head carried the complete structured body, but its published GitHub squash merge body was shortened after exact-head CI. Published main is immutable, so only that exact commit and known body defect are accepted.",
   })],
+  ["f0a432effd74b2959a6ff0de3d6bb751e95a9e27", Object.freeze({
+    id: "ST-125",
+    subject: "[ST-125] [FEAT] Build spatial underwater game audio (#105)",
+    missingHeadings: Object.freeze(["Reason", "Impact", "Risk", "Controls", "Evidence"]),
+    missingProvenance: true,
+    reason: "The protected ST-125 PR head carried the complete structured body and passed exact-head CI, but the published GitHub squash merge body was shortened and omitted required history metadata. Published main is immutable, so only this exact commit and known body defect are accepted.",
+  })],
 ]));
 
 const controlledTypeSet = new Set(CONTROLLED_TYPES);

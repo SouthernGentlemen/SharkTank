@@ -52,6 +52,21 @@ function immutableSt116Record(overrides = {}) {
   };
 }
 
+function immutableSt125Record(overrides = {}) {
+  return {
+    sha: "f0a432effd74b2959a6ff0de3d6bb751e95a9e27",
+    subject: "[ST-125] [FEAT] Build spatial underwater game audio (#105)",
+    body: [
+      "Change:\nAdd camera-oriented 3D underwater audio with bounded spatial emitters, ambience, distinct gameplay cues, captions, and lifecycle cleanup.",
+      "Validation:\nExact-head CI #307 / run 36888440965 passed on 8418570d99cee4f2e05621600c10ab7521cbd353.",
+      "Release/deployment effect:\nNone; package version remains 2.0.0.",
+    ].join("\n\n"),
+    authorName: "WizardGangAI",
+    authorEmail: "jacob@wizardgang.ai",
+    ...overrides,
+  };
+}
+
 function controlledContext(overrides = {}) {
   return {
     eventName: "pull_request",
@@ -216,7 +231,7 @@ test("the known immutable ST-116 squash-body defect is accepted only as recorded
   const result = validateHistoryRecords(records);
   assert.deepEqual(result.failures, []);
   assert.equal(result.lastId, "ST-116");
-  assert.equal(IMMUTABLE_HISTORY_BODY_EXCEPTIONS.size, 1);
+  assert.equal(IMMUTABLE_HISTORY_BODY_EXCEPTIONS.size, 2);
 });
 
 test("the ST-116 exception is bound to its exact immutable commit SHA", () => {
@@ -230,6 +245,31 @@ test("the ST-116 exception is bound to its exact immutable commit SHA", () => {
 test("a different body defect is not accepted even when a test record spoofs the ST-116 SHA", () => {
   const records = Array.from({ length: 115 }, (_, index) => controlledRecord(index + 1));
   records.push(immutableSt116Record({
+    body: ["Change:\nvalue", "Reason:\nvalue", "Validation:\nvalue"].join("\n\n"),
+  }));
+  assert.match(validateHistoryRecords(records).failures.join("\n"), /missing Impact: heading/);
+});
+
+test("the known immutable ST-125 squash-body defect is accepted only as recorded", () => {
+  const records = Array.from({ length: 124 }, (_, index) => controlledRecord(index + 1));
+  records.push(immutableSt125Record());
+  const result = validateHistoryRecords(records);
+  assert.deepEqual(result.failures, []);
+  assert.equal(result.lastId, "ST-125");
+  assert.equal(IMMUTABLE_HISTORY_BODY_EXCEPTIONS.size, 2);
+});
+
+test("the ST-125 exception is bound to its exact immutable commit SHA", () => {
+  const records = Array.from({ length: 124 }, (_, index) => controlledRecord(index + 1));
+  records.push(immutableSt125Record({ sha: "e".repeat(40) }));
+  const result = validateHistoryRecords(records);
+  assert.match(result.failures.join("\n"), /missing Reason: heading/);
+  assert.match(result.failures.join("\n"), /missing Notes: or Source: provenance field/);
+});
+
+test("a different body defect is not accepted even when a test record spoofs the ST-125 SHA", () => {
+  const records = Array.from({ length: 124 }, (_, index) => controlledRecord(index + 1));
+  records.push(immutableSt125Record({
     body: ["Change:\nvalue", "Reason:\nvalue", "Validation:\nvalue"].join("\n\n"),
   }));
   assert.match(validateHistoryRecords(records).failures.join("\n"), /missing Impact: heading/);
