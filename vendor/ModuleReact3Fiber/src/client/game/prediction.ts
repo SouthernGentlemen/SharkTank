@@ -1,6 +1,6 @@
 // Client-side prediction for the local shark only. The server remains authoritative.
-// ST-114 carries the authoritative yaw+pitch movement semantics through prediction and
-// reconciles X/Y/Z against the latest server snapshot.
+// Prediction mirrors yaw+pitch movement locally and reconciles X/Y/Z against the latest
+// authoritative server snapshot.
 
 import {
   MOVE,

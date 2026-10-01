@@ -1,4 +1,4 @@
-// Engine core — deterministic snake.io-style room simulation.
+// Engine core — deterministic full-3D shark room simulation.
 // Pure functions over serializable RoomState (no DOM, no three.js, no node APIs),
 // so the exact same code runs in the browser (bots/preview) and in the authoritative
 // Room Durable Object. RNG state lives in the snapshot, so the whole thing is replayable.

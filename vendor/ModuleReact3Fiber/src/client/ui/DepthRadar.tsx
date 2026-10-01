@@ -1,5 +1,5 @@
-// Bounded, heading-relative 3D competitive cues derived only from authoritative snapshots.
-// This replaces the old X/Z canvas minimap: depth, vertical relationship, proximity and
+// Bounded, orientation-relative 3D competitive cues derived only from authoritative snapshots.
+// Depth, vertical relationship, proximity and
 // target identity stay readable without inventing a second client-side game truth.
 
 import { useEffect, useState } from "react";

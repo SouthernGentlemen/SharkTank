@@ -121,8 +121,8 @@ function unitAxis(value: number): number {
 
 /**
  * Camera-relative flight-stick steering. The chase rig follows the shark's current
- * forward frame, so these relative axes stay intuitive through arbitrary yaw + pitch.
- * ST-116/ST-117 own the final desktop/mobile sources that feed these axes.
+ * forward frame, so the shared desktop and mobile axes stay intuitive through arbitrary
+ * yaw + pitch.
  */
 export function applyCameraRelativeSteering(
   yaw: number,

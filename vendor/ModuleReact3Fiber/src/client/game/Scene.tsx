@@ -1,5 +1,5 @@
-// Browser-only React Three Fiber composition for the production game world.
-// Authority is volumetric from ST-112 onward; later tasks replace the temporary planar input adapter and tune final 3D behavior.
+// Browser-only React Three Fiber composition for the production full-3D game world.
+// It presents authoritative volumetric state without moving gameplay authority into Three.js.
 
 import { useRef } from "react";
 import type { RoomSocket } from "../net/useRoomSocket.js";

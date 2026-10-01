@@ -1,25 +1,26 @@
 # CLAUDE.md — ModuleReact3Fiber
 
-Portable R3F game engine + logic for Wizard Gang. Local play lives in the sibling repo
-`WizardGangLocal`; the long-term target is **Cloudflare Workers / Durable Objects**.
+Portable deterministic full-3D game engine + React Three Fiber client used by SharkTank. The current production host is the SharkTank Cloudflare Worker with Room Durable Objects owning competitive gameplay authority.
 
-## Hard design constraints (do not break)
-1. **Engine purity.** `src/engine/**` and `src/store/**` and `src/protocol/**` must stay free of
-   DOM, three.js, React, and node-only APIs. They run in the browser today and in a Worker/DO later —
-   the same source, unchanged. Only `src/client/**` may use React/three.
-2. **Deterministic + serializable.** `RoomState` is plain JSON. All randomness goes through the
-   seeded RNG in `engine/rng.ts` with its state stored in the snapshot, so rooms are replayable and a
-   server can be authoritative. No `Date.now()`/`Math.random()` inside simulation steps.
-3. **One storage seam.** Persistence goes through the `BlobStore` interface only. Local uses
-   `MemoryBlobStore`; Cloudflare will use an R2/KV/D1-backed implementation. Game code never talks to a
-   concrete store.
-4. **Entry-point hygiene.** The server bundle imports only `engine`/`store`/`protocol`, never `client`.
+## Hard design constraints
 
-## Cloudflare port checklist (when we get there)
-- Wrap the room in a Durable Object; feed actions over a WebSocket using `protocol` shapes.
-- Implement `BlobStore` over R2 (or D1) — no engine changes.
-- `nodejs_compat`, assets binding for the built client, service-binding auth via the gateway (old design).
+1. **Engine purity.** `src/engine/**`, `src/store/**` and `src/protocol/**` stay free of DOM, Three.js, React and Node-only APIs. The authoritative Room Durable Object imports the same server-safe engine/protocol source used by deterministic tests.
+2. **Deterministic + serializable.** `RoomState` is plain JSON. All simulation randomness goes through seeded RNG state stored in the snapshot. No `Date.now()` or `Math.random()` inside authoritative simulation steps.
+3. **Full-3D authority.** Competitive state is full X/Y/Z. Shark orientation is yaw + pitch; roll/banking is presentation-only. Score-relevant prey, combat, Feeding Frenzy, Apex and round transitions remain server-owned.
+4. **One storage seam.** Persistence goes through the `BlobStore` abstraction and host-specific Room snapshot bootstrap. Game code does not talk directly to a concrete provider store.
+5. **Entry-point hygiene.** The Worker imports only `engine`/`store`/`protocol`, never `client`. React Three Fiber and Three.js stay browser-only.
+6. **Client authority boundary.** Local prediction and remote interpolation may smooth snapshots but cannot author score, damage, prey, death/respawn, cooldowns, round state or authoritative movement.
+7. **Shared controls.** Desktop WASD pitch/yaw + arrow-key look and mobile dual-stick flight/look feed the same steering semantics. Bite and burst stay separate actions; mobile supports simultaneous ability pointers.
+
+## Current production integration
+
+- `Room` Durable Objects own authoritative simulation and WebSocket sessions.
+- Room schema 11 and realtime protocol 11 are the current persisted/wire identities.
+- The production renderer is the R3F `GameViewport` / `Scene`; there is no alternate gameplay renderer.
+- Stable Durable Object class names, migration tag `v1`, bindings and release/deploy guards belong to the host repository and are not module refactor targets.
 
 ## Conventions
-- TypeScript, ESM, `.js` extensions in relative imports (NodeNext/Bundler friendly).
-- Keep changes small and typed; `npm run typecheck` must pass.
+
+- TypeScript, ESM, `.js` extensions in relative imports.
+- Keep changes small and typed; the host `npm run check` is the canonical credential-free gate.
+- Keep authoritative engine/protocol behavior independent of render quality and browser-only accessibility presentation.

@@ -1,10 +1,10 @@
-// Composes the live game canvas, HUD, abilities, tools, and death dialog. Owns the
-// room socket and disables gameplay input only while an interactive overlay is open.
+// Composes the live R3F gameplay viewport, DOM HUD, abilities, tools, and dialogs. Owns
+// the room socket and disables gameplay input only while an interactive overlay is open.
 //
-// Layout is control-scheme driven, not screen-width driven: on a touch device the
-// thumbstick takes one half of the screen and the ability pads sit under the opposite
-// thumb, which is a different arrangement from the desktop rail — hence the
-// `game-screen--touch` class rather than a media query alone.
+// Layout is control-scheme driven, not screen-width driven: touch play uses independent
+// flight and look sticks plus separate ability pointers, while desktop uses the keyboard
+// flight/look clusters and optional mouse look. The `game-screen--touch` class reflects
+// that ownership rather than a media query alone.
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import { FRENZY_RULES, TICKS_PER_SECOND, frenzyTiming, roundTicksLeft } from "../../engine/index.js";

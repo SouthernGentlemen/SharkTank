@@ -434,6 +434,6 @@ describe("ST-129 full-3D authority acceptance wall", () => {
     expect(viewport).not.toContain('getContext("2d"');
     expect(gameScreen).not.toContain('getContext("2d"');
     expect(accessibility).toContain("does not currently include a real-browser automation harness");
-    expect(accessibility).toContain("simultaneous touch sticks plus ability pointers on hardware");
+    expect(accessibility).toContain("simultaneous dual-stick plus ability pointers on hardware");
   });
 });
