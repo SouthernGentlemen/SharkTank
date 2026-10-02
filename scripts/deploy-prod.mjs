@@ -8,7 +8,12 @@ const root = process.env.SHARKTANK_RELEASE_CHECKOUT
   ? resolve(process.env.SHARKTANK_RELEASE_CHECKOUT)
   : fileURLToPath(new URL("..", import.meta.url));
 const productionRepository = "Wizard-Gang/SharkTank";
-const releasePattern = /^v\d+\.\d+\.\d+$/;
+const releasePattern = /^v(\d+\.\d+\.\d+)(?:-r[1-9]\d*)?$/;
+
+export function productReleaseIdentity(release) {
+  const match = releasePattern.exec(release ?? "");
+  return match ? `v${match[1]}` : null;
+}
 
 /**
  * Load the gitignored .env into process.env for local dry-run only, without
@@ -37,7 +42,12 @@ function loadDotEnv() {
 }
 
 export function deploymentVariables(release) {
-  return [`SHARKTANK_RELEASE:${release}`];
+  const productRelease = productReleaseIdentity(release);
+  if (!productRelease) throw new Error("release identity must match vX.Y.Z or vX.Y.Z-rN");
+  return [
+    `SHARKTANK_RELEASE:${productRelease}`,
+    `SHARKTANK_RELEASE_REVISION:${release}`,
+  ];
 }
 
 export function deploymentPreconditionFailures({
@@ -49,7 +59,7 @@ export function deploymentPreconditionFailures({
 }) {
   const failures = [];
   if (!releasePattern.test(release) || !tagsAtHead.includes(release)) {
-    failures.push("SHARKTANK_RELEASE must be a semantic vX.Y.Z tag pointing at HEAD");
+    failures.push("SHARKTANK_RELEASE must be a vX.Y.Z or vX.Y.Z-rN annotated release identity tag pointing at HEAD");
   }
 
   if (!dryRun) {

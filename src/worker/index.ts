@@ -458,11 +458,11 @@ export default {
 
       // ── HTTP API ───────────────────────────────────────────────────────────
       if (path === API.health) {
-        return json({ ok: true, module: "module-react3fiber", release: env.SHARKTANK_RELEASE ?? "unknown", time: new Date().toISOString() });
+        return json({ ok: true, module: "module-react3fiber", release: env.SHARKTANK_RELEASE ?? "unknown", revision: env.SHARKTANK_RELEASE_REVISION ?? "unknown", time: new Date().toISOString() });
       }
 
       if (path === "/version.json") {
-        return json({ product: "SharkTank", release: env.SHARKTANK_RELEASE ?? "unknown", environment: env.ENVIRONMENT ?? "unknown" });
+        return json({ product: "SharkTank", release: env.SHARKTANK_RELEASE ?? "unknown", revision: env.SHARKTANK_RELEASE_REVISION ?? "unknown", environment: env.ENVIRONMENT ?? "unknown" });
       }
 
       if (path === API.tank) {

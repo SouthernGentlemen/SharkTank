@@ -4,6 +4,7 @@ export interface Env {
   LOBBY: DurableObjectNamespace;
   ENVIRONMENT?: string;
   SHARKTANK_RELEASE?: string;
+  SHARKTANK_RELEASE_REVISION?: string;
   OPS_USERNAME?: string;
   OPS_TOKEN?: string;
   AUDIT_GENERATION?: string;

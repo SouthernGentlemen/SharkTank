@@ -26,9 +26,13 @@ test("governed Release workflow context passes", () => {
   assert.deepEqual(publicationContextFailures({ env: validEnv, release }), []);
 });
 
+test("revision release identity passes governed publication context", () => {
+  assert.deepEqual(publicationContextFailures({ env: validEnv, release: "v1.2.3-r1" }), []);
+});
+
 test("workstation and wrong workflow contexts fail closed", () => {
   const failures = publicationContextFailures({ env: {}, release: "1.2.3" }).join("\n");
-  assert.match(failures, /semantic vX\.Y\.Z/);
+  assert.match(failures, /vX\.Y\.Z or vX\.Y\.Z-rN/);
   assert.match(failures, /requires GitHub Actions/);
   assert.match(failures, /exact main Release workflow context/);
   assert.match(failures, /GH_TOKEN is required/);

@@ -12,13 +12,14 @@ function git(cwd, ...args) {
   return (result.stdout ?? "").trim();
 }
 
-function fixture(version = "1.2.3") {
+function fixture(version = "1.2.3", releaseRevision = 0, lockVersion = version) {
   const cwd = mkdtempSync(join(tmpdir(), "sharktank-release-identity-"));
   git(cwd, "init", "-q");
   git(cwd, "config", "user.name", "Release Identity Test");
   git(cwd, "config", "user.email", "release-identity@example.invalid");
-  writeFileSync(join(cwd, "package.json"), JSON.stringify({ version }) + "\n");
-  git(cwd, "add", "package.json");
+  writeFileSync(join(cwd, "package.json"), JSON.stringify({ version, releaseRevision }) + "\n");
+  writeFileSync(join(cwd, "package-lock.json"), JSON.stringify({ name: "fixture", version: lockVersion, lockfileVersion: 3, packages: { "": { name: "fixture", version: lockVersion } } }) + "\n");
+  git(cwd, "add", "package.json", "package-lock.json");
   git(cwd, "commit", "-qm", "fixture");
   git(cwd, "update-ref", "refs/remotes/origin/main", "HEAD");
   return cwd;
@@ -37,6 +38,30 @@ test("annotated semantic tag at HEAD with matching package version passes", () =
   } finally {
     cleanup(cwd);
   }
+});
+
+test("annotated revision tag at HEAD with matching product and revision authority passes", () => {
+  const cwd = fixture("1.2.3", 1);
+  try {
+    git(cwd, "tag", "-a", "v1.2.3-r1", "-m", "v1.2.3-r1");
+    assert.deepEqual(validateReleaseIdentity({ cwd, release: "v1.2.3-r1", expectedSha: git(cwd, "rev-parse", "HEAD") }), []);
+  } finally { cleanup(cwd); }
+});
+
+test("revision identity mismatch fails", () => {
+  const cwd = fixture("1.2.3", 2);
+  try {
+    git(cwd, "tag", "-a", "v1.2.3-r1", "-m", "v1.2.3-r1");
+    assert.match(validateReleaseIdentity({ cwd, release: "v1.2.3-r1" }).join("\n"), /releaseRevision 2 does not match release revision r1/);
+  } finally { cleanup(cwd); }
+});
+
+test("package-lock product version mismatch fails", () => {
+  const cwd = fixture("1.2.3", 1, "1.2.2");
+  try {
+    git(cwd, "tag", "-a", "v1.2.3-r1", "-m", "v1.2.3-r1");
+    assert.match(validateReleaseIdentity({ cwd, release: "v1.2.3-r1" }).join("\n"), /package-lock\.json version 1\.2\.2 does not match release product 1\.2\.3/);
+  } finally { cleanup(cwd); }
 });
 
 test("a different expected accepted commit fails", () => {
@@ -98,7 +123,7 @@ test("package version mismatch fails", () => {
     git(cwd, "tag", "-a", "v1.2.3", "-m", "v1.2.3");
     assert.match(
       validateReleaseIdentity({ cwd, release: "v1.2.3" }).join("\n"),
-      /package\.json version 1\.2\.4 does not match release v1\.2\.3/,
+      /package\.json version 1\.2\.4 does not match release product 1\.2\.3/,
     );
   } finally {
     cleanup(cwd);
@@ -108,7 +133,7 @@ test("package version mismatch fails", () => {
 test("malformed release identity fails before tag inspection", () => {
   const cwd = fixture();
   try {
-    assert.match(validateReleaseIdentity({ cwd, release: "1.2.3" }).join("\n"), /must match semantic vX\.Y\.Z/);
+    assert.match(validateReleaseIdentity({ cwd, release: "1.2.3" }).join("\n"), /must match vX\.Y\.Z or vX\.Y\.Z-rN/);
   } finally {
     cleanup(cwd);
   }

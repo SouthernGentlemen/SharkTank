@@ -115,6 +115,9 @@ export function validateProductionDeployWorkflow(workflow) {
   if (!deploy.includes('grep -q "$VERSION"')) failures.push("provider proof must require the uploaded Version ID");
   if (!deploy.includes("grep -q '(100%)'")) failures.push("deploy must prove the uploaded version serves 100% of traffic");
   if (!deploy.includes("npm run check:evidence -- https://sharktank.wizardgang.ai")) failures.push("deploy must retain public evidence validation when reachable");
+  if (!deploy.includes("live_revision=$(jq -r .revision < /tmp/version.json)")) failures.push("deploy must verify the immutable public release revision when reachable");
+  if (!deploy.includes("https://sharktank.wizardgang.ai/play/")) failures.push("deploy must verify the public full-3D game route when reachable");
+  if (!deploy.includes("public /play/ did not reference a built JavaScript asset")) failures.push("deploy must verify a built public game asset when reachable");
   if (!deploy.includes("cf-mitigated: *challenge")) failures.push("public edge fallback must remain limited to the documented managed challenge");
 
   const productionIndex = deploy.indexOf('node "$RUNNER_TEMP/sharktank-release-tools/scripts/deploy-prod.mjs"');
@@ -229,7 +232,7 @@ export function validateReleaseTagWorkflow(workflow) {
   if (!tag.includes("SHARKTANK_TAG_WORKFLOW_REF: ${{ github.workflow_ref }}")) failures.push("release tagging must bind its workflow identity");
   if (!tag.includes("run: npm run tag:release")) failures.push("release tagging must use the guarded repository tag command");
   if (!tag.includes("id: release-tag")) failures.push("release tagging must expose the verified tag output");
-  if (!tag.includes("if: steps.release-tag.outputs.tag != ''")) failures.push("release dispatch must skip unchanged package versions");
+  if (!tag.includes("if: steps.release-tag.outputs.tag != ''")) failures.push("release dispatch must skip unchanged release authority");
   if (!tag.includes("GH_TOKEN: ${{ github.token }}")) failures.push("release dispatch must use the workflow token");
   if (!tag.includes("RELEASE_TAG: ${{ steps.release-tag.outputs.tag }}")) failures.push("release dispatch must pass the verified tag");
   if (!tag.includes("EXPECTED_SHA: ${{ steps.release-tag.outputs.expected_sha }}")) failures.push("release dispatch must pass the accepted main SHA");

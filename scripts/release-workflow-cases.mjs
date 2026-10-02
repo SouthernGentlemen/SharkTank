@@ -158,6 +158,22 @@ test("public edge evidence cannot run before authenticated provider proof", () =
   assert.match(validateProductionDeployWorkflow(changed).join("\n"), /post-provider-proof fallback/);
 });
 
+test("public edge proof binds product identity, immutable revision, and the game asset", () => {
+  const withoutRevision = replaceRequired(
+    deployWorkflow,
+    "            live_revision=$(jq -r .revision < /tmp/version.json)\n",
+    "",
+  );
+  assert.match(validateProductionDeployWorkflow(withoutRevision).join("\n"), /immutable public release revision/);
+
+  const withoutPlay = replaceRequired(
+    deployWorkflow,
+    "            play_code=$(curl -s -o /tmp/play.html -w '%{http_code}' https://sharktank.wizardgang.ai/play/ || echo 000)\n",
+    "",
+  );
+  assert.match(validateProductionDeployWorkflow(withoutPlay).join("\n"), /public full-3D game route/);
+});
+
 test("public edge fallback remains limited to the managed challenge", () => {
   const changed = replaceRequired(deployWorkflow, "cf-mitigated: *challenge", "server: cloudflare");
   assert.match(validateProductionDeployWorkflow(changed).join("\n"), /documented managed challenge/);
