@@ -144,11 +144,72 @@ test("existing annotated release tag on another commit is a hard conflict and is
   }
 });
 
-test("version decreases are rejected", () => {
+test("ordinary version decreases are rejected", () => {
   const { root, cwd } = fixture();
   try {
     const targetSha = commitVersion(cwd, "1.2.2");
     assert.throws(() => planReleaseTag({ cwd, targetSha }), /release version must increase/);
+  } finally {
+    cleanup(root);
+  }
+});
+
+test("restoring an already-published annotated ancestor release is a guarded no-op", () => {
+  const { root, cwd } = fixture();
+  try {
+    const v123Sha = git(cwd, "rev-parse", "HEAD");
+    git(cwd, "tag", "-a", "v1.2.3", v123Sha, "-m", "Release v1.2.3");
+    git(cwd, "push", "-q", "origin", "refs/tags/v1.2.3");
+
+    const v124Sha = commitVersion(cwd, "1.2.4");
+    git(cwd, "tag", "-a", "v1.2.4", v124Sha, "-m", "Release v1.2.4");
+    git(cwd, "push", "-q", "origin", "refs/tags/v1.2.4");
+
+    const targetSha = commitVersion(cwd, "1.2.3");
+    const result = applyReleaseTag({ cwd, targetSha });
+    assert.deepEqual(result, {
+      kind: "noop",
+      version: "1.2.3",
+      targetSha,
+      reconciliationTag: "v1.2.3",
+      previousReleaseTag: "v1.2.4",
+    });
+    assert.equal(git(cwd, "rev-parse", "refs/tags/v1.2.3^{commit}"), v123Sha);
+    assert.equal(git(cwd, "rev-parse", "refs/tags/v1.2.4^{commit}"), v124Sha);
+    assert.equal(git(cwd, "ls-remote", "--tags", "origin", "refs/tags/v1.2.3", "refs/tags/v1.2.3^{}").split("\n").filter(Boolean).length, 2);
+  } finally {
+    cleanup(root);
+  }
+});
+
+test("a tagged rollback is rejected unless the previous published release is also proven", () => {
+  const { root, cwd } = fixture();
+  try {
+    const v123Sha = git(cwd, "rev-parse", "HEAD");
+    git(cwd, "tag", "-a", "v1.2.3", v123Sha, "-m", "Release v1.2.3");
+    git(cwd, "push", "-q", "origin", "refs/tags/v1.2.3");
+
+    commitVersion(cwd, "1.2.4");
+    const targetSha = commitVersion(cwd, "1.2.3");
+    assert.throws(() => planReleaseTag({ cwd, targetSha }), /requires previous published release v1\.2\.4/);
+    assert.equal(git(cwd, "rev-parse", "refs/tags/v1.2.3^{commit}"), v123Sha);
+  } finally {
+    cleanup(root);
+  }
+});
+
+test("a lightweight ancestor tag cannot authorize release reconciliation", () => {
+  const { root, cwd } = fixture();
+  try {
+    const v123Sha = git(cwd, "rev-parse", "HEAD");
+    git(cwd, "tag", "v1.2.3", v123Sha);
+
+    const v124Sha = commitVersion(cwd, "1.2.4");
+    git(cwd, "tag", "-a", "v1.2.4", v124Sha, "-m", "Release v1.2.4");
+    const targetSha = commitVersion(cwd, "1.2.3");
+
+    assert.throws(() => planReleaseTag({ cwd, targetSha }), /requires existing annotated v1\.2\.3/);
+    assert.equal(git(cwd, "cat-file", "-t", "refs/tags/v1.2.3"), "commit");
   } finally {
     cleanup(root);
   }

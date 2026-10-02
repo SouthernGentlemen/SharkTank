@@ -172,6 +172,6 @@ describe("ST-126 depth-aware competitive cues", () => {
     const pkg = JSON.parse(read("../package.json")) as { version: string };
     expect(protocol).toContain("REALTIME_PROTOCOL_VERSION = 11");
     expect(engineTypes).toContain("schemaVersion: 11");
-    expect(pkg.version).toBe("3.0.0");
+    expect(pkg.version).toBe("2.0.0");
   });
 });

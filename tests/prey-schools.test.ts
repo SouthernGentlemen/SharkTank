@@ -199,7 +199,7 @@ describe("ST-120 authoritative fish and prey schools", () => {
 
     const packageJson = JSON.parse(read("../package.json")) as { version: string };
     const wrangler = read("../wrangler.jsonc");
-    expect(packageJson.version).toBe("3.0.0");
+    expect(packageJson.version).toBe("2.0.0");
     expect(wrangler).toContain('"tag": "v1"');
     expect(wrangler).toContain('"class_name": "Room"');
     expect(wrangler).toContain('"class_name": "Lobby"');

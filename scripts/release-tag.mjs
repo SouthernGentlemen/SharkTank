@@ -79,7 +79,6 @@ export function planReleaseTag({ cwd, targetSha }) {
   const currentParts = semverParts(currentVersion);
   const previousParts = semverParts(previousVersion);
   if (!currentParts || !previousParts) throw new Error("release versions must use plain semantic X.Y.Z identity");
-  if (compareVersions(currentParts, previousParts) <= 0) throw new Error(`release version must increase: ${previousVersion} -> ${currentVersion}`);
 
   const currentLock = readJson(join(cwd, "package-lock.json"));
   const previousLock = readJsonAtRef(cwd, parent.stdout, "package-lock.json");
@@ -88,6 +87,48 @@ export function planReleaseTag({ cwd, targetSha }) {
     ...lockVersionFailures(currentLock, currentVersion, "current"),
   ];
   if (lockFailures.length) throw new Error(lockFailures.join("; "));
+
+  const comparison = compareVersions(currentParts, previousParts);
+  if (comparison < 0) {
+    const reconciliationTag = `v${currentVersion}`;
+    const previousReleaseTag = `v${previousVersion}`;
+    const reconciliationRef = `refs/tags/${reconciliationTag}`;
+    const previousReleaseRef = `refs/tags/${previousReleaseTag}`;
+
+    const reconciliationType = git(cwd, ["cat-file", "-t", reconciliationRef], { allowFailure: true });
+    if (reconciliationType.status !== 0 || reconciliationType.stdout !== "tag") {
+      throw new Error(`release version must increase: ${previousVersion} -> ${currentVersion}; reconciliation requires existing annotated ${reconciliationTag}`);
+    }
+    const previousReleaseType = git(cwd, ["cat-file", "-t", previousReleaseRef], { allowFailure: true });
+    if (previousReleaseType.status !== 0 || previousReleaseType.stdout !== "tag") {
+      throw new Error(`release version must increase: ${previousVersion} -> ${currentVersion}; reconciliation requires previous published release ${previousReleaseTag}`);
+    }
+
+    const reconciliationCommit = git(cwd, ["rev-parse", `${reconciliationRef}^{commit}`]).stdout;
+    const previousReleaseCommit = git(cwd, ["rev-parse", `${previousReleaseRef}^{commit}`]).stdout;
+    const reconciliationInMain = git(cwd, ["merge-base", "--is-ancestor", reconciliationCommit, targetSha], { allowFailure: true });
+    const previousReleaseInMain = git(cwd, ["merge-base", "--is-ancestor", previousReleaseCommit, targetSha], { allowFailure: true });
+    const releaseOrder = git(cwd, ["merge-base", "--is-ancestor", reconciliationCommit, previousReleaseCommit], { allowFailure: true });
+
+    if (reconciliationInMain.status !== 0) {
+      throw new Error(`release reconciliation requires ${reconciliationTag} to be an ancestor of accepted main`);
+    }
+    if (previousReleaseInMain.status !== 0) {
+      throw new Error(`release reconciliation requires ${previousReleaseTag} to be an ancestor of accepted main`);
+    }
+    if (releaseOrder.status !== 0) {
+      throw new Error(`release reconciliation requires ${reconciliationTag} to precede ${previousReleaseTag}`);
+    }
+
+    return {
+      kind: "noop",
+      version: currentVersion,
+      targetSha,
+      reconciliationTag,
+      previousReleaseTag,
+    };
+  }
+  if (comparison === 0) return { kind: "noop", version: currentVersion, targetSha };
 
   return { kind: "release", previousVersion, version: currentVersion, tag: `v${currentVersion}`, targetSha };
 }
@@ -164,7 +205,9 @@ if (invoked) {
     if (result.kind !== "noop" && process.env.GITHUB_OUTPUT) {
       appendFileSync(process.env.GITHUB_OUTPUT, `tag=${result.tag}\nexpected_sha=${result.targetSha}\n`);
     }
-    if (result.kind === "noop") console.log(`Release tagging skipped: package version remains ${result.version}.`);
+    if (result.kind === "noop" && result.reconciliationTag) {
+      console.log(`Release tagging reconciled: ${result.reconciliationTag} already exists in accepted main ancestry; no new tag or release dispatch output emitted.`);
+    } else if (result.kind === "noop") console.log(`Release tagging skipped: package version remains ${result.version}.`);
     else if (result.kind === "existing") console.log(`Release tag already matches accepted main commit: ${result.tag}.`);
     else console.log(`Created annotated release tag ${result.tag} at ${result.targetSha}.`);
   } catch (error) {
