@@ -68,11 +68,12 @@ describe("full-3D current-state documentation", () => {
 
   it("keeps identity and the current-only queue stable while documentation advances", () => {
     const pkg = JSON.parse(read("../package.json")) as { version: string };
-    expect(pkg.version).toBe("2.0.0");
+    expect(pkg.version).toBe("3.0.0");
     expect(ROOM_SCHEMA_VERSION).toBe(11);
     expect(REALTIME_PROTOCOL_VERSION).toBe(11);
     expect(plan).not.toContain("### ST-130");
     expect(plan).not.toContain("### ST-131");
-    expect(plan.indexOf("### ST-132")).toBeGreaterThan(0);
+    expect(plan).not.toContain("### ST-132");
+    expect(plan).toContain("The queue is empty. Select no implementation task.");
   });
 });

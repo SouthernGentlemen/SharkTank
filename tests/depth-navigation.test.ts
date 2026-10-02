@@ -162,7 +162,8 @@ describe("ST-126 depth-aware competitive cues", () => {
     expect(plan).not.toContain("### ST-128");
     expect(plan).not.toContain("### ST-129");
     expect(plan).not.toContain("### ST-131");
-    expect(plan.indexOf("### ST-132")).toBeGreaterThan(0);
+    expect(plan).not.toContain("### ST-132");
+    expect(plan).toContain("The queue is empty. Select no implementation task.");
   });
 
   it("does not change the server/wire identity for presentation-only navigation", () => {
@@ -171,6 +172,6 @@ describe("ST-126 depth-aware competitive cues", () => {
     const pkg = JSON.parse(read("../package.json")) as { version: string };
     expect(protocol).toContain("REALTIME_PROTOCOL_VERSION = 11");
     expect(engineTypes).toContain("schemaVersion: 11");
-    expect(pkg.version).toBe("2.0.0");
+    expect(pkg.version).toBe("3.0.0");
   });
 });

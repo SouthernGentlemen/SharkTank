@@ -204,13 +204,14 @@ describe("ST-127 3D client performance contracts", () => {
     expect(audio).toContain("this.listenerPose.position.x = position.x");
     expect(radar).toContain("buildDepthNavigation(socket.stateRef.current");
     expect(radar).toContain("setInterval(update, 250)");
-    expect(pkg.version).toBe("2.0.0");
+    expect(pkg.version).toBe("3.0.0");
     expect(ROOM_SCHEMA_VERSION).toBe(11);
     expect(REALTIME_PROTOCOL_VERSION).toBe(11);
     expect(plan).not.toContain("### ST-127");
     expect(plan).not.toContain("### ST-128");
     expect(plan).not.toContain("### ST-129");
     expect(plan).not.toContain("### ST-131");
-    expect(plan.indexOf("### ST-132")).toBeGreaterThan(0);
+    expect(plan).not.toContain("### ST-132");
+    expect(plan).toContain("The queue is empty. Select no implementation task.");
   });
 });

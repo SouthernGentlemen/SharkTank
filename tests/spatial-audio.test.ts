@@ -86,12 +86,12 @@ describe("ST-125 spatial underwater game audio", () => {
     const settings = read("../vendor/ModuleReact3Fiber/src/client/settings/SettingsContext.tsx");
     const packageJson = JSON.parse(read("../package.json")) as { version: string };
     expect(settings).toContain("audio: { master: 0.8, sfx: 0.9, music: 0, captions: false }");
-    expect(packageJson.version).toBe("2.0.0");
+    expect(packageJson.version).toBe("3.0.0");
     expect(ROOM_SCHEMA_VERSION).toBe(11);
     expect(REALTIME_PROTOCOL_VERSION).toBe(11);
   });
 
-  it("keeps delivered 3D work closed as the current-only queue advances to ST-132", () => {
+  it("keeps delivered 3D work closed when the current-only queue is exhausted", () => {
     const plan = read("../implementation_plan.md");
     expect(plan).not.toContain("### ST-125");
     expect(plan).not.toContain("### ST-126");
@@ -100,6 +100,7 @@ describe("ST-125 spatial underwater game audio", () => {
     expect(plan).not.toContain("### ST-129");
     expect(plan).not.toContain("### ST-130");
     expect(plan).not.toContain("### ST-131");
-    expect(plan).toContain("### ST-132");
+    expect(plan).not.toContain("### ST-132");
+    expect(plan).toContain("The queue is empty. Select no implementation task.");
   });
 });
