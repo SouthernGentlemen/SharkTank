@@ -1,7 +1,1258 @@
 # Implementation plan
 
+## Owner direction — one lean, bigger, smoother and fun SharkTank
+
+The owner played production `v2.0.0-r1` and found it chunky, hard to play and not fun. The direction for this wave:
+
+- **One tank** of 8 players and 24 bots, entered straight from Play.
+- **A bigger ocean** with coral reefs and many more kinds of fish.
+- **Smooth motion, forgiving controls and generous hit boxes**, mobile first.
+- **Better music**, a clean mobile UI and smoother animation.
+- **Minimal overhead and no telemetry.** The ISO-era evidence and operations machinery is retired completely, along with all dead code.
+
+The queue comes from two code deep dives plus live production measurements taken on 2026-10-02. The permanent empty-queue rule that authorized this plan-only refill states: `The queue is empty. Select no implementation task.` That sentence describes the pre-change state only; ST-139 below is the first open task. Work only the first open task. Keep later tasks and their order unless the owner changes priority. Each task is sized for about ten minutes of focused implementation; CI, review, merge and release approval are extra.
+
+### What the deep dives found
+
+- **Three of four tanks are unjoinable.** Atlantic, Indian and Arctic (`room-2`–`room-4`) close every WebSocket with 1006, and their Room-backed log routes return HTTP 500; only Pacific (`room-1`) works. The likely cause is the persisted-snapshot bootstrap, which deliberately throws on old or unexpected stored state and leaves the Room object permanently broken. Local acceptance only ever opens `room-1`, so CI never noticed. Rounds reset every five minutes, so persisting them buys nothing.
+- **Most of the server is not the game.** About 6,000 lines serve the retired evidence program:
+  - the 2,491-line Lobby object (billing, receipts, incidents, logs, backups and restore drills, profiles, maintenance);
+  - 1,739 lines of Worker-rendered overview, evidence, admin and downtime pages;
+  - the snapshot schema bootstrap, a daily cron with an R2 copy, operator secrets, and their scripts and tests.
+- **Telemetry runs everywhere.** The client posts every settings change, name, skin and play action. The Room writes player inputs to SQL, reports usage to the Lobby every 30 s and posts round results. The CSP and a per-response nonce exist so Cloudflare can inject its analytics beacon, but no beacon is actually injected on the game, so that allowance is dead.
+- **Dead code outside that stack.**
+  - Never imported: the vendored `store` module and the `client/index.ts` entry.
+  - Production code used only by tests: render-cost inventories (`estimateSceneRenderCost`, `estimateBaselineSceneRenderCost`, `CLIENT_PERFORMANCE_BUDGETS`) and descriptive lists (`SHARK_ANATOMY`, `PREY_SILHOUETTE`).
+  - Never called: `cloneRoom`, `frenzyTicksLeft`, `nextInt`, `isInsideOceanVolume`, `isInsideFrenzyVolume`, `distancePointToSegmentSquared3`, `HealthResponse`, `ErrorResponse` and `roomSocketPath`.
+  - The snake-era trail (`path`, `segments`, `sampleTrail`, `SEGMENT_SPACING`, `TAIL_MARGIN`) always yields one point, and `boosting`/`chargeTicks` are always false and zero.
+  - The FX layer draws a 1-unit "boundary" ring at the arena centre plus a duplicate Frenzy ring.
+  - The Camera motion setting is read by nothing, and the provenance CSVs only feed their own validator.
+- **Remote motion freezes most of the time.** Snapshots arrive at 10.1 Hz (median gap 99.4 ms) but the interpolation delay is 45 ms. Replaying measured arrivals through the client's rule leaves remote sharks and fish frozen on about 72% of 60 Hz frames, and the clock drifts (+0.7 ms/s) with no correction. Swim animation follows the same stalled clock.
+- **The wire is heavy for phones.** About 30 KB of JSON per snapshot carries every prey in the tank: about 295 KB/s, roughly 1 GB per hour.
+- **Controls fight the player.**
+  - Pitch has no auto-level in a 24-unit water column, and pitch is snapped to zero at the surface and seabed.
+  - Overlapping sharks get their headings snapped instantly.
+  - The wall kills on contact.
+  - Dash waits a round trip, and steering is sent at most 10 Hz with coarse deadbands.
+- **Hit boxes are stingy.** Eating measures from the body centre with a fixed 1.2 radius while the snout reaches about 2.6 × scale ahead. Bites need centre-to-centre within 3.4 in a 50° cone, every kill needs three or more bites, and health never regenerates.
+- **The ocean is small and samey.** Radius 82 and a 24-unit column, defined in five separate places. There are only two fish looks. The three "reef" rock clusters and the wreck sit outside the wall where nobody can reach them.
+- **The mobile UI buries the game.**
+  - Dash, Bite and the gear sit on top of the leaderboard, out of thumb reach.
+  - Five HUD cards, a text radar, a two-line Frenzy banner and 136 px name pills leave about a third of the screen clear.
+  - Portrait shows no controls at all, because the portrait lock disables gameplay before its rotate prompt can render.
+- **Audio and visuals are thin.** Music is a six-note `setInterval` loop, off by default, and SFX are single-oscillator chirps. Sharks are unlit spheres with three-sided cone fins.
+
+### Product outcome
+
+By the end of this queue a new player on a phone can:
+
+1. tap Play and be swimming in the one tank within seconds, or see clearly that it is full;
+2. steer with one thumb in landscape or portrait while pitch, camera and walls look after themselves;
+3. see every shark and fish move smoothly over a light connection;
+4. explore a bigger ocean of coral reefs full of distinct fish, from sardine schools to tuna, rays, squid and a rare golden fish;
+5. eat whatever their mouth visibly touches, grow through five obvious tiers in one round, and settle a fight in one or two bites;
+6. hear an underwater score that rises with Frenzy, Apex and danger;
+7. read the HUD in one glance, with most of the screen left for the ocean.
+
+On the server, the Worker serves only the game shell, its assets, `/version.json` and the tank WebSocket. The Room runs entirely in memory.
+
+### Rules for this wave
+
+- **Server authority does not move.** The Room owns movement, eating, damage, score, growth, prey and rounds. Client assists (auto-level, aim assist, Simple steering, bite buffering) only shape the player's own intent.
+- **Minimal overhead.**
+  - No telemetry, analytics, audit logs, usage metering or persisted game state.
+  - After ST-149 the only Durable Object is `Room`.
+  - Nothing new may add a server write, a log stream or a tracking request.
+- **One protocol change.** ST-163 moves the wire to protocol 12. Its prey species table covers every planned species, so later fish tasks need no protocol change. With nothing persisted after ST-144, there is no stored schema to migrate.
+- **Determinism stays intact.** Engine rule changes stay seeded and testable, and update the determinism tests in the same task.
+- **Docs and contract tests move with behavior.** README, ARCHITECTURE, ACCESSIBILITY and PRODUCT-ACCEPTANCE describe current behavior and are updated in the same commit as the change. A test is never deleted without replacing its behavior proof, unless the feature it covered is deleted too.
+- **Removals are complete.** A task that removes a feature also removes its routes, styles, settings, copy, scripts, tests and docs in the same commit.
+- **Accessibility stays DOM-first.**
+  - New cues get a non-colour form and, when meaningful, a caption or bounded announcement.
+  - Reduced motion disables shake, wobble, flashes, wakes, kelp sway and spine-wave amplitude without hiding competitive state.
+  - Nothing flashes faster than three times per second.
+- **Mobile budgets are respected.** No React state updates per frame. Repeated actors, coral and particles stay instanced and quality-bounded. Touch targets are at least 48 px and safe-area aware.
+- **No new runtime dependencies.** React 19, React Three Fiber 9 and Three remain the stack. Audio is first-party Web Audio synthesis, and any visual asset is first-party and committed locally.
+- **Releases happen only at the queued checkpoints** (ST-141, ST-166, ST-182, ST-191, ST-204, ST-220). Before each, the owner runs the relevant PRODUCT-ACCEPTANCE manual rows on a real phone and a desktop browser, then approves the protected `production` environment.
+- **Validation for every task** is the focused tests named in the task, plus `npm ci`, `npm run check`, `npm run audit:dependencies` and `git diff --check` on the exact head.
+
+### Owner decisions recorded with defaults
+
+Tasks follow these defaults unless the owner changes them before the task starts:
+
+1. The one tank is the healthy `room-1` Durable Object, shown as "SharkTank". Other tank ids return 404 (ST-139).
+2. Player name, skin, best score and settings live on the device. Existing server-side profiles are deleted, not carried over (owner confirmed 2026-10-02; ST-142).
+3. Retiring the operations stack removes:
+   - the maintenance switch, admin console, logs and receipts;
+   - backups and restore drills;
+   - the $5 spend hard-stop.
+
+   Production control moves to the Cloudflare dashboard (route toggle, rollback, account billing alerts). The owner accepted this on 2026-10-02 (ST-143–ST-149).
+4. The Lobby Durable Object and everything it stores are deleted by a `v2` migration. The owner confirmed the deletion on 2026-10-02. It runs when the owner approves the `v2.1.0` production deploy; the `production` environment requires the owner's review (ST-149, ST-166).
+5. Cloudflare cleanup outside the code:
+   - After the `v2.1.0` deploy is verified, the agent deletes the now-unused `OPS_TOKEN` and `OPS_USERNAME` Worker secrets with wrangler (ST-166). Earlier deletion would block deploys, because today's deploy script requires them.
+   - Cloudflare Web Analytics is not injected on the game (checked 2026-10-02), so only its dead CSP allowance goes (ST-147).
+   - The old `sharktank/` copies in the shared R2 bucket are a one-time manual dashboard deletion for the owner. Nothing reads them after ST-148.
+6. A bigger ocean: radius 120 (from 82), water column 36 (from 24) and about 480 ambient fish (from 200) (ST-183).
+7. Fish and coral variety:
+   - eight school looks (sardine, anchovy, silverside, clownfish, blue tang, yellow tang, angelfish, parrotfish);
+   - new tuna, rays, squid and a rare golden fish;
+   - brain, branching, plate, fan and tube coral plus kelp (ST-184–ST-190).
+8. Touch play defaults to one-thumb **Simple** steering, with dual-stick as **Advanced**; desktop WASD flight with arrow-key look is unchanged. Portrait play is allowed (ST-173, ST-176).
+9. The wall becomes a non-lethal current (ST-170).
+10. Combat rules (ST-180):
+    - a shark at least 1.5× the victim's length devours it in one bite;
+    - even fights take two bites;
+    - health regenerates at 4 HP/s.
+11. Music is a first-party adaptive score, on by default at 35% once the first tap unlocks audio, with a visible mute (ST-198–ST-201).
+12. Releases are semantic versions at each checkpoint: `v2.0.1`, `v2.1.0`, `v2.2.0`, `v2.3.0`, `v2.4.0`, `v2.5.0`.
+13. The release and change-control tooling (controlled commits, protected releases, GitHub settings checks) stays as it is for now (owner, 2026-10-02).
+
+### Tuning reference
+
+| Knob | Today | Target | Task |
+| --- | --- | --- | --- |
+| Tanks | 4 listed, 3 unjoinable | 1 tank: 8 players + 24 bots | ST-139 |
+| Server footprint | Lobby object, evidence/admin pages, SQL input log, billing, backups, cron, R2 | Room in memory only; Worker serves game, assets, version and socket | ST-142–ST-149 |
+| Remote interpolation | 45 ms delay vs 100 ms snapshots; frozen ~72% of frames | 1.5 × snapshot interval (150 ms), drift-locked, ≤ 120 ms extrapolation | ST-156–ST-158 |
+| Snapshot weight | ~30 KB × 10 Hz ≈ 295 KB/s | ≤ 14 KB typical × 10 Hz | ST-163–ST-164 |
+| Steering send | ≤ 10 Hz, 0.05/0.04 rad deadband | 20 Hz, 0.015 rad, trailing final send | ST-160 |
+| Pitch on release | Held | Auto-levels at ~1.2 rad/s | ST-167 |
+| Surface and seabed | Pitch snapped to 0 | Proportional glide band (3 units) | ST-168 |
+| Shark overlap | Instant heading snap | Positional push, headings kept | ST-169 |
+| Wall | Death on contact | Inward current from 4 units inside, no death | ST-170 |
+| Eating | Body centre, radius 1.2 + prey r, 2 chomps/tick | Mouth, 1.2 + 0.55 × scale + prey r, swept, 4 chomps/tick | ST-178 |
+| Biting | Centre-to-centre ≤ 3.4 (+0.8), 50° cone | Mouth to victim body surface ≤ 1.8 + 0.3 × scale, 65° cone | ST-179 |
+| Damage | 34–42 per bite, ≥ 3 bites, no regen | Devour at ≥ 1.5× length; 50 (60 burst) even; 20 nibble; 4 HP/s regen | ST-180 |
+| Ocean | Radius 82, column 24, ~200 fish | Radius 120, column 36, ~480 fish | ST-183 |
+| Fish | 2 looks | 8 school looks + tuna, squid, rays, golden fish | ST-186–ST-190 |
+| Coral | 3 rock clusters outside the wall | Reef sites of brain, branching, plate, fan and tube coral plus kelp | ST-184–ST-185 |
+| Growth | +0.18 length per point; flat scale curve | Five tiers reachable in one round; Megalodon ≈ 2.5× spawn scale | ST-192 |
+| Music | Six-note loop on `setInterval`, off by default | Layered adaptive score on the audio clock, on at 35% | ST-198–ST-201 |
+
+### Cross-repository boundary
+
+`wizardgang.ai` (repository `Wizard-Gang/WizardGang`) still points at the old SharkTank:
+
+- a Worker proxy for about fifteen machine paths and about twenty-six redirects into SharkTank paths that already return 404;
+- a SharkTank case study that previews removed rockets and claims ISO-aligned operations;
+- project data whose operations link points at `/evidence/`, which ST-145 deletes.
+
+On 2026-10-02 the owner directed that this SharkTank material be deleted from the website. That work belongs to the website repository's own queue and should ship before SharkTank `v2.1.0`. SharkTank adds nothing to replace it.
+
 ## Open tasks
 
-The queue is empty. Select no implementation task.
+### ST-139 — [FEAT] Serve one tank of eight players and twenty-four bots
 
-The next instruction must fill this queue through a controlled, plan-only change before implementation begins. Fetch current `main`, inspect open pull requests and reservations, and use the repository's next valid unassigned controlled ID. Keep this file tracked; do not delete it when the queue is empty.
+**Goal:** Three of four production tanks are broken and the owner wants a single tank. Serve only `room-1`, the healthy Pacific object, as "SharkTank".
+
+**Scope**
+- The Worker's allowed rooms, the Lobby tank list and every per-room loop cover `room-1` only. WebSocket and log routes for `room-2`–`room-4` return 404.
+- One display name ("SharkTank") replaces the four ocean names in the Room, announcements and the game document's boot copy.
+- Capacity stays 8 humans plus 24 bots.
+
+**Acceptance:** Only `room-1` accepts players; other tank ids return 404 in local acceptance.
+
+**Validation:** `npm run check:local-http`; `npm test -- tests/game-document.test.tsx tests/full-3d-product-acceptance.test.ts`.
+
+---
+
+### ST-140 — [FEAT] Join the tank straight from Play and handle a full tank
+
+**Goal:** Play still opens a tank table, and a full or unreachable tank loops on "Reconnecting…" forever.
+
+**Scope**
+- Play joins the tank directly. Delete the tank-list screen (`Lobby.tsx`) and the client's `/api/tank` polling.
+- When 8 humans are already in, the Room accepts the socket and closes it with code 1013, so the client can tell "full" from "unreachable".
+- Full: show "Tank full — you'll join when a spot opens", retry every 5 s, and offer Back.
+- Unreachable after three attempts: show "Can't reach the tank" with Retry and Back.
+
+**Acceptance:** Connection-state tests cover full, unreachable and recovered; focus and announcements stay accessible.
+
+**Validation:** `npm test -- tests/full-3d-product-acceptance.test.ts tests/accessibility-contract.test.ts tests/game-document.test.tsx` plus the new state test.
+
+---
+
+### ST-141 — [OPS] Release the one-tank fix as v2.0.1
+
+**Goal:** End the outage in production.
+
+**Scope:** Advance `package.json` and `package-lock.json` to `2.0.1` with `releaseRevision` reset to 0, and let Release Tag, Release and the protected deploy run. Afterwards, the owner confirms in a real browser that Play joins the tank and retired tank ids return 404. Record the result on the merged PR or the GitHub Release.
+
+**Acceptance:** `/version.json` reports `v2.0.1`. Protected approval is honored; stop and report if it is pending.
+
+---
+
+### ST-142 — [REFACTOR] Keep player data on the device and stop client telemetry
+
+**Goal:** The client posts every settings change, name, skin and play action to the server.
+
+**Scope**
+- Keep name, skin, best score and settings in one `localStorage` record, migrating the old `snakeio.settings.v1` key. Best score updates from the authoritative round result the client already receives.
+- Delete `client/net/audit.ts` (`logUserAction`) and its calls.
+- Remove `/api/profile`, `/api/audit`, the `wg_player` cookie, the Room's round-result posting and `x-profile-id` handling, and the Lobby's profile and public-event storage.
+
+**Acceptance:** The menu shows the device-local name, skin and best score. During play the client requests nothing but the game shell, assets and the tank WebSocket (test).
+
+**Validation:** `npm test -- tests/full-3d-product-acceptance.test.ts tests/game-document.test.tsx tests/name-policy.test.ts`; `npm run check:local-http`.
+
+---
+
+### ST-143 — [REFACTOR] Remove Room logging, reporting and replay endpoints
+
+**Goal:** Player inputs are written to SQL, every join, leave and death is reported to the Lobby, and usage is metered. None of it serves the game.
+
+**Scope**
+- Room: remove the SQL game log, `/log`, `/replay`, `emitEvent`, `reportToLobby` and the usage counters.
+- Worker: remove `/logs/game/*.txt`, `/admin/game/*`, `/admin/replay/*` and `/api/tank`.
+- Engine: `replay()` and `GameLogEntry` are now used only by tests; move a minimal replay helper into the determinism test.
+
+**Acceptance:** The game runs unchanged; the retired routes return 404 in local acceptance.
+
+**Validation:** `npm test -- tests/determinism.test.ts tests/round-apex.test.ts`; `npm run check:local-http`.
+
+---
+
+### ST-144 — [REFACTOR] Run the Room from memory only
+
+**Goal:** Persisted snapshots are what bricked three tanks, and five-minute rounds gain nothing from them.
+
+**Scope**
+- Every Room boots a fresh round. Stop writing snapshots and metadata, and delete any legacy stored state once on boot.
+- Delete `src/worker/room-state-schema.ts`, `tests/room-persistence-schema.test.ts` and the engine's persisted `schemaVersion` field. The wire keeps its version until ST-163.
+- Use standard WebSockets with in-memory sessions and drop hibernation attachments; the tick loop keeps the object awake while anyone is connected.
+
+**Acceptance:** A restarted Room serves a fresh round, and nothing reads or writes Durable Object storage.
+
+**Validation:** `npm test -- tests/realtime-3d-network.test.ts tests/full-3d-authority-acceptance.test.ts tests/round-apex.test.ts`; `npm run check:local-http`.
+
+---
+
+### ST-145 — [REFACTOR] Delete the public evidence page and status feeds
+
+**Goal:** `/evidence/`, `/status.json` and `/spend.json` publish billing, incidents, receipts, continuity and logs for the retired evidence program.
+
+**Scope**
+- Remove the three routes and the evidence document, `scripts/check-evidence.mjs`, the deploy workflow's evidence step and its release-workflow guard, and the game document's "View live evidence" link.
+- `/version.json` stays for release identity.
+
+**Acceptance:** All three routes return 404. Release-workflow cases and local acceptance are updated.
+
+**Validation:** `node --test scripts/release-workflow-cases.mjs`; `npm run check:local-http`; `npm test -- tests/game-document.test.tsx`.
+
+---
+
+### ST-146 — [REFACTOR] Remove the operator console and maintenance gate
+
+**Goal:** The admin console, maintenance switch and operator credentials exist only for the retired operations program.
+
+**Scope**
+- Remove `/admin/*`, operator authentication (`OPS_TOKEN`, `OPS_USERNAME`) and the TLS gate that only protected it. Keep the plain HTTPS redirect.
+- Remove the maintenance gate and downtime document, the Room's maintenance close (1012) and the client's maintenance redirect.
+- Remove the deploy script's operator-secret requirement, the operator notes in `.env.example`, and local acceptance's operator checks.
+
+**Acceptance:** `/admin/` returns 404, and deploy no longer requires operator secrets.
+
+**Validation:** `node --test scripts/deploy-prod-cases.mjs scripts/local-worker-acceptance-cases.mjs`; `npm run check:local-http`; `npm test -- tests/accessibility-contract.test.ts`.
+
+---
+
+### ST-147 — [REFACTOR] Send `/` to the game and delete the Worker document stack
+
+**Goal:** The Worker still renders its own overview and not-found pages, with a dedicated stylesheet, an enhancement script and a CSP nonce kept for Cloudflare's injected analytics.
+
+**Scope**
+- `/` redirects (308) to `/play/`; unknown paths return a plain-text 404.
+- Delete `presentation.ts`, `presentation-react.tsx`, `presentation-data.ts`, the page-stylesheet route, `src/client/human-docs.ts` (with its Vite entry and baseline checks), robots and sitemap. Delete their tests, and trim `tests/public-copy-contract.test.ts` to the game menu.
+- The asset CSP becomes `script-src 'self'` with no per-response nonce and no Cloudflare Insights allowance.
+- Replace `scripts/check-public-ia.mjs` with a smaller `check-game-surface.mjs`. It checks the `/` redirect, `/play/`, assets, `/version.json`, the tank WebSocket, and 404s for every retired path.
+
+**Acceptance:** The Worker emits no HTML of its own and the game shell loads under the stricter CSP.
+
+**Validation:** `npm run check:local-http`; `npm run check:repository-baseline`; `npm test`.
+
+---
+
+### ST-148 — [REFACTOR] Remove billing metering, the spend limit, backups and their bindings
+
+**Goal:** The Lobby still meters usage, enforces a spend limit, and copies its state to R2 on a daily cron.
+
+**Scope**
+- Remove the Lobby's billing window, usage counters and spend enforcement, plus the backup, export and restore-drill code and the Worker's `scheduled()` handler.
+- From `wrangler.jsonc`, remove the R2 binding, the cron trigger, the version-metadata binding, and the `AUDIT_GENERATION`, `GAME_LOG_GENERATION`, `BILLING_HARD_LIMIT_USD`, `R2_BUCKET_NAME` and `R2_PREFIX` vars. Update the repository-baseline checks.
+
+**Acceptance:** No binding or code path writes to R2 or runs on a schedule.
+
+**Validation:** `npm run check:repository-baseline`; `node --test scripts/deploy-prod-cases.mjs`; `npm run typecheck`.
+
+---
+
+### ST-149 — [OPS] Delete the Lobby Durable Object
+
+**Goal:** Nothing uses the Lobby any more.
+
+**Scope**
+- Remove the `Lobby` class, its bindings and its remaining code.
+- Add migration `v2` with `deleted_classes: ["Lobby"]`. It irreversibly deletes stored profiles, receipts, logs and backup records when the owner approves the next production deploy. The owner confirmed the deletion on 2026-10-02.
+- Update the repository-baseline checks and the README and ARCHITECTURE boundaries: `Room` becomes the only class, with migrations `v1` and `v2`.
+
+**Acceptance:** The Worker exports only `Room`; config and baseline checks agree.
+
+**Validation:** `npm run check:repository-baseline`; `npm run typecheck`; `npm run check:local-http`.
+
+---
+
+### ST-150 — [DOCS] Retire the ISO-era documents and provenance records
+
+**Goal:** Leave documentation that describes a lean game, not an evidence program.
+
+**Scope**
+- Remove `docs/history/*.csv`, `scripts/check-provenance.mjs` and their npm script and check-chain entries.
+- Rewrite README and ARCHITECTURE as a short guide covering the Worker surface, Room authority, controls, local development and release.
+- Trim SECURITY, PRODUCT-ACCEPTANCE and ACCESSIBILITY to the game, and update the documentation-contract tests.
+
+**Acceptance:** No document describes evidence, receipts, billing, backups, incidents or ISO controls.
+
+**Validation:** `npm test -- tests/full-3d-documentation-contract.test.ts`; `npm run check`.
+
+---
+
+### ST-151 — [REFACTOR] Remove dead engine, protocol and package code
+
+**Goal:** Delete code nothing imports or calls.
+
+**Scope**
+- Delete the vendored `store` module and its package export.
+- Delete the `client/index.ts` entry and its package export; the host imports `App` directly.
+- Delete `cloneRoom`, `frenzyTicksLeft`, `nextInt`, `isInsideOceanVolume`, `isInsideFrenzyVolume` and `distancePointToSegmentSquared3`.
+- Delete `HealthResponse`, `ErrorResponse`, `roomSocketPath` and `/api/health`; `/version.json` remains.
+- Drop `export` from symbols used only inside their own module.
+
+**Acceptance:** A repeat of the dead-export scan finds nothing unused.
+
+**Validation:** `npm run typecheck`; `npm test`.
+
+---
+
+### ST-152 — [REFACTOR] Remove dead rendering and test-only code from the client
+
+**Goal:** Production modules carry rendering leftovers and code that exists only for tests.
+
+**Scope**
+- Remove the FX layer's unscaled boundary ring and duplicate Frenzy ring.
+- Remove `estimateSceneRenderCost`, `estimateBaselineSceneRenderCost`, `CLIENT_PERFORMANCE_BUDGETS`, `SHARK_ANATOMY` and `PREY_SILHOUETTE`, and rewrite their tests to assert real behavior instead.
+- Remove the five test assertions that pin `implementation_plan.md` to past queue states (in `client-performance`, `depth-navigation`, `full-3d-documentation-contract`, `full-3d-product-acceptance` and `spatial-audio`). The plan checks already enforce queue validity, and these pins break every plan fill.
+
+**Acceptance:** Rendering is unchanged apart from the two missing stray rings.
+
+**Validation:** `npm test -- tests/client-performance.test.ts tests/shark-models.test.ts tests/prey-schools.test.ts tests/game-renderer-contract.test.ts`.
+
+---
+
+### ST-153 — [REFACTOR] Fold the vendored game package into src
+
+**Goal:** The game lives in a pretend package with its own manifest, tsconfig, docs, licence, `file:` dependency, module aliases and second typecheck.
+
+**Scope**
+- Move `vendor/ModuleReact3Fiber/src/{engine,protocol,client}` to `src/{engine,protocol,game}` and delete the rest of `vendor/`.
+- Collapse the aliases, dependency and typecheck to one, regenerate `package-lock.json` with the pinned Node and npm, and update test paths and docs.
+- Keep the import boundary: the Worker imports only `engine` and `protocol`.
+
+**Acceptance:** `vendor/` is gone, and the build and the Worker bundle are unchanged.
+
+**Validation:** `npm run typecheck`; `npm run build`; `npm test`; `npm run check:repository-baseline`.
+
+---
+
+### ST-154 — [REFACTOR] Replace the snake trail with one shark position
+
+**Goal:** Sharks carry a breadcrumb trail resampled every tick that always yields one point, plus two always-false fields.
+
+**Scope**
+- In the engine, replace `path`, `segments`, `sampleTrail`, `segmentCount`, `SEGMENT_SPACING` and `TAIL_MARGIN` with a single `position`, and delete `boosting` and `chargeTicks`.
+- Prediction, actors, radar and audio read `position`. The wire still sends `segments: [position]` until ST-163.
+
+**Acceptance:** Movement, eating, combat and determinism tests pass unchanged.
+
+**Validation:** `npm test -- tests/volumetric-engine.test.ts tests/realtime-3d-network.test.ts tests/shark-combat.test.ts tests/determinism.test.ts`.
+
+---
+
+### ST-155 — [REFACTOR] Rename snake-era names to sharks
+
+**Goal:** Sharks are still called snakes throughout the code.
+
+**Scope:** Rename `Snake`, `snakes`, `SnakeLabels` and `snake-label` to `Shark`, `sharks`, `SharkLabels` and `shark-label` in the engine and client. The wire key changes in ST-163.
+
+**Acceptance:** No snake naming remains outside the wire adapter.
+
+**Validation:** `npm run typecheck`; `npm test`.
+
+---
+
+### ST-156 — [FIX] Stop remote sharks and fish freezing between snapshots
+
+**Goal:** The 45 ms interpolation delay is shorter than the 100 ms snapshot interval, so remote actors freeze on about 72% of frames.
+
+**Scope**
+- Export the broadcast cadence once from the protocol and use it in the Room.
+- Move snapshot bracketing into a pure `snapshotTimeline` module.
+- Replace the three local 45 ms delays with one `REMOTE_INTERP_DELAY_MS = max(90, round(1.5 × snapshot interval))`.
+
+**Acceptance:** 10 Hz arrivals with ±25 ms jitter clamp fewer than 2% of 60 Hz frames (test).
+
+**Validation:** `npm test -- tests/game-renderer-contract.test.ts tests/shark-models.test.ts` plus the timeline test.
+
+---
+
+### ST-157 — [FIX] Keep the interpolation clock locked to the server tick rate
+
+**Goal:** The tick-to-client clock is fixed at the first packet and drifts over a session.
+
+**Scope:** Estimate the packet offset baseline as a windowed minimum over about 2 s and slew toward it at no more than 5 ms per second. Reset on reconnect or tick regression.
+
+**Acceptance:** Server clocks 1% fast or slow over ten minutes keep clamped frames under 2%, render lag within ±20 ms of target, and no render-time jump larger than one frame.
+
+**Validation:** Timeline tests.
+
+---
+
+### ST-158 — [FEAT] Extrapolate remote actors briefly when a snapshot is late
+
+**Goal:** A late packet should not freeze the world.
+
+**Scope:** Past the newest snapshot, extrapolate sharks along yaw and pitch at their dash-derived speed and prey along their last velocity for at most 120 ms, then hold. Blend back without a backwards jump.
+
+**Acceptance:** A 200 ms gap produces 120 ms of continuous motion and no backwards jump (test).
+
+**Validation:** Timeline and actor-pose tests.
+
+---
+
+### ST-159 — [FIX] Drive animation and banking from continuous client time
+
+**Goal:** Swim phases use the stalled server tick, and remote banking spikes on snapshot steps.
+
+**Scope**
+- Shark and prey animation take seconds from the frame clock, keeping today's frequencies.
+- Remote yaw rate comes from the bracketing snapshots and is low-passed before banking.
+- Reduced motion keeps the rest pose.
+
+**Acceptance:** Animation phase advances every frame, and stepped 10 Hz yaw produces bounded roll change (tests).
+
+**Validation:** `npm test -- tests/shark-models.test.ts tests/prey-schools.test.ts tests/swimming-camera.test.ts tests/accessibility-contract.test.ts`.
+
+---
+
+### ST-160 — [PERF] Send steering intent at 20 Hz with a trailing final update
+
+**Goal:** The Room steers from stale, coarse targets.
+
+**Scope:** A pure `shouldSendOrientation` enforces a 50 ms minimum interval and 0.015 rad thresholds, and always sends the final value within 100 ms after input settles.
+
+**Acceptance:** Helper tests pass, with at most 20 orientation messages per second.
+
+**Validation:** `npm test -- tests/realtime-3d-network.test.ts` plus the helper test.
+
+---
+
+### ST-161 — [FEAT] Predict the dash locally the instant it is pressed
+
+**Goal:** The local dash waits one round trip before it moves.
+
+**Scope:** Export the dash envelope from the engine. Start a local lunge on a boost press whose cooldown is ready in the latest snapshot, reconcile with authoritative `lungeTicks`, and cancel if unconfirmed within 250 ms.
+
+**Acceptance:** Predicted speed rises on the press frame; a rejected dash stays within correction bounds.
+
+**Validation:** `npm test -- tests/realtime-3d-network.test.ts tests/shark-combat.test.ts`.
+
+---
+
+### ST-162 — [FIX] Blend reconciliation corrections instead of snapping the camera
+
+**Goal:** Large corrections teleport the local shark and the camera.
+
+**Scope:** Render through a decaying visual offset (about 120 ms half-life) for errors up to 12 units. Spawn, respawn and reconnect still snap.
+
+**Acceptance:** A 6-unit correction never moves the rendered shark more than 1 unit in a frame (test).
+
+**Validation:** `npm test -- tests/realtime-3d-network.test.ts tests/swimming-camera.test.ts`.
+
+---
+
+### ST-163 — [API] Pack snapshots into compact realtime protocol 12
+
+**Goal:** Prey objects with long ids and repeated keys make up most of every snapshot.
+
+**Scope**
+- Bump the realtime protocol to 12.
+- Send each prey as a tuple: a short hash of its id, a species code, position at 0.1 precision, and yaw and pitch at 0.01.
+- The species table covers every planned look and kind, so later fish tasks need no protocol change:
+  - school looks: sardine, anchovy, silverside, clownfish, blue tang, yellow tang, angelfish and parrotfish;
+  - chum and carcass with their bonus variants;
+  - tuna, squid, ray and golden fish.
+- The server derives each prey's code from its kind, school and bonus variant, and the parser decodes tuples back into `NetPrey`.
+- Sharks go under `sharks` with a single `position`; `schemaVersion` and the vestigial fields leave the wire.
+- Update the protocol pins in docs, `check-game-surface.mjs` and tests.
+
+**Acceptance:** A full-room snapshot is at most 16 KB (test). Encode and decode round-trip; stale clients see "Game update required".
+
+**Validation:** `npm test -- tests/realtime-3d-network.test.ts tests/client-performance.test.ts tests/full-3d-documentation-contract.test.ts`; `npm run check:local-http`.
+
+---
+
+### ST-164 — [PERF] Cull prey snapshots to each player's surroundings
+
+**Goal:** Every player receives every fish in the tank.
+
+**Scope**
+- Per-session `welcome` and `state` snapshots carry all sharks, effects and round state, but only prey within 72 units of that player's shark (the tank centre while dead).
+- Fog far drops from 150–230 units to at most 70, so culled prey never pop in.
+- The eat cue counts only prey that vanished within 12 units of a shark mouth.
+
+**Acceptance:** A typical snapshot is at most 14 KB, and the eat cue is unaffected by culling (tests).
+
+**Validation:** `npm test -- tests/client-performance.test.ts tests/realtime-3d-network.test.ts tests/spatial-audio.test.ts tests/ocean-arena.test.ts`.
+
+---
+
+### ST-165 — [PERF] Pick quality automatically and lower resolution under load
+
+**Goal:** Phones default to High quality and never adapt.
+
+**Scope**
+- Add an `auto` quality, now the default: Medium on coarse-pointer or low-memory devices, High otherwise. Saved choices still win.
+- A frame-time monitor steps DPR down (never below 1.0) when the two-second average exceeds 1.25× target, and back up after ten seconds of headroom.
+
+**Acceptance:** Resolver and stepping tests pass; actors and cues never change.
+
+**Validation:** `npm test -- tests/client-performance.test.ts tests/full-3d-product-acceptance.test.ts`.
+
+---
+
+### ST-166 — [OPS] Release the lean and smooth update as v2.1.0
+
+**Goal:** Ship ST-142 through ST-165.
+
+**Scope**
+- Semantic minor release.
+- This deploy runs the owner-confirmed Lobby deletion on the owner's production approval and moves clients to protocol 12.
+- The wizardgang.ai change should already be live.
+- Before release, the owner records the manual rows for smoothness, data use and the one-tank flow.
+- After the deploy is verified, delete the now-unused `OPS_TOKEN` and `OPS_USERNAME` secrets with `wrangler secret delete --env wizardgangprod`, and record it on the merged PR or the GitHub Release.
+
+**Acceptance:** `v2.1.0` is live with one Durable Object class, the Worker serves only the game surface, and no operator secret remains. Protected approval is honored; stop and report if it is pending.
+
+---
+
+### ST-167 — [FEAT] Auto-level pitch and ease keyboard steering
+
+**Goal:** Held pitch drives sharks into the surface or seabed, and keys jump straight to full turn rate.
+
+**Scope**
+- When the pitch axis is idle, ease the target pitch to level at about 1.2 rad/s.
+- Ramp keyboard steering axes in over about 120 ms and out over about 80 ms.
+- Add `controls.autoLevel` (default on) and update Help.
+
+**Acceptance:** Steering-helper tests pass; turning the setting off restores held pitch.
+
+**Validation:** `npm test -- tests/desktop-controls.test.ts tests/mobile-controls.test.ts tests/swimming-camera.test.ts`.
+
+---
+
+### ST-168 — [FIX] Glide along the surface and seabed instead of snapping pitch
+
+**Goal:** Pitch snaps to zero on contact while the client keeps requesting it, which jitters.
+
+**Scope:** One engine helper limits climb or dive pitch in proportion to the remaining gap inside a 3-unit band. The Room, the predictor and the input clamp all use it.
+
+**Acceptance:** A 45° climb levels smoothly into the surface in both the Room and prediction (test).
+
+**Validation:** `npm test -- tests/volumetric-engine.test.ts tests/realtime-3d-network.test.ts tests/determinism.test.ts`.
+
+---
+
+### ST-169 — [FIX] Separate overlapping sharks softly instead of snapping headings
+
+**Goal:** Overlap rewrites both sharks' headings instantly.
+
+**Scope:** Push the two sharks apart along the contact normal by the overlap, clamped to the ocean, and keep both headings.
+
+**Acceptance:** After separation the sharks are at least their combined radius apart with headings unchanged (test).
+
+**Validation:** `npm test -- tests/shark-combat.test.ts tests/volumetric-engine.test.ts tests/determinism.test.ts`.
+
+---
+
+### ST-170 — [FEAT] Replace the lethal arena wall with a soft returning current
+
+**Goal:** Touching the wall kills.
+
+**Scope**
+- From 4 units inside the wall, turn the heading inward with growing strength and clamp 0.5 units inside it. Never kill.
+- Mirror the clamp in prediction. Delete the `boundary` death action and its copy; nothing stored still needs it.
+- Update docs and contract tests.
+
+**Acceptance:** Swimming straight at the wall turns the shark back without death (test).
+
+**Validation:** `npm test -- tests/full-3d-authority-acceptance.test.ts tests/full-3d-product-acceptance.test.ts tests/bot-ai-3d.test.ts tests/full-3d-documentation-contract.test.ts`.
+
+---
+
+### ST-171 — [FEAT] Frame the chase camera closer and higher
+
+**Goal:** The local shark reads as a small silhouette seen from directly behind.
+
+**Scope:** Retune `chaseCameraPose` so the shark sits in the lower third of the frame with more water visible ahead, keeping size and speed scaling and the bounds clamps.
+
+**Acceptance:** Camera pose tests are updated; reduced motion is unchanged.
+
+**Validation:** `npm test -- tests/swimming-camera.test.ts tests/game-scene-skeleton.test.ts tests/desktop-controls.test.ts`.
+
+---
+
+### ST-172 — [FEAT] Add gentle aim assist toward prey and bite targets
+
+**Goal:** Lining up a moving fish in 3D by thumb is hard.
+
+**Scope:** A pure assist nudges the steering target, by a bounded amount per second, toward prey or an edible-sized shark within 20° of the heading and 14 units ahead. It defaults on for touch and off for keyboard, with a Settings toggle.
+
+**Acceptance:** Tests show no assist outside the cone, bounded strength, and no assist when disabled.
+
+**Validation:** `npm test -- tests/mobile-controls.test.ts` plus the helper test.
+
+---
+
+### ST-173 — [FEAT] Make one-thumb Simple steering the touch default
+
+**Goal:** Two-stick 3D flight is demanding for casual phone players.
+
+**Scope**
+- Add `controls.touchScheme: "simple" | "dual"`, defaulting to `simple`.
+- Simple shows one floating flight stick that may start anywhere in the flight half, the camera recentres automatically, and the look stick is hidden. Dual keeps today's sticks.
+- Update Help, labels, docs and contract tests.
+
+**Acceptance:** The scheme switches live; Dual is unchanged; tests cover both.
+
+**Validation:** `npm test -- tests/mobile-controls.test.ts tests/full-3d-authority-acceptance.test.ts tests/full-3d-product-acceptance.test.ts tests/full-3d-documentation-contract.test.ts`.
+
+---
+
+### ST-174 — [FEAT] Map the Simple stick's vertical axis to a climb or dive angle
+
+**Goal:** Push up to climb, let go to level.
+
+**Scope:** In Simple, vertical deflection sets a target climb or dive angle (up to about 0.85 rad) that returns to level on release. Horizontal deflection stays a yaw rate.
+
+**Acceptance:** Mapping tests pass; Dual and keyboard are unchanged.
+
+**Validation:** `npm test -- tests/mobile-controls.test.ts tests/swimming-camera.test.ts`.
+
+---
+
+### ST-175 — [FEAT] Move Bite and Dash into the thumb arc with cooldown rings
+
+**Goal:** On touch, the ability buttons sit over the leaderboard and out of reach.
+
+**Scope**
+- Place a round Bite button (at least 88 px) in the bottom corner opposite the flight stick, with Dash above and inside it; in Dual, place them above the look stick.
+- Show cooldowns as radial rings with accessible labels.
+- Accept presses during cooldown and buffer one bite pressed within 200 ms of expiry. The Room still enforces cooldown.
+
+**Acceptance:** No overlap with the leaderboard or HUD at 740×360 and 844×390 (CSS contract); pointer ownership is unchanged; buffer tests pass.
+
+**Validation:** `npm test -- tests/mobile-controls.test.ts tests/accessibility-contract.test.ts tests/shark-combat.test.ts`.
+
+---
+
+### ST-176 — [FEAT] Allow portrait play with a portrait control layout
+
+**Goal:** Portrait currently shows no controls at all.
+
+**Scope**
+- Replace the portrait gate with a portrait layout: flight stick lower-left, Bite and Dash bottom-right, compact HUD.
+- A pure framing helper widens the view for tall aspect ratios.
+- Rewrite the `touchNeedsLandscape` tests and update docs.
+
+**Acceptance:** Portrait is playable, and rotation still releases held input safely.
+
+**Validation:** `npm test -- tests/mobile-controls.test.ts tests/full-3d-authority-acceptance.test.ts tests/full-3d-documentation-contract.test.ts tests/swimming-camera.test.ts`.
+
+---
+
+### ST-177 — [REFACTOR] Share one size curve and mouth and body geometry between engine and renderer
+
+**Goal:** Hit boxes and visuals must agree on how big a shark is and where its mouth is.
+
+**Scope**
+- Move `sharkScaleForLength` into the engine.
+- Add `mouthPoint`, about 1.9 × scale ahead of the position, and `bodySegment`, which runs from the snout tip (about 2.56 × scale ahead) to the tail (about 2.45 × scale behind).
+- The renderer and camera import them. No rule changes yet.
+
+**Acceptance:** Scale values are identical to today, and the engine imports no Three or DOM code.
+
+**Validation:** `npm test -- tests/shark-models.test.ts tests/volumetric-engine.test.ts`.
+
+---
+
+### ST-178 — [FEAT] Eat from the mouth with a size-scaled, swept radius
+
+**Goal:** Prey the snout visibly touches is not eaten, and dashes can pass fish between ticks.
+
+**Scope:** Eat when prey is within `1.2 + 0.55 × scale` plus prey radius of the capsule from the previous tick's mouth position to the current one. Allow 4 chomps per tick for humans and 2 for bots.
+
+**Acceptance:** Snout contact eats, prey beside the tail does not, and a dash through a line of bait eats every fish in the capsule (tests).
+
+**Validation:** `npm test -- tests/prey-schools.test.ts tests/volumetric-engine.test.ts tests/determinism.test.ts`.
+
+---
+
+### ST-179 — [FEAT] Land bites anywhere on the victim's body with a wider cone
+
+**Goal:** A bite that visibly lands on a tail misses.
+
+**Scope**
+- A bite lands when the mouth is within `1.8 + 0.3 × attacker scale` of the victim's body surface (closest point on `bodySegment`, minus 0.62 × victim scale).
+- The target point must lie inside a 65° cone from the attacker's position, and the nearest valid victim wins.
+- Bots use the same reach.
+
+**Acceptance:** Tail and flank bites land; bites aimed away miss (tests).
+
+**Validation:** `npm test -- tests/shark-combat.test.ts tests/bot-ai-3d.test.ts tests/determinism.test.ts`.
+
+---
+
+### ST-180 — [FEAT] Devour much smaller sharks in one bite and regenerate health
+
+**Goal:** Every kill needs three or more bites and health never recovers.
+
+**Scope**
+- Damage:
+  - an attacker at least 1.5× the victim's length devours it in one bite;
+  - otherwise a bite deals 50 (60 with burst), so even fights take two bites;
+  - a victim at least 1.5× the attacker takes 20.
+- Rewards: score `max(5, round(victim score × 0.25))`, capped at 60; growth `victim length × 0.25`, clamped to 0.5–8.
+- Living sharks regain 4 HP/s. The Apex bounty is unchanged.
+
+**Acceptance:** Deterministic tests cover devour, two-bite, nibble, rewards and regeneration.
+
+**Validation:** `npm test -- tests/shark-combat.test.ts tests/round-apex.test.ts tests/bot-ai-3d.test.ts tests/determinism.test.ts`.
+
+---
+
+### ST-181 — [FEAT] Mark which sharks you can eat and which can eat you
+
+**Goal:** Make the size rule readable at a glance.
+
+**Scope:** A pure `edibilityFor(me, other)` returns `prey`, `even` or `threat` using the 1.5× rule. Tint shark rims and name tags green, amber or red, and add a non-colour glyph (▼ eat, ■ even, ▲ danger) to tags and the radar text.
+
+**Acceptance:** Helper tests pass; colour is never the only cue.
+
+**Validation:** `npm test -- tests/depth-navigation.test.ts tests/accessibility-contract.test.ts`.
+
+---
+
+### ST-182 — [OPS] Release the controls and combat update as v2.2.0
+
+**Goal:** Ship ST-167 through ST-181.
+
+**Scope:** Semantic minor release after the owner records the manual rows: landscape and portrait, Simple and Dual, thumb-arc abilities, keyboard easing and the new combat.
+
+**Acceptance:** `v2.2.0` is live. Protected approval is honored; stop and report if it is pending.
+
+---
+
+### ST-183 — [FEAT] Make the tank bigger with one shared ocean constant
+
+**Goal:** The ocean is small, and its size is defined in five places.
+
+**Scope**
+- One engine `OCEAN` constant (radius 120, seabed −18, surface +18) replaces the Room, client-cue, camera-default and engine copies.
+- Scale the prey budget: about 480 ambient fish, a cap of 720, 8 spawns per tick, 24 schools and 60 Frenzy chum.
+- Bots, spawning, Frenzy volume and fog keep working at the new size.
+
+**Acceptance:** Tests use the shared constant; at full population the per-player snapshot still meets the ST-164 budget.
+
+**Validation:** `npm test -- tests/ocean-arena.test.ts tests/volumetric-engine.test.ts tests/swimming-camera.test.ts tests/bot-ai-3d.test.ts tests/feeding-frenzy-3d.test.ts tests/client-performance.test.ts`.
+
+---
+
+### ST-184 — [FEAT] Grow coral reefs across the seabed
+
+**Goal:** The only reefs are three rock clusters outside the wall.
+
+**Scope**
+- Add a server-safe engine `reefs` module: a fixed set of reef sites (position and radius) derived from `OCEAN` that keeps clear of the Frenzy column.
+- The client fills each site with instanced brain, branching, plate, fan and tube coral; counts are quality-scaled.
+- Move the wreck inside the wall as a landmark and delete the out-of-bounds rock clusters.
+- Coral is scenery and a spawn anchor for now; sharks swim through it.
+
+**Acceptance:** The layout is deterministic (test); coral stays within the draw and instance budgets at every quality.
+
+**Validation:** `npm test -- tests/ocean-arena.test.ts tests/client-performance.test.ts` plus the reef layout test.
+
+---
+
+### ST-185 — [FEAT] Sway the kelp and vary coral colour and size
+
+**Goal:** Reefs should look alive, not stamped.
+
+**Scope:** Add swaying kelp clusters between reef sites (vertex sway, frozen under reduced motion). Give coral per-piece colour from a reef palette (pink, purple, orange, yellow, teal, red), size variation and depth-based tint.
+
+**Acceptance:** Presentation tests pass; reduced motion freezes the sway.
+
+**Validation:** `npm test -- tests/ocean-arena.test.ts tests/accessibility-contract.test.ts`.
+
+---
+
+### ST-186 — [FEAT] Keep reef fish schooling around the coral
+
+**Goal:** Tie the reef fish to the reefs so coral matters.
+
+**Scope:** Reef prey spawn inside reef sites, and their schools circle their home site instead of drifting across the tank; flee behavior is unchanged. Bait schools roam open water.
+
+**Acceptance:** Deterministic tests show reef fish staying near their home sites.
+
+**Validation:** `npm test -- tests/prey-schools.test.ts tests/determinism.test.ts`.
+
+---
+
+### ST-187 — [FEAT] Give every school its own species look
+
+**Goal:** Only two fish looks exist.
+
+**Scope**
+- Render the protocol-12 school codes as distinct species:
+  - bait: sardine, anchovy and silverside;
+  - reef: clownfish, blue tang, yellow tang, angelfish and parrotfish.
+- Each species differs in colours, stripes and proportions, with ±15% size variation, wobble (at most 0.3 units) and a slight emissive so fish stay visible in fog.
+- Positions stay authoritative.
+
+**Acceptance:** Species mapping tests pass; reduced motion disables wobble.
+
+**Validation:** `npm test -- tests/prey-schools.test.ts tests/accessibility-contract.test.ts`.
+
+---
+
+### ST-188 — [FEAT] Add tuna schools and gliding rays
+
+**Goal:** Give hunters bigger, faster and rarer prey.
+
+**Scope**
+- Tuna: value 5, schools of 4–6 in open mid-water, fast with a strong flee.
+- Rays: value 8, glide solo just above the seabed near reef sites, slow with a short flee.
+- Add their specs and population quotas, and teach bots their value.
+
+**Acceptance:** Deterministic spawn, movement and flee tests pass, and the population quotas hold.
+
+**Validation:** `npm test -- tests/prey-schools.test.ts tests/bot-ai-3d.test.ts tests/determinism.test.ts`.
+
+---
+
+### ST-189 — [FEAT] Add darting squid and a rare golden fish
+
+**Goal:** Create chase moments.
+
+**Scope**
+- Squid: value 4, mid-water, darting in short deterministic bursts when chased.
+- Golden fish: value 12, at most one alive on a deterministic schedule of about 30 s, very skittish, leaving after 60 s if uneaten.
+
+**Acceptance:** Deterministic dart, schedule and lifetime tests pass.
+
+**Validation:** `npm test -- tests/prey-schools.test.ts tests/determinism.test.ts`.
+
+---
+
+### ST-190 — [FEAT] Model tuna, squid, rays and the golden fish
+
+**Goal:** Every new species should read at a glance.
+
+**Scope:** Instanced presentation for:
+- a streamlined silver-blue tuna;
+- a squid with a mantle and trailing tentacles;
+- a flat ray with flapping wings;
+- a glowing golden fish with a sparkle and a caption when nearby.
+
+**Acceptance:** Presentation tests pass and draw budgets hold.
+
+**Validation:** `npm test -- tests/prey-schools.test.ts tests/client-performance.test.ts tests/accessibility-contract.test.ts`.
+
+---
+
+### ST-191 — [OPS] Release the bigger ocean update as v2.3.0
+
+**Goal:** Ship ST-183 through ST-190.
+
+**Scope:** Semantic minor release after the owner records the manual rows for the bigger ocean, reefs, species readability and frame budgets on a real phone.
+
+**Acceptance:** `v2.3.0` is live. Protected approval is honored; stop and report if it is pending.
+
+---
+
+### ST-192 — [FEAT] Grow through five named tiers within a round
+
+**Goal:** Growth is invisible and has no milestones.
+
+**Scope**
+- Add engine tiers (Pup, Reef Shark, Tiger Shark, Great White, Megalodon) with `tierForLength` and `tierProgress`.
+- Retune per-prey growth and the scale curve so steady eating reaches Reef at about 30 s, Tiger at about 90 s, Great White at about 3 minutes and Megalodon at about 4.5 minutes, with Megalodon about 2.5× spawn scale.
+
+**Acceptance:** A deterministic steady-eater simulation hits each tier time within ±25%, and the camera still frames Megalodon.
+
+**Validation:** `npm test -- tests/prey-schools.test.ts tests/shark-models.test.ts tests/swimming-camera.test.ts tests/determinism.test.ts` plus the tier test.
+
+---
+
+### ST-193 — [FEAT] Give smaller sharks a turning edge over bigger ones
+
+**Goal:** Give small sharks counterplay against hunters.
+
+**Scope:** One engine helper scales turn and pitch rates from about 1.15× at Pup to about 0.85× at Megalodon. The Room and the predictor share it.
+
+**Acceptance:** Helper and prediction-parity tests pass.
+
+**Validation:** `npm test -- tests/volumetric-engine.test.ts tests/realtime-3d-network.test.ts tests/determinism.test.ts`.
+
+---
+
+### ST-194 — [FEAT] Seed prey near human sharks and greet each spawn with a school
+
+**Goal:** Food should always be nearby.
+
+**Scope:** Spawn about 35% of bait top-ups 10–30 units from a living human shark, chosen by deterministic RNG over sorted ids. Drop a small bait school ahead of each human spawn.
+
+**Acceptance:** Deterministic tests pass and snapshot budgets hold.
+
+**Validation:** `npm test -- tests/prey-schools.test.ts tests/client-performance.test.ts tests/determinism.test.ts`.
+
+---
+
+### ST-195 — [FEAT] Stop bots farming fresh spawns
+
+**Goal:** Keep the size ladder climbable for people.
+
+**Scope:** Bots ignore sharks until 4 s after spawn grace ends and only hunt humans they can devour. They retire on reaching Great White instead of at score 240.
+
+**Acceptance:** Bot AI tests pass.
+
+**Validation:** `npm test -- tests/bot-ai-3d.test.ts tests/determinism.test.ts`.
+
+---
+
+### ST-196 — [FEAT] Celebrate every tier-up with an evolution moment
+
+**Goal:** Make growth feel like progress.
+
+**Scope:** When the local shark crosses a tier, show a toast ("Evolved: Tiger Shark"), a ring burst and a chime, and announce it politely. Reduced motion keeps only the toast.
+
+**Acceptance:** Detection tests show no repeat on reconnect or respawn.
+
+**Validation:** `npm test -- tests/accessibility-contract.test.ts` plus the helper test.
+
+---
+
+### ST-197 — [FEAT] Count eat streaks and float score gains
+
+**Goal:** Make eating feel great.
+
+**Scope:** Track local eating gains in 1.5 s windows. Show a "×N streak" chip, float "+N" by the score, and raise the eat cue's pitch with the streak. This is cosmetic only.
+
+**Acceptance:** Streak tests pass; announcements stay bounded; reduced motion disables the float.
+
+**Validation:** `npm test -- tests/spatial-audio.test.ts tests/accessibility-contract.test.ts` plus the helper test.
+
+---
+
+### ST-198 — [REFACTOR] Schedule music on the audio clock with lookahead
+
+**Goal:** Music notes come from `setInterval`, which jitters on phones.
+
+**Scope:** A timer wakes about every 25 ms and schedules notes up to 100 ms ahead on `AudioContext.currentTime`. The melody is unchanged until ST-199.
+
+**Acceptance:** Fake-clock scheduler tests pass; start, stop and visibility handling are unchanged.
+
+**Validation:** `npm test -- tests/spatial-audio.test.ts` plus the scheduler test.
+
+---
+
+### ST-199 — [FEAT] Compose a layered underwater score with pads and bass
+
+**Goal:** Replace the six-note loop.
+
+**Scope:** An evolving minor-key progression (about eight bars, four chords) on detuned, filtered pads and a soft bass, each on its own gain.
+
+**Acceptance:** Score-data tests cover the progression and voice ranges.
+
+**Validation:** `npm test -- tests/spatial-audio.test.ts` plus the score test.
+
+---
+
+### ST-200 — [FEAT] Add percussion and a lead motif to the score
+
+**Goal:** Give the score layers that can carry intensity.
+
+**Scope:** A soft kick and shaker built from filtered noise, plus a sparse lead motif, as optional layers on their own gains.
+
+**Acceptance:** Pattern tests pass.
+
+**Validation:** Score tests.
+
+---
+
+### ST-201 — [FEAT] Drive music intensity from gameplay and turn music on by default
+
+**Goal:** Music should rise with danger, Frenzy and Apex, and players should actually hear it.
+
+**Scope**
+- Crossfade layer mixes over at least 1 s:
+
+  | State | Mix |
+  | --- | --- |
+  | Calm | Pads and bass |
+  | Hunt (threat near or low health) | Adds percussion |
+  | Frenzy | Fast percussion and motif |
+  | Apex | Tension variation |
+  | Round result | Short sting, then calm |
+
+- Default music goes to 0.35 and still starts after the first gesture; the music toggle is visible on touch without opening the gear.
+
+**Acceptance:** State-to-mix tests pass; the settings-default pin is updated; the WCAG 1.4.2 control is reachable in one tap.
+
+**Validation:** `npm test -- tests/spatial-audio.test.ts tests/feeding-frenzy-3d.test.ts tests/accessibility-contract.test.ts`.
+
+---
+
+### ST-202 — [FEAT] Route audio through an underwater reverb and limiter bus
+
+**Goal:** Make everything sound underwater, without clipping.
+
+**Scope:** A generated-impulse convolver and a gentle low-pass on the music and SFX sends, then a compressor/limiter before the output.
+
+**Acceptance:** Graph tests with a fake AudioContext pass; volumes still map 0–1.
+
+**Validation:** `npm test -- tests/spatial-audio.test.ts`.
+
+---
+
+### ST-203 — [FEAT] Replace harsh beeps and droning cues with crunches, whooshes, plucks and a swim layer
+
+**Goal:** SFX are square and saw chirps, and the swim and presence cues drone about once a second.
+
+**Scope**
+- Bite: a noise crunch with a thump. Dash: a noise-sweep whoosh. Eat: a soft pluck pitched by the streak. Tier-up: a chime. Gentler death and respawn stingers.
+- One continuous speed-driven swim layer replaces the periodic chirps.
+- Nearby-shark presence becomes occasional and distance-scaled; captions are kept.
+
+**Acceptance:** Voice and cadence tests pass and peak levels are bounded.
+
+**Validation:** `npm test -- tests/spatial-audio.test.ts tests/feeding-frenzy-3d.test.ts tests/accessibility-contract.test.ts`.
+
+---
+
+### ST-204 — [OPS] Release the growth and music update as v2.4.0
+
+**Goal:** Ship ST-192 through ST-203.
+
+**Scope:** Semantic minor release after the owner records the manual rows for tiers, streaks, bot fairness and audio on a real phone and a desktop browser.
+
+**Acceptance:** `v2.4.0` is live. Protected approval is honored; stop and report if it is pending.
+
+---
+
+### ST-205 — [FEAT] Replace the HUD cards with one compact top bar and status chips
+
+**Goal:** Five cards and a two-line Frenzy banner cover the top of a phone.
+
+**Scope:** One row holding the tier badge with progress, score, round clock, rank and a slim health bar. Frenzy and Apex become small chips under it ("FRENZY 12s", "APEX 0:32"). Keep the screen-reader snapshot and announcements.
+
+**Acceptance:** The HUD fits one row at 740×360 and at most two rows at 375 px wide (CSS contract).
+
+**Validation:** `npm test -- tests/accessibility-contract.test.ts tests/round-apex.test.ts tests/feeding-frenzy-3d.test.ts`.
+
+---
+
+### ST-206 — [FEAT] Collapse the leaderboard to the top three plus you
+
+**Goal:** A ten-row board is too much for a phone.
+
+**Scope:** Show the top three plus your row. On touch it starts collapsed and expands on tap. Keep `aria-current` and Apex marking.
+
+**Acceptance:** Component tests pass; no overlap with the HUD or ability arc.
+
+**Validation:** `npm test -- tests/accessibility-contract.test.ts tests/round-apex.test.ts`.
+
+---
+
+### ST-207 — [FEAT] Point to off-screen threats, Apex, Frenzy and golden fish from the screen edge
+
+**Goal:** In a bigger ocean, players need direction at a glance rather than in a text list.
+
+**Scope**
+- A pure helper projects targets and clamps off-screen ones to an inset ellipse, showing at most four:
+  - sharks that can devour you within 40 units;
+  - the Apex;
+  - the Frenzy centre;
+  - the golden fish.
+- They render as small DOM arrows with glyphs and distance.
+- The text radar becomes screen-reader-only by default.
+
+**Acceptance:** Projection tests pass, including behind-camera cases; reduced motion and high contrast are respected.
+
+**Validation:** `npm test -- tests/depth-navigation.test.ts tests/accessibility-contract.test.ts`.
+
+---
+
+### ST-208 — [FEAT] Shrink name tags and fade them with distance
+
+**Goal:** 136 px name pills overlap the HUD.
+
+**Scope:** Auto-size tags (11–12 px text), cap them at five (Apex, threats, nearest), hide your own after 3 s, fade them between 30 and 55 units, and clamp them below the top bar. Keep edibility glyphs and the label setting.
+
+**Acceptance:** Selection tests pass; tags never sit behind the HUD.
+
+**Validation:** `npm test -- tests/depth-navigation.test.ts tests/full-3d-product-acceptance.test.ts`.
+
+---
+
+### ST-209 — [FEAT] Rebuild the death and round-result cards
+
+**Goal:** Make deaths quick to recover from and round ends worth celebrating.
+
+**Scope**
+- Death card: who got you, your tier and score, and a large Respawn button with a countdown ring.
+- Result card: a top-three podium, your rank and score, and a primary "Play again".
+- Keep the focus behavior and Escape.
+
+**Acceptance:** DeathOverlay and round-result tests pass.
+
+**Validation:** `npm test -- tests/accessibility-contract.test.ts tests/round-apex.test.ts tests/full-3d-product-acceptance.test.ts`.
+
+---
+
+### ST-210 — [FEAT] Refresh the main menu with an inline name and live skin preview
+
+**Goal:** Make the first screen about the game, not a form.
+
+**Scope:** Put the name field and skin swatches beside a big Play button and a small shark preview, folding Customize into the menu. Keep the radio-group semantics and the name policy.
+
+**Acceptance:** Menu tests pass.
+
+**Validation:** `npm test -- tests/game-document.test.tsx tests/name-policy.test.ts tests/accessibility-contract.test.ts`.
+
+---
+
+### ST-211 — [FEAT] Coach the first thirty seconds with one-time hints
+
+**Goal:** Teach new players without a tutorial screen.
+
+**Scope:** First-run hints stored on the device: "Drag to swim", "Eat fish to grow" with an arrow to the nearest school, and "Bite smaller sharks ▼". Each clears on success, is announced politely and can be skipped.
+
+**Acceptance:** State-machine tests pass; hints never return.
+
+**Validation:** `npm test -- tests/accessibility-contract.test.ts` plus the helper test.
+
+---
+
+### ST-212 — [FEAT] Light and countershade the sharks
+
+**Goal:** Unlit sharks read as flat blobs.
+
+**Scope:** Use a lit material with dark-dorsal, light-ventral countershading multiplied by the skin colour. Keep high contrast and skin recognition.
+
+**Acceptance:** Material tests pass; draw calls are unchanged.
+
+**Validation:** `npm test -- tests/shark-models.test.ts tests/client-performance.test.ts`.
+
+---
+
+### ST-213 — [FEAT] Replace sphere-and-cone sharks with a smooth body and blade fins
+
+**Goal:** Remove the chunky sphere-and-cone look.
+
+**Scope:** One tapered profile body replaces the body, head and snout spheres, and thin blade fins replace the cones. Segment counts scale with quality.
+
+**Acceptance:** Fewer draws; shark model tests are updated.
+
+**Validation:** `npm test -- tests/shark-models.test.ts tests/client-performance.test.ts`.
+
+---
+
+### ST-214 — [FEAT] Bend the shark body with a continuous spine wave
+
+**Goal:** Smooth swimming instead of rigid parts.
+
+**Scope:** A vertex-shader spine wave uses per-instance phase and amplitude, which rises with speed. Reduced motion sets it to zero, and Low quality may disable it.
+
+**Acceptance:** Animation-parameter tests pass.
+
+**Validation:** `npm test -- tests/shark-models.test.ts tests/accessibility-contract.test.ts`.
+
+---
+
+### ST-215 — [FEAT] Open the jaws on every bite
+
+**Goal:** Show the attack, not just its result.
+
+**Scope:** A lower jaw gapes for about 150 ms on a local bite press, or when a remote shark's bite cooldown advances.
+
+**Acceptance:** Timing tests pass; reduced motion shows a static open frame.
+
+**Validation:** `npm test -- tests/shark-models.test.ts`.
+
+---
+
+### ST-216 — [FEAT] Trail dash wakes and pop prey at the mouth
+
+**Goal:** Make dashing and eating visible.
+
+**Scope:** Draw instanced bubble streaks behind sharks while they lunge, and a small burst in the prey colour where a prey vanished within 12 units of a shark mouth. Both are bounded by the quality particle budget, and reduced motion removes them.
+
+**Acceptance:** Budget and inference tests pass.
+
+**Validation:** `npm test -- tests/client-performance.test.ts tests/prey-schools.test.ts tests/accessibility-contract.test.ts`.
+
+---
+
+### ST-217 — [FEAT] Shake the camera and flash bitten sharks on impact
+
+**Goal:** Hits should be felt and seen. The Camera motion toggle currently does nothing.
+
+**Scope:** Add a short decaying shake on landing a bite, being bitten and devouring, a flash of about 120 ms on bitten sharks, and a red edge vignette when your health drops. All of it obeys the toggle and reduced motion.
+
+**Acceptance:** Envelope tests pass; with the toggle off there is no shake.
+
+**Validation:** `npm test -- tests/swimming-camera.test.ts tests/shark-combat.test.ts tests/accessibility-contract.test.ts`.
+
+---
+
+### ST-218 — [FEAT] Draw a visible current curtain at the arena edge
+
+**Goal:** The soft wall should be visible before you reach it.
+
+**Scope:** A translucent cylindrical current wall with a vertical gradient and slow flow lines, which brightens within 20 units. It replaces the thin boundary rings.
+
+**Acceptance:** Environment tests and the draw inventory are updated.
+
+**Validation:** `npm test -- tests/ocean-arena.test.ts tests/client-performance.test.ts`.
+
+---
+
+### ST-219 — [REFACTOR] Sweep the last dead code, styles and copy
+
+**Goal:** Leave nothing unused behind after the wave.
+
+**Scope:** Re-run the dead-export scan and delete anything unused. Remove unreferenced selectors from `theme.css`, unused settings fields, and stale Help and announcement copy left by replaced UI.
+
+**Acceptance:** The scan finds nothing unused, every `theme.css` selector is referenced by a component, and every setting has a reader.
+
+**Validation:** `npm run typecheck`; `npm test`; `npm run build`.
+
+---
+
+### ST-220 — [OPS] Release the polish update as v2.5.0
+
+**Goal:** Ship ST-205 through ST-219.
+
+**Scope:** Semantic minor release after the owner records the layout, zoom, screen-reader, contrast and visual-readability rows on a real phone and a desktop browser.
+
+**Acceptance:** `v2.5.0` is live. Protected approval is honored; stop and report if it is pending.
