@@ -91,7 +91,7 @@ describe("ST-125 spatial underwater game audio", () => {
     expect(REALTIME_PROTOCOL_VERSION).toBe(11);
   });
 
-  it("keeps delivered 3D work closed as the current-only queue advances to ST-131", () => {
+  it("keeps delivered 3D work closed as the current-only queue advances to ST-132", () => {
     const plan = read("../implementation_plan.md");
     expect(plan).not.toContain("### ST-125");
     expect(plan).not.toContain("### ST-126");
@@ -99,6 +99,7 @@ describe("ST-125 spatial underwater game audio", () => {
     expect(plan).not.toContain("### ST-128");
     expect(plan).not.toContain("### ST-129");
     expect(plan).not.toContain("### ST-130");
-    expect(plan).toContain("### ST-131");
+    expect(plan).not.toContain("### ST-131");
+    expect(plan).toContain("### ST-132");
   });
 });

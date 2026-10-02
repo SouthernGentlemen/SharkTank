@@ -72,7 +72,7 @@ describe("full-3D current-state documentation", () => {
     expect(ROOM_SCHEMA_VERSION).toBe(11);
     expect(REALTIME_PROTOCOL_VERSION).toBe(11);
     expect(plan).not.toContain("### ST-130");
-    expect(plan.indexOf("### ST-131")).toBeGreaterThan(0);
-    expect(plan.indexOf("### ST-132")).toBeGreaterThan(plan.indexOf("### ST-131"));
+    expect(plan).not.toContain("### ST-131");
+    expect(plan.indexOf("### ST-132")).toBeGreaterThan(0);
   });
 });

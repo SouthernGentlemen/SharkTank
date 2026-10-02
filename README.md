@@ -47,7 +47,7 @@ The WebGL scene is gameplay presentation, not the semantic UI. HUD, leaderboard,
 
 Quality scaling may change DPR, antialiasing, particles, water/environment detail, update cadence, model detail and decorative work. It may not remove authoritative actors or competitive cues.
 
-See [docs/ACCESSIBILITY.md](docs/ACCESSIBILITY.md) and [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md).
+See [docs/ACCESSIBILITY.md](docs/ACCESSIBILITY.md), [docs/PRODUCT-ACCEPTANCE.md](docs/PRODUCT-ACCEPTANCE.md), and [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md).
 
 ## Operations and security
 
