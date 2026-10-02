@@ -4,7 +4,7 @@ on:
   workflow_call:
     inputs:
       tag:
-        description: Published release tag from the calling Release workflow
+        description: Published immutable release identity tag from the calling Release workflow
         required: true
         type: string
       expected_sha:
@@ -101,13 +101,29 @@ jobs:
         run: |
           code=$(curl -s -o /tmp/version.json -D /tmp/headers.txt -w '%{http_code}' https://sharktank.wizardgang.ai/version.json || echo 000)
           if [ "$code" = "200" ]; then
-            live=$(jq -r .release < /tmp/version.json)
-            [ "$live" = "$SHARKTANK_RELEASE" ] \
-              || { echo "::error::production release $live != $SHARKTANK_RELEASE"; exit 1; }
-            echo "Public identity matches $SHARKTANK_RELEASE"
+            product_release="${SHARKTANK_RELEASE%%-r*}"
+            live_product=$(jq -r .release < /tmp/version.json)
+            live_revision=$(jq -r .revision < /tmp/version.json)
+            [ "$live_product" = "$product_release" ] \
+              || { echo "::error::production product release $live_product != $product_release"; exit 1; }
+            [ "$live_revision" = "$SHARKTANK_RELEASE" ] \
+              || { echo "::error::production revision $live_revision != $SHARKTANK_RELEASE"; exit 1; }
+            echo "Public product identity $live_product matches immutable revision $live_revision"
+
+            play_code=$(curl -s -o /tmp/play.html -w '%{http_code}' https://sharktank.wizardgang.ai/play/ || echo 000)
+            [ "$play_code" = "200" ] \
+              || { echo "::error::public /play/ returned HTTP $play_code"; exit 1; }
+            asset=$(grep -oE '/assets/[^" ]+\.js' /tmp/play.html | head -1)
+            [ -n "$asset" ] \
+              || { echo "::error::public /play/ did not reference a built JavaScript asset"; exit 1; }
+            asset_code=$(curl -s -o /dev/null -w '%{http_code}' "https://sharktank.wizardgang.ai$asset" || echo 000)
+            [ "$asset_code" = "200" ] \
+              || { echo "::error::public full-3D asset $asset returned HTTP $asset_code"; exit 1; }
+            echo "Public /play/ serves the exact deployed build asset $asset"
+
             npm run check:evidence -- https://sharktank.wizardgang.ai
           elif grep -qi '^cf-mitigated: *challenge' /tmp/headers.txt; then
-            echo "::warning::sharktank.wizardgang.ai issued a Cloudflare managed challenge to this runner (HTTP $code), so the public identity and evidence walk could not run. The deployment was already proven above. Add a WAF skip rule to restore these checks."
+            echo "::warning::sharktank.wizardgang.ai issued a Cloudflare managed challenge to this runner (HTTP $code), so the public identity, /play/ asset, and evidence walk could not run. The deployment was already proven above. Add a WAF skip rule to restore these checks."
           else
             echo "::warning::could not read /version.json (HTTP $code); the deployment was proven above"
           fi

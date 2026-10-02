@@ -3,7 +3,15 @@ import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import { pathToFileURL } from "node:url";
 
-const releasePattern = /^v(?:0|[1-9]\d*)\.(?:0|[1-9]\d*)\.(?:0|[1-9]\d*)$/;
+const versionSource = "(?:0|[1-9]\\d*)\\.(?:0|[1-9]\\d*)\\.(?:0|[1-9]\\d*)";
+const releasePattern = new RegExp("^v(" + versionSource + ")(?:-r([1-9]\\d*))?$");
+
+export function releaseIdentityParts(release) {
+  const value = (release ?? "").trim();
+  const match = releasePattern.exec(value);
+  if (!match) return null;
+  return { release: value, productVersion: match[1], releaseRevision: match[2] ? Number(match[2]) : 0, isRevision: Boolean(match[2]) };
+}
 
 function git(cwd, args) {
   const result = spawnSync("git", args, { cwd, encoding: "utf8" });
@@ -16,9 +24,10 @@ function git(cwd, args) {
 export function validateReleaseIdentity({ cwd, release, expectedSha }) {
   const failures = [];
   const value = (release ?? "").trim();
+  const identity = releaseIdentityParts(value);
 
-  if (!releasePattern.test(value)) {
-    return [`release identity must match semantic vX.Y.Z: ${value || "(empty)"}`];
+  if (!identity) {
+    return [`release identity must match vX.Y.Z or vX.Y.Z-rN: ${value || "(empty)"}`];
   }
 
   const ref = `refs/tags/${value}`;
@@ -49,14 +58,21 @@ export function validateReleaseIdentity({ cwd, release, expectedSha }) {
   }
 
   try {
-    const packageVersion = JSON.parse(readFileSync(join(cwd, "package.json"), "utf8")).version;
-    if (typeof packageVersion !== "string") {
-      failures.push("root package.json version must be a string");
-    } else if (packageVersion !== value.slice(1)) {
-      failures.push(`package.json version ${packageVersion} does not match release ${value}`);
-    }
+    const packageJson = JSON.parse(readFileSync(join(cwd, "package.json"), "utf8"));
+    const packageVersion = packageJson.version;
+    if (typeof packageVersion !== "string") failures.push("root package.json version must be a string");
+    else if (packageVersion !== identity.productVersion) failures.push(`package.json version ${packageVersion} does not match release product ${identity.productVersion}`);
+
+    const revision = packageJson.releaseRevision ?? 0;
+    if (!Number.isInteger(revision) || revision < 0) failures.push("package.json releaseRevision must be a non-negative integer");
+    else if (identity.isRevision && revision !== identity.releaseRevision) failures.push(`package.json releaseRevision ${revision} does not match release revision r${identity.releaseRevision}`);
+    else if (!identity.isRevision && revision !== 0) failures.push(`semantic release ${value} requires package.json releaseRevision 0 or absent`);
+
+    const lock = JSON.parse(readFileSync(join(cwd, "package-lock.json"), "utf8"));
+    if (lock?.version !== identity.productVersion) failures.push(`package-lock.json version ${lock?.version ?? "(missing)"} does not match release product ${identity.productVersion}`);
+    if (lock?.packages?.[""]?.version !== identity.productVersion) failures.push(`package-lock root version ${lock?.packages?.[""]?.version ?? "(missing)"} does not match release product ${identity.productVersion}`);
   } catch {
-    failures.push("unable to read root package.json version");
+    failures.push("unable to read root package and lock release authority");
   }
 
   return failures;

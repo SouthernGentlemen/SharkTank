@@ -2,7 +2,7 @@ import { spawnSync } from "node:child_process";
 import { pathToFileURL } from "node:url";
 
 const repository = "Wizard-Gang/SharkTank";
-const releasePattern = /^v(?:0|[1-9]\d*)\.(?:0|[1-9]\d*)\.(?:0|[1-9]\d*)$/;
+const releasePattern = /^v(?:0|[1-9]\d*)\.(?:0|[1-9]\d*)\.(?:0|[1-9]\d*)(?:-r[1-9]\d*)?$/;
 
 function gh(args, env = process.env) {
   const result = spawnSync("gh", args, { encoding: "utf8", env });
@@ -18,7 +18,7 @@ export function publicationContextFailures({ env, release }) {
   const value = (release ?? "").trim();
   const expectedWorkflowRef = `${repository}/.github/workflows/release.yml@refs/heads/main`;
 
-  if (!releasePattern.test(value)) failures.push("release publication requires semantic vX.Y.Z identity");
+  if (!releasePattern.test(value)) failures.push("release publication requires vX.Y.Z or vX.Y.Z-rN identity");
   if (env.GITHUB_ACTIONS !== "true") failures.push("release publication requires GitHub Actions");
   if (env.GITHUB_REPOSITORY !== repository) failures.push(`release publication requires repository ${repository}`);
   if (env.GITHUB_EVENT_NAME !== "workflow_dispatch") failures.push("release publication requires explicit dispatch");

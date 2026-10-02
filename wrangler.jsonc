@@ -5,7 +5,7 @@
   "main": "src/worker/index.ts",
   "compatibility_date": "2026-06-28",
   "compatibility_flags": ["nodejs_compat"],
-  "vars": { "ENVIRONMENT": "development", "SHARKTANK_RELEASE": "development", "AUDIT_GENERATION": "2026-08-18-wizardgang-ai-shark-reset-3", "GAME_LOG_GENERATION": "2026-08-18-shark-capture-reset-2", "BILLING_HARD_LIMIT_USD": "5", "R2_BUCKET_NAME": "wizardgang-demo-assets", "R2_PREFIX": "sharktank/development/" },
+  "vars": { "ENVIRONMENT": "development", "SHARKTANK_RELEASE": "development", "SHARKTANK_RELEASE_REVISION": "development", "AUDIT_GENERATION": "2026-08-18-wizardgang-ai-shark-reset-3", "GAME_LOG_GENERATION": "2026-08-18-shark-capture-reset-2", "BILLING_HARD_LIMIT_USD": "5", "R2_BUCKET_NAME": "wizardgang-demo-assets", "R2_PREFIX": "sharktank/development/" },
   "version_metadata": { "binding": "CF_VERSION_METADATA" },
   "assets": {
     "directory": "./dist",
@@ -40,7 +40,7 @@
       "workers_dev": false,
       "preview_urls": false,
       "routes": [{ "pattern": "sharktank.wizardgang.ai", "custom_domain": true }],
-      "vars": { "ENVIRONMENT": "production", "SHARKTANK_RELEASE": "unreleased", "AUDIT_GENERATION": "2026-08-18-wizardgang-ai-shark-reset-3", "GAME_LOG_GENERATION": "2026-08-18-shark-capture-reset-2", "BILLING_HARD_LIMIT_USD": "5", "R2_BUCKET_NAME": "wizardgang-demo-assets", "R2_PREFIX": "sharktank/production/" },
+      "vars": { "ENVIRONMENT": "production", "SHARKTANK_RELEASE": "unreleased", "SHARKTANK_RELEASE_REVISION": "unreleased", "AUDIT_GENERATION": "2026-08-18-wizardgang-ai-shark-reset-3", "GAME_LOG_GENERATION": "2026-08-18-shark-capture-reset-2", "BILLING_HARD_LIMIT_USD": "5", "R2_BUCKET_NAME": "wizardgang-demo-assets", "R2_PREFIX": "sharktank/production/" },
       "version_metadata": { "binding": "CF_VERSION_METADATA" },
       "r2_buckets": [{ "binding": "R2_ASSETS", "bucket_name": "wizardgang-demo-assets" }],
       // Cron triggers are non-inheritable and must be repeated per env.

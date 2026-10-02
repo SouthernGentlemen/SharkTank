@@ -59,9 +59,9 @@ The scheduled Worker copies Lobby state to the configured R2 binding. Restore dr
 
 ## Release and deployment boundary
 
-Ordinary controlled changes do not create tags, GitHub Releases, or production deployments. A release change advances `package.json` and `package-lock.json` together. After the accepted `main` commit passes CI, the Release Tag workflow compares the version with its parent. An unchanged version is a no-op.
+Ordinary controlled changes do not create tags, GitHub Releases, or production deployments. A normal semantic release advances `package.json` and `package-lock.json` together and resets tracked `releaseRevision` to 0. A same-product release advances `package.json.releaseRevision` exactly once and creates an immutable `vX.Y.Z-rN` revision tag while package and lock product versions remain `X.Y.Z`. An unchanged product version and unchanged revision are a no-op.
 
-The Release workflow verifies tag/package/commit identity, runs the canonical checks and advisory gate, publishes the matching GitHub Release, then may enter the existing protected production deployment path.
+The Release workflow verifies exact tag/package/revision/commit identity, runs the canonical checks and advisory gate, publishes the matching GitHub Release, then may enter the existing protected production deployment path. Production exposes the base product identity through `SHARKTANK_RELEASE` and the immutable deployed artifact identity through `SHARKTANK_RELEASE_REVISION`.
 
 ## Controlled work
 

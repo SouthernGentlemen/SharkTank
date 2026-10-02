@@ -250,6 +250,7 @@ describe("ST-131 full-3D product acceptance", () => {
     expect(github.rulesets.find((rule) => rule.name === "release-tag-immutability")?.bypassActors).toEqual([]);
 
     expect(pkg.version).toBe("2.0.0");
+    expect(pkg.releaseRevision).toBe(1);
     expect(ROOM_SCHEMA_VERSION).toBe(11);
     expect(REALTIME_PROTOCOL_VERSION).toBe(11);
     expect(plan).not.toContain("### ST-131");

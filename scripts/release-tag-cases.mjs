@@ -12,8 +12,8 @@ function git(cwd, ...args) {
   return (result.stdout ?? "").trim();
 }
 
-function writeVersionFiles(cwd, version, lockVersion = version) {
-  writeFileSync(join(cwd, "package.json"), JSON.stringify({ name: "fixture", version }, null, 2) + "\n");
+function writeVersionFiles(cwd, version, lockVersion = version, releaseRevision = 0) {
+  writeFileSync(join(cwd, "package.json"), JSON.stringify({ name: "fixture", version, releaseRevision }, null, 2) + "\n");
   writeFileSync(join(cwd, "package-lock.json"), JSON.stringify({
     name: "fixture",
     version: lockVersion,
@@ -39,8 +39,8 @@ function fixture() {
   return { root, cwd };
 }
 
-function commitVersion(cwd, version, lockVersion = version) {
-  writeVersionFiles(cwd, version, lockVersion);
+function commitVersion(cwd, version, lockVersion = version, releaseRevision = 0) {
+  writeVersionFiles(cwd, version, lockVersion, releaseRevision);
   git(cwd, "add", "package.json", "package-lock.json");
   git(cwd, "commit", "-qm", `version ${version}`);
   git(cwd, "push", "-q", "origin", "main");
@@ -79,11 +79,52 @@ test("ordinary accepted main commit with unchanged package version creates no ta
     git(cwd, "commit", "-qm", "ordinary change");
     git(cwd, "push", "-q", "origin", "main");
     const targetSha = git(cwd, "rev-parse", "HEAD");
-    assert.deepEqual(applyReleaseTag({ cwd, targetSha }), { kind: "noop", version: "1.2.3", targetSha });
+    assert.deepEqual(applyReleaseTag({ cwd, targetSha }), { kind: "noop", version: "1.2.3", releaseRevision: 0, targetSha });
     assert.equal(git(cwd, "ls-remote", "--tags", "origin"), "");
   } finally {
     cleanup(root);
   }
+});
+
+test("tracked release revision advance creates exactly one annotated revision tag", () => {
+  const { root, cwd } = fixture();
+  try {
+    const targetSha = commitVersion(cwd, "1.2.3", "1.2.3", 1);
+    const result = applyReleaseTag({ cwd, targetSha });
+    assert.equal(result.kind, "created");
+    assert.equal(result.releaseKind, "revision");
+    assert.equal(result.tag, "v1.2.3-r1");
+    assert.equal(result.releaseRevision, 1);
+    assert.equal(git(cwd, "cat-file", "-t", "refs/tags/v1.2.3-r1"), "tag");
+    assert.equal(git(cwd, "rev-parse", "refs/tags/v1.2.3-r1^{commit}"), targetSha);
+  } finally { cleanup(root); }
+});
+
+test("release revision must advance exactly once", () => {
+  const { root, cwd } = fixture();
+  try {
+    const targetSha = commitVersion(cwd, "1.2.3", "1.2.3", 2);
+    assert.throws(() => planReleaseTag({ cwd, targetSha }), /release revision must advance exactly once/);
+  } finally { cleanup(root); }
+});
+
+test("semantic version release resets release revision authority", () => {
+  const { root, cwd } = fixture();
+  try {
+    commitVersion(cwd, "1.2.3", "1.2.3", 1);
+    const targetSha = commitVersion(cwd, "1.2.4", "1.2.4", 0);
+    const result = planReleaseTag({ cwd, targetSha });
+    assert.equal(result.releaseKind, "semantic");
+    assert.equal(result.tag, "v1.2.4");
+  } finally { cleanup(root); }
+});
+
+test("semantic version release with nonzero release revision fails closed", () => {
+  const { root, cwd } = fixture();
+  try {
+    const targetSha = commitVersion(cwd, "1.2.4", "1.2.4", 1);
+    assert.throws(() => planReleaseTag({ cwd, targetSha }), /requires current releaseRevision 0/);
+  } finally { cleanup(root); }
 });
 
 test("accepted lockstep version increase creates exactly one annotated tag at the merged commit", () => {
@@ -170,6 +211,7 @@ test("restoring an already-published annotated ancestor release is a guarded no-
     assert.deepEqual(result, {
       kind: "noop",
       version: "1.2.3",
+      releaseRevision: 0,
       targetSha,
       reconciliationTag: "v1.2.3",
       previousReleaseTag: "v1.2.4",

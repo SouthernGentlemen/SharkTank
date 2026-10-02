@@ -45,6 +45,12 @@ function lockVersionFailures(lock, expected, label) {
   return failures;
 }
 
+function releaseRevision(packageJson, label) {
+  const value = packageJson?.releaseRevision ?? 0;
+  if (!Number.isInteger(value) || value < 0) throw new Error(`${label} package.json releaseRevision must be a non-negative integer`);
+  return value;
+}
+
 export function taggingContextFailures({ env, targetSha }) {
   const failures = [];
   if (env.GITHUB_ACTIONS !== "true") failures.push("release tagging requires GitHub Actions");
@@ -63,23 +69,20 @@ export function planReleaseTag({ cwd, targetSha }) {
   if (head !== targetSha) throw new Error(`checked-out HEAD ${head} does not match accepted main SHA ${targetSha}`);
 
   const parent = git(cwd, ["rev-parse", `${targetSha}^`], { allowFailure: true });
-  if (parent.status !== 0) throw new Error("accepted main commit must have a parent to compare package version authority");
+  if (parent.status !== 0) throw new Error("accepted main commit must have a parent to compare release authority");
 
   const currentPackage = readJson(join(cwd, "package.json"));
   const previousPackage = readJsonAtRef(cwd, parent.stdout, "package.json");
   const currentVersion = currentPackage?.version;
   const previousVersion = previousPackage?.version;
-
-  if (typeof currentVersion !== "string" || typeof previousVersion !== "string") {
-    throw new Error("root package.json version must be a string before and after the accepted main commit");
-  }
-
-  if (currentVersion === previousVersion) return { kind: "noop", version: currentVersion, targetSha };
+  if (typeof currentVersion !== "string" || typeof previousVersion !== "string") throw new Error("root package.json version must be a string before and after the accepted main commit");
 
   const currentParts = semverParts(currentVersion);
   const previousParts = semverParts(previousVersion);
   if (!currentParts || !previousParts) throw new Error("release versions must use plain semantic X.Y.Z identity");
 
+  const currentRevision = releaseRevision(currentPackage, "current");
+  const previousRevision = releaseRevision(previousPackage, "previous");
   const currentLock = readJson(join(cwd, "package-lock.json"));
   const previousLock = readJsonAtRef(cwd, parent.stdout, "package-lock.json");
   const lockFailures = [
@@ -89,7 +92,26 @@ export function planReleaseTag({ cwd, targetSha }) {
   if (lockFailures.length) throw new Error(lockFailures.join("; "));
 
   const comparison = compareVersions(currentParts, previousParts);
+  if (comparison === 0) {
+    if (currentRevision === previousRevision) return { kind: "noop", version: currentVersion, releaseRevision: currentRevision, targetSha };
+    if (currentRevision !== previousRevision + 1 || currentRevision < 1) {
+      throw new Error(`release revision must advance exactly once for ${currentVersion}: r${previousRevision} -> r${currentRevision}`);
+    }
+    return {
+      kind: "release",
+      releaseKind: "revision",
+      previousVersion,
+      version: currentVersion,
+      previousRevision,
+      releaseRevision: currentRevision,
+      tag: `v${currentVersion}-r${currentRevision}`,
+      targetSha,
+    };
+  }
+
   if (comparison < 0) {
+    if (currentRevision !== 0 || previousRevision !== 0) throw new Error("release version reconciliation requires releaseRevision 0 on both commits");
+
     const reconciliationTag = `v${currentVersion}`;
     const previousReleaseTag = `v${previousVersion}`;
     const reconciliationRef = `refs/tags/${reconciliationTag}`;
@@ -106,31 +128,24 @@ export function planReleaseTag({ cwd, targetSha }) {
 
     const reconciliationCommit = git(cwd, ["rev-parse", `${reconciliationRef}^{commit}`]).stdout;
     const previousReleaseCommit = git(cwd, ["rev-parse", `${previousReleaseRef}^{commit}`]).stdout;
-    const reconciliationInMain = git(cwd, ["merge-base", "--is-ancestor", reconciliationCommit, targetSha], { allowFailure: true });
-    const previousReleaseInMain = git(cwd, ["merge-base", "--is-ancestor", previousReleaseCommit, targetSha], { allowFailure: true });
-    const releaseOrder = git(cwd, ["merge-base", "--is-ancestor", reconciliationCommit, previousReleaseCommit], { allowFailure: true });
+    if (git(cwd, ["merge-base", "--is-ancestor", reconciliationCommit, targetSha], { allowFailure: true }).status !== 0) throw new Error(`release reconciliation requires ${reconciliationTag} to be an ancestor of accepted main`);
+    if (git(cwd, ["merge-base", "--is-ancestor", previousReleaseCommit, targetSha], { allowFailure: true }).status !== 0) throw new Error(`release reconciliation requires ${previousReleaseTag} to be an ancestor of accepted main`);
+    if (git(cwd, ["merge-base", "--is-ancestor", reconciliationCommit, previousReleaseCommit], { allowFailure: true }).status !== 0) throw new Error(`release reconciliation requires ${reconciliationTag} to precede ${previousReleaseTag}`);
 
-    if (reconciliationInMain.status !== 0) {
-      throw new Error(`release reconciliation requires ${reconciliationTag} to be an ancestor of accepted main`);
-    }
-    if (previousReleaseInMain.status !== 0) {
-      throw new Error(`release reconciliation requires ${previousReleaseTag} to be an ancestor of accepted main`);
-    }
-    if (releaseOrder.status !== 0) {
-      throw new Error(`release reconciliation requires ${reconciliationTag} to precede ${previousReleaseTag}`);
-    }
-
-    return {
-      kind: "noop",
-      version: currentVersion,
-      targetSha,
-      reconciliationTag,
-      previousReleaseTag,
-    };
+    return { kind: "noop", version: currentVersion, releaseRevision: currentRevision, targetSha, reconciliationTag, previousReleaseTag };
   }
-  if (comparison === 0) return { kind: "noop", version: currentVersion, targetSha };
 
-  return { kind: "release", previousVersion, version: currentVersion, tag: `v${currentVersion}`, targetSha };
+  if (currentRevision !== 0) throw new Error(`semantic release ${previousVersion} -> ${currentVersion} requires current releaseRevision 0`);
+  return {
+    kind: "release",
+    releaseKind: "semantic",
+    previousVersion,
+    version: currentVersion,
+    previousRevision,
+    releaseRevision: currentRevision,
+    tag: `v${currentVersion}`,
+    targetSha,
+  };
 }
 
 function localTagState({ cwd, tag, targetSha }) {
@@ -207,7 +222,7 @@ if (invoked) {
     }
     if (result.kind === "noop" && result.reconciliationTag) {
       console.log(`Release tagging reconciled: ${result.reconciliationTag} already exists in accepted main ancestry; no new tag or release dispatch output emitted.`);
-    } else if (result.kind === "noop") console.log(`Release tagging skipped: package version remains ${result.version}.`);
+    } else if (result.kind === "noop") console.log(`Release tagging skipped: release authority remains ${result.version} r${result.releaseRevision ?? 0}.`);
     else if (result.kind === "existing") console.log(`Release tag already matches accepted main commit: ${result.tag}.`);
     else console.log(`Created annotated release tag ${result.tag} at ${result.targetSha}.`);
   } catch (error) {

@@ -1,8 +1,8 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { deploymentPreconditionFailures, deploymentVariables } from "./deploy-prod.mjs";
+import { deploymentPreconditionFailures, deploymentVariables, productReleaseIdentity } from "./deploy-prod.mjs";
 
-const release = "v1.2.3";
+const release = "v1.2.3-r1";
 const validEnv = {
   GITHUB_ACTIONS: "true",
   GITHUB_REPOSITORY: "Wizard-Gang/SharkTank",
@@ -26,8 +26,16 @@ function real(overrides = {}) {
   });
 }
 
-test("deployment passes only the release identity as a Wrangler variable", () => {
-  assert.deepEqual(deploymentVariables(release), [`SHARKTANK_RELEASE:${release}`]);
+test("deployment separates public product identity from immutable release revision", () => {
+  assert.equal(productReleaseIdentity(release), "v1.2.3");
+  assert.deepEqual(deploymentVariables(release), [
+    "SHARKTANK_RELEASE:v1.2.3",
+    "SHARKTANK_RELEASE_REVISION:v1.2.3-r1",
+  ]);
+  assert.deepEqual(deploymentVariables("v1.2.3"), [
+    "SHARKTANK_RELEASE:v1.2.3",
+    "SHARKTANK_RELEASE_REVISION:v1.2.3",
+  ]);
 });
 
 test("governed release workflow context can reach the real deployment path", () => {
@@ -53,7 +61,7 @@ test("untagged checkout cannot reach the real deployment path", () => {
     },
     tagsAtHead: [],
   });
-  assert.match(failures.join("\n"), /semantic vX\.Y\.Z tag pointing at HEAD/);
+  assert.match(failures.join("\n"), /vX\.Y\.Z or vX\.Y\.Z-rN annotated release identity tag pointing at HEAD/);
   assert.match(failures.join("\n"), /requires explicit release dispatch/);
 });
 
@@ -73,7 +81,7 @@ test("a different workflow context cannot reach the real deployment path", () =>
 });
 
 test("exact release identity failures block real production deployment", () => {
-  const failures = real({ releaseIdentityFailures: ["release tag must be annotated: v1.2.3"] });
+  const failures = real({ releaseIdentityFailures: ["release tag must be annotated: v1.2.3-r1"] });
   assert.match(failures.join("\n"), /exact release identity failed: release tag must be annotated/);
 });
 
