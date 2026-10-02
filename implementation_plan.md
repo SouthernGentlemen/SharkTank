@@ -27,28 +27,6 @@ Work only the first open task, preserve the order of later tasks unless the owne
 
 
 
-### ST-131 — [TEST] Run full-3D product acceptance across quality and control modes
-
-**Goal**
-
-Treat the finished game as a product, not merely a passing unit-test suite.
-
-**Scope**
-
-- Exercise menu -> tank -> game -> round -> death/respawn -> result -> next round.
-- Exercise the shared control model across desktop WASD + arrow keys, optional mouse-look mirroring, and mobile dual-stick control paths.
-- Exercise low/medium/high graphics presets.
-- Exercise reduced motion, high contrast, captions and colorblind labels.
-- Exercise representative full-room bots/prey and sustained frenzy.
-- Verify public MVP support surfaces remain unaffected: `/`, `/evidence/`, authenticated `/admin/`, game API and WebSocket boundary.
-- Verify no changes to release/deploy guards, Durable Object names, migration tag `v1`, bindings or provider policy were smuggled into the gameplay wave.
-
-**Acceptance**
-
-- All acceptance evidence is reproducible from repository commands/tests plus the documented browser/manual checks that cannot be automated credibly.
-- Any discovered blocker becomes a narrowly scoped queued fix before release; do not waive it by weakening tests.
-
----
 
 ### ST-132 — [OPS] Release the full-3D SharkTank experience
 

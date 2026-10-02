@@ -18,7 +18,7 @@ Gameplay-relevant captions are produced independently of whether Web Audio can p
 
 The repository does not currently include a real-browser automation harness such as Playwright, Puppeteer or WebDriver. Static/source contracts and deterministic unit tests therefore do not prove browser, physical-device or assistive-technology behavior by themselves.
 
-Product acceptance must still exercise real Tab and Shift+Tab traversal; focus restoration after pause/settings/help/result/death transitions; Escape handling in dialogs; VoiceOver/TalkBack/desktop screen readers; 200 percent and higher zoom/reflow; physical safe-area cutouts; portrait-to-landscape rotation; simultaneous dual-stick plus ability pointers on hardware; computed contrast in the running browser; real WebGL rendering; and caption readability over representative 3D scenes.
+The reproducible cross-mode procedure is in [PRODUCT-ACCEPTANCE.md](PRODUCT-ACCEPTANCE.md). Product acceptance must still exercise real Tab and Shift+Tab traversal; focus restoration after pause/settings/help/result/death transitions; Escape handling in dialogs; VoiceOver/TalkBack/desktop screen readers; 200 percent and higher zoom/reflow; physical safe-area cutouts; portrait-to-landscape rotation; simultaneous dual-stick plus ability pointers on hardware; computed contrast in the running browser; real WebGL rendering; and caption readability over representative 3D scenes.
 
 Any failure in those checks is a product defect; the automated proof does not waive it.
 
