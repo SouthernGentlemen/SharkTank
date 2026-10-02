@@ -118,7 +118,7 @@ describe("ST-119 animated shark models", () => {
 
     expect(ROOM_SCHEMA_VERSION).toBe(11);
     expect(REALTIME_PROTOCOL_VERSION).toBe(11);
-    expect(packageJson.version).toBe("3.0.0");
+    expect(packageJson.version).toBe("2.0.0");
     expect(worker).not.toContain("sharkPresentation");
     expect(worker).not.toContain("@react-three/fiber");
     expect(worker).not.toContain('from "three"');

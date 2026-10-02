@@ -20,7 +20,7 @@ The focused product test composes existing deterministic contracts into one acce
 
 The canonical check starts a credential-free local Worker with a test-owned operator token. Its HTTP acceptance covers `/`, `/evidence/`, `/play/`, unauthenticated and authenticated `/admin/`, the public game APIs, static game assets, and an upgraded Room Durable Object WebSocket hello/welcome exchange. Provider credentials are stripped from that local process.
 
-The repository baseline and product acceptance also pin the compatibility boundaries surrounding the accepted full-3D release: package version 3.0.0, Room schema 11, realtime protocol 11, Durable Object classes `Room` and `Lobby`, migration tag `v1`, bindings, squash-only GitHub settings, protected `verify`, immutable release tags, release-before-deploy sequencing, and the protected production environment.
+The repository baseline and product acceptance also pin the compatibility boundaries surrounding the accepted full-3D release: package version 2.0.0, Room schema 11, realtime protocol 11, Durable Object classes `Room` and `Lobby`, migration tag `v1`, bindings, squash-only GitHub settings, protected `verify`, immutable release tags, release-before-deploy sequencing, and the protected production environment.
 
 ## Real-browser desktop acceptance
 
