@@ -142,16 +142,6 @@ On 2026-10-02 the owner directed that this SharkTank material be deleted from th
 
 ## Open tasks
 
-### ST-141 — [OPS] Release the one-tank fix as v2.0.1
-
-**Goal:** End the outage in production.
-
-**Scope:** Advance `package.json` and `package-lock.json` to `2.0.1` with `releaseRevision` reset to 0, and let Release Tag, Release and the protected deploy run. Afterwards, the owner confirms in a real browser that Play joins the tank and retired tank ids return 404. Record the result on the merged PR or the GitHub Release.
-
-**Acceptance:** `/version.json` reports `v2.0.1`. Protected approval is honored; stop and report if it is pending.
-
----
-
 ### ST-142 — [REFACTOR] Keep player data on the device and stop client telemetry
 
 **Goal:** The client posts every settings change, name, skin and play action to the server.
