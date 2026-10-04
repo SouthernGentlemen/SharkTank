@@ -60,16 +60,21 @@ function place(shark: Snake, x: number, y: number, z: number, yaw = 0, pitch = 0
 }
 
 describe("ST-131 full-3D product acceptance", () => {
-  it("covers menu to tank to game plus death, respawn, result and next-round authority", () => {
+  it("covers menu straight to game plus death, respawn, result and next-round authority", () => {
     const app = read("../vendor/ModuleReact3Fiber/src/client/App.tsx");
     const screen = read("../vendor/ModuleReact3Fiber/src/client/ui/GameScreen.tsx");
     const death = read("../vendor/ModuleReact3Fiber/src/client/ui/DeathOverlay.tsx");
 
-    expect(app).toContain('type Screen = "menu" | "tank" | "customize" | "settings" | "game"');
-    expect(app).toContain('onPlay={() => setScreen("tank")}');
-    expect(app).toContain("<Lobby");
+    expect(app).toContain('type Screen = "menu" | "customize" | "settings" | "game"');
+    expect(app).toContain('const SHARKTANK_ROOM = { id: "room-1", name: "SharkTank" } as const;');
+    expect(app).toContain("onPlay={play}");
+    expect(app).not.toContain("<Lobby");
+    expect(app).not.toContain("API.tank");
     expect(app).toContain('setScreen("game")');
     expect(app).toContain("<GameScreen");
+    expect(app).toContain('onQuit={() => setScreen("menu")}');
+    expect(screen).toContain("Tank full — you'll join when a spot opens");
+    expect(screen).toContain("Can't reach the tank");
     expect(screen).toContain("<DeathOverlay");
     expect(screen).toContain('roundUi?.phase === "result"');
     expect(screen).toContain("Ready for next round");
@@ -115,6 +120,8 @@ describe("ST-131 full-3D product acceptance", () => {
     }
     expect(room).toContain('const ROOM_NAME = "SharkTank";');
     expect(room).toContain("CAPACITY = 8, BOT_COUNT = SHARK_CAPACITY - CAPACITY");
+    expect(room).not.toContain('return new Response("room full", { status: 503');
+    expect(room).toContain('if (this.full()) return this.close(ws, 1013, "room full");');
     expect(presentation).toContain('const AUDIT_ROOMS = ["room-1"];');
     expect(presentation).toContain('{ "room-1": "SharkTank" }');
     expect(gameDocument).toContain("Swim a shark in SharkTank");

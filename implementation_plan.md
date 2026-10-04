@@ -142,22 +142,6 @@ On 2026-10-02 the owner directed that this SharkTank material be deleted from th
 
 ## Open tasks
 
-### ST-140 — [FEAT] Join the tank straight from Play and handle a full tank
-
-**Goal:** Play still opens a tank table, and a full or unreachable tank loops on "Reconnecting…" forever.
-
-**Scope**
-- Play joins the tank directly. Delete the tank-list screen (`Lobby.tsx`) and the client's `/api/tank` polling.
-- When 8 humans are already in, the Room accepts the socket and closes it with code 1013, so the client can tell "full" from "unreachable".
-- Full: show "Tank full — you'll join when a spot opens", retry every 5 s, and offer Back.
-- Unreachable after three attempts: show "Can't reach the tank" with Retry and Back.
-
-**Acceptance:** Connection-state tests cover full, unreachable and recovered; focus and announcements stay accessible.
-
-**Validation:** `npm test -- tests/full-3d-product-acceptance.test.ts tests/accessibility-contract.test.ts tests/game-document.test.tsx` plus the new state test.
-
----
-
 ### ST-141 — [OPS] Release the one-tank fix as v2.0.1
 
 **Goal:** End the outage in production.

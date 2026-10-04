@@ -356,7 +356,8 @@ describe("ST-129 full-3D authority acceptance wall", () => {
     expect(socketSource).toContain("setDeath(null);");
     expect(socketSource).toContain("if (buf.length && state.tick < buf[buf.length - 1].state.tick)");
     expect(socketSource).toContain('setStatus("incompatible")');
-    expect(socketSource).toContain("setTimeout(connect, delay)");
+    expect(socketSource).toContain("connectionAfterClose(event.code, event.reason, failedAttempts)");
+    expect(socketSource).toContain('setTimeout(() => connect(transition.status === "full"), transition.retryInMs)');
 
     expect(audioSource).toContain("lastTick.current = null;");
     expect(audioSource).toContain("lastFood.current.clear();");

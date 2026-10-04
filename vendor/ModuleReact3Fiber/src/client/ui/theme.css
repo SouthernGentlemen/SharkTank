@@ -256,6 +256,16 @@ body {
   background: var(--overlay-scrim);
 }
 
+/* ── Connection recovery gate ── */
+.connection-gate {
+  position: absolute; inset: 0; z-index: 240;
+  display: grid; place-items: center;
+  padding: calc(24px + var(--safe-t)) calc(24px + var(--safe-r)) calc(24px + var(--safe-b)) calc(24px + var(--safe-l));
+  background: var(--overlay-scrim); pointer-events: auto;
+}
+.connection-gate__card { width: min(440px, 100%); text-align: center; }
+.connection-gate__card h2, .connection-gate__card p { margin: 0; }
+
 /* ── Data table (tank / leaderboard) ── */
 .table { width: 100%; border-collapse: collapse; }
 .table caption { text-align: left; color: var(--text-muted); padding-bottom: 8px; }

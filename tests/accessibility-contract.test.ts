@@ -132,9 +132,9 @@ describe("full-3D accessibility re-proof", () => {
     expect(gameScreen).toContain("settings.controls.keybinds.pause");
     expect(gameScreen).toContain("<PauseMenu");
     expect(death).toContain("respawnRef.current?.focus()");
-    expect(death).toContain("Quit to tank");
-    expect(quickA11y).toContain('label="Exit to tank"');
-    expect(quickA11y).not.toContain("Exit to tank (Escape)");
+    expect(death).toContain("Back to menu");
+    expect(quickA11y).toContain('label="Exit to menu"');
+    expect(quickA11y).not.toContain("Exit to menu (Escape)");
   });
 
   it("reduces 3D presentation motion without removing state, steering, or camera orientation", () => {
@@ -194,6 +194,10 @@ describe("full-3D accessibility re-proof", () => {
     expect(touchControls).toContain('aria-label={label}');
 
     expect(gameScreen).toContain("useFocusTrap(ref, true, onContinue)");
+    expect(gameScreen).toContain("useFocusTrap(ref, true, onBack)");
+    expect(gameScreen).toContain("Tank full — you'll join when a spot opens");
+    expect(gameScreen).toContain("Can't reach the tank");
+    expect(gameScreen).toContain('"assertive"');
     expect(gameScreen).toContain('aria-modal="true"');
     expect(gameScreen).toContain('aria-describedby="round-result-summary round-result-next"');
     expect(gameScreen).toContain("dismissedResultRound !== roundUi.number && !dialogOpen");

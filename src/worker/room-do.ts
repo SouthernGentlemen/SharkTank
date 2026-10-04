@@ -94,7 +94,6 @@ export class Room implements DurableObject {
     if (url.pathname.endsWith("/replay")) return this.replayResponse(url);
     if (this.maintenance) return new Response("maintenance", { status: 503, headers: { "retry-after": "60" } });
     if (request.method !== "GET" || request.headers.get("Upgrade")?.toLowerCase() !== "websocket") return new Response("expected websocket", { status: 426 });
-    if (this.full()) return new Response("room full", { status: 503, headers: { "retry-after": "5" } });
     const pair = new WebSocketPair(), client = pair[0], server = pair[1];
     const trustedProfileId = request.headers.get("x-profile-id");
     const profileId = trustedProfileId && /^[a-f0-9-]{36}$/.test(trustedProfileId) ? trustedProfileId : null;
@@ -118,9 +117,9 @@ export class Room implements DurableObject {
     const msg = parsedMessage.message;
     if (msg.t === "hello") {
       if (session.joined) return;
-      // Seats are taken here, not at the upgrade: a socket that has not said hello yet is
-      // still joined:false, so the upgrade check alone lets one client open N sockets and
-      // then claim every seat at once. Re-check before this session becomes a player.
+      // Seats are claimed only after hello. Accepting the socket first lets a full tank
+      // close it with 1013 so the client can distinguish "full" from "unreachable".
+      // Re-check here so one client cannot open N unjoined sockets and then claim every seat.
       if (this.full()) return this.close(ws, 1013, "room full");
       session.name = sanitizeDisplayName(msg.name); session.skin = SKINS.some((s) => s.id === msg.skin) ? msg.skin : "cyan"; session.joined = true;
       this.applyAndLog({ type: "join", playerId: session.id, name: session.name, skin: session.skin });
