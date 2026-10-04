@@ -1256,3 +1256,53 @@ On 2026-10-02 the owner directed that this SharkTank material be deleted from th
 **Scope:** Semantic minor release after the owner records the layout, zoom, screen-reader, contrast and visual-readability rows on a real phone and a desktop browser.
 
 **Acceptance:** `v2.5.0` is live. Protected approval is honored; stop and report if it is pending.
+
+---
+
+### ST-222 — [OPS] Rehearse the Room transfer to the sharktank Worker
+
+**Goal:** Phase 4 of the Cloudflare consolidation renames `wizardgangprod` to `sharktank`. Prove how `Room` crosses that boundary before production does.
+
+**Scope**
+- On a scratch Worker pair, deploy the current `Room` under an old name, then a new name with a `transferred_classes` migration from the old Worker's `Room`, and record what state and connections survive.
+- Read production `Room` storage (read only). After ST-144 nothing should be stored. If it is empty, record the owner-approved fallback: a fresh `Room` class under `sharktank`, with no transfer.
+- Delete the scratch Workers. Record the commands, results and decision on the PR.
+
+**Acceptance:** The PR states transfer or fresh class with evidence, and the exact migration block ST-223 commits.
+
+---
+
+### ST-223 — [OPS] Adopt the shared wg-edge shell and the baseline deploy workflow as the sharktank Worker
+
+**Goal:** SharkTank runs on baseline's shared Worker shell, conforming config and single deploy path. Baseline's `config/cloudflare.json` and `config/secrets.json` are the authority.
+
+**Scope**
+- Vendor baseline `platform/` verbatim from a merged baseline commit (BASE-028 or later), and commit the `platform/vendor.lock.json` that `npm run vendor:lock -- <commit>` prints in baseline.
+- Replace `wrangler.jsonc` with one conforming top-level Worker:
+  - name and `WG_APP` `sharktank`, with custom domain `sharktank.wizardgang.ai`;
+  - compatibility date 2026-08-31 with `nodejs_compat`;
+  - `workers_dev` and `preview_urls` false, and observability on;
+  - `Room` as the only Durable Object, with the ST-222 migration;
+  - no cron, D1, R2 or KV;
+  - `ASSETS`, plus Secrets Store bindings for `WG_OPS_TOKEN` and `WG_SESSION_KEY` with the store ID the owner recorded in baseline runbook step 3.5;
+  - no `env` blocks.
+- `node platform/conformance/cli.mjs wrangler --worker sharktank` passes.
+- The Worker entry uses `createEdge`. The shell provides the host guard, `/version.json`, headers, errors and 404s. The app handler serves `/` → `/play/`, `/play/`, assets and the tank WebSocket.
+- The release path calls `Wizard-Gang/baseline/.github/workflows/deploy-worker.yml` pinned to a merged baseline commit with `worker: sharktank`, never `secrets: inherit`. Remove the in-repo deploy workflow, its scripts and the `PRODUCTION_DEPLOY_ENABLED` gate; the `production` environment approval replaces it. Nothing reads `secrets.CLOUDFLARE_ACCOUNT_ID`.
+
+**Acceptance:** `npm run check` runs the vendored `pin` and `wrangler` conformance checks, local acceptance plays a round, and no deploy happens in this task.
+
+---
+
+### ST-224 — [OPS] Release the sharktank cut-over as v2.6.0
+
+**Goal:** The first deploy through `deploy-worker.yml` creates the `sharktank` Worker and moves `sharktank.wizardgang.ai` from `wizardgangprod`.
+
+**Scope**
+- Semantic minor release. Before deploying, check how the locked wrangler treats a custom domain still attached to `wizardgangprod`. If it refuses non-interactively, the owner detaches it from the old Worker immediately before the deploy.
+- Owner follow-up from baseline's runbooks:
+  - retire `wizardgangprod` (R3), once `npm run verify:cloudflare` lists no `wizardgangprod` Durable Object;
+  - retire `wizardgang-demo-assets` (R1), now that ST-148 is deployed;
+  - delete the `production` secret `CLOUDFLARE_ACCOUNT_ID` (now a variable) and the `PRODUCTION_DEPLOY_ENABLED` variable.
+
+**Acceptance:** `v2.6.0` is live as `sharktank` at 100% of traffic. `https://sharktank.wizardgang.ai/version.json` reports `sharktank`, 2.6.0 and the tag commit, and a full round plays. Baseline `npm run verify:cloudflare` shows no `sharktank` drift. Protected approval is honored; stop and report if it is pending.
