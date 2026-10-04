@@ -39,7 +39,7 @@ function GameDocument() {
           <main id="boot">
             <h1>Wizard Gang Shark Tank</h1>
             <p>
-              Realtime multiplayer Shark Tank. Swim a shark in one of four tanks, eat to grow,
+              Realtime multiplayer Shark Tank. Swim a shark in SharkTank, eat to grow,
               and race the leaderboard. The game is loading.
             </p>
             <p>

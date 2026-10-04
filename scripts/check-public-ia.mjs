@@ -79,7 +79,7 @@ async function verifyRoomWebSocket() {
   let socket;
   try {
     const welcome = await new Promise((resolve, reject) => {
-      socket = new WebSocket(`${wsBase}/room/room-1/ws?roomName=Tank%201`);
+      socket = new WebSocket(`${wsBase}/room/room-1/ws`);
       let settled = false;
       let timer;
       const finish = (error, value) => {
@@ -220,8 +220,9 @@ async function main() {
   if (!evidence.includes('id="status-autoupdate"') || !evidence.includes("Pause auto-update")) fail("/evidence/ lost the accessible live-refresh control");
   const serviceRows = (evidence.match(/data-log-row="1"/g) || []).length;
   if (serviceRows > 100) fail(`/evidence/ renders ${serviceRows} service rows; expected at most 100`);
-  for (const room of ["room-1", "room-2", "room-3", "room-4"]) {
-    if (!evidence.includes(`href="/logs/game/${room}.txt"`)) fail(`/evidence/ lost the 24-hour TXT download for ${room}`);
+  if (!evidence.includes('href="/logs/game/room-1.txt"')) fail("/evidence/ lost the 24-hour TXT download for room-1");
+  for (const room of ["room-2", "room-3", "room-4"]) {
+    if (evidence.includes(`href="/logs/game/${room}.txt"`)) fail(`/evidence/ still exposes retired tank log ${room}`);
   }
   const health = await request("/api/health");
   if (health.status !== 200) fail(`/api/health expected 200, got ${health.status}`);
@@ -235,6 +236,10 @@ async function main() {
   if (tank.status !== 200) fail(`/api/tank expected 200, got ${tank.status}`);
   const tankBody = await tank.json().catch(() => null);
   if (!tankBody?.ok || !Array.isArray(tankBody?.rooms)) fail("/api/tank response shape changed");
+  const onlyRoom = tankBody?.rooms?.[0];
+  if (tankBody?.rooms?.length !== 1 || onlyRoom?.id !== "room-1" || onlyRoom?.name !== "SharkTank" || onlyRoom?.capacity !== 8 || onlyRoom?.bots !== 24) {
+    fail(`/api/tank expected only room-1 as SharkTank with 8 human seats and 24 bots, got ${JSON.stringify(tankBody?.rooms)}`);
+  }
 
   const profile = await request("/api/profile");
   if (profile.status !== 200) fail(`/api/profile expected 200, got ${profile.status}`);
@@ -251,6 +256,12 @@ async function main() {
 
   const roomWithoutUpgrade = await request("/room/room-1/ws");
   if (roomWithoutUpgrade.status !== 426) fail(`non-upgraded room route expected 426, got ${roomWithoutUpgrade.status}`);
+  for (const retiredRoom of ["room-2", "room-3", "room-4"]) {
+    const retiredSocket = await request(`/room/${retiredRoom}/ws`);
+    if (retiredSocket.status !== 404) fail(`retired WebSocket route ${retiredRoom} expected 404, got ${retiredSocket.status}`);
+    const retiredLog = await request(`/logs/game/${retiredRoom}.txt`);
+    if (retiredLog.status !== 404) fail(`retired game log ${retiredRoom} expected 404, got ${retiredLog.status}`);
+  }
   await verifyRoomWebSocket();
 
   const unknownApi = await request("/api/not-a-real-endpoint");

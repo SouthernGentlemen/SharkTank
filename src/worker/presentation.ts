@@ -673,8 +673,8 @@ function formatWindow(ms: number): string {
   return `${mins}m`;
 }
 
-const AUDIT_ROOMS = ["room-1", "room-2", "room-3", "room-4"];
-const AUDIT_ROOM_NAMES: Record<string, string> = { "room-1": "Pacific", "room-2": "Atlantic", "room-3": "Indian", "room-4": "Arctic" };
+const AUDIT_ROOMS = ["room-1"];
+const AUDIT_ROOM_NAMES: Record<string, string> = { "room-1": "SharkTank" };
 interface IncidentRecord { id: string; title: string; cause: string; status: "active" | "resolved"; startedAt: string | number; resolvedAt: string | number | null; impactEndedAt?: string | number | null; summary: string }
 interface ControlHistoryEntry { sequence: number; ts: number; code: string; actor: string; title: string; summary: string; reference: string | null; detail: string | null; previousHash: string; hash: string }
 interface ControlHistoryIntegrity {

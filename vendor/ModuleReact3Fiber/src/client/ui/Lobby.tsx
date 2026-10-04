@@ -4,7 +4,7 @@
 //
 // The table is the read; there is deliberately no live region mirroring it. A region
 // holding every tank's counts is rewritten on each three-second poll — top score moves
-// whenever anyone is playing — so it re-announced the whole four-tank sentence forever.
+// whenever anyone is playing — so it re-announced the whole tank-list sentence forever.
 // What is announced instead is the handful of transitions a player waiting for a seat
 // actually needs: a tank filling up, a tank opening again, a tank arriving or leaving.
 // Score churn produces no diff and therefore no speech.
@@ -45,7 +45,7 @@ export function Lobby({
           seen.current = now;
           if (firstLoad.current) {
             firstLoad.current = false;
-            announce(`${data.rooms.length} tanks available.`);
+            announce(data.rooms.length === 1 ? `${data.rooms[0]?.name ?? "SharkTank"} available.` : `${data.rooms.length} tanks available.`);
           } else {
             // One message per poll, listing only what moved. The announcer drops a message
             // identical to the one before it, which is survivable here because a tank cannot
@@ -83,7 +83,7 @@ export function Lobby({
 
         <div className="lobby-table-scroll">
           <table className="table">
-            <caption className="sr-only">Available ocean tanks: 32 sharks each, with live player counts and top scores. Updated every three seconds.</caption>
+            <caption className="sr-only">Available SharkTank server: 8 player seats plus 24 bots, with live player counts and top scores. Updated every three seconds.</caption>
             <thead>
               <tr>
                 <th scope="col">Tank</th>
