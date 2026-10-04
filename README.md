@@ -1,6 +1,6 @@
 # SharkTank
 
-SharkTank is a realtime full-3D multiplayer shark game at `/play/`, backed by authoritative Cloudflare Durable Objects. The same Worker serves a short overview at `/`, live operations and billing evidence at `/evidence/`, and an authenticated operator console at `/admin/`.
+SharkTank is a realtime full-3D multiplayer shark game at `/play/`, backed by authoritative Cloudflare Durable Objects. Production exposes one gameplay tank: `room-1`, displayed as **SharkTank**, with 8 human seats and 24 server-authoritative bots. The same Worker serves a short overview at `/`, live operations and billing evidence at `/evidence/`, and an authenticated operator console at `/admin/`.
 
 ## Command map
 

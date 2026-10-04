@@ -20,7 +20,7 @@ browser ── HTTPS ──> Worker router ──> Lobby Durable Object
 - `/play/` — the interactive realtime full-3D game.
 - `/admin/` — the authenticated operator console and operator-only actions.
 
-The Lobby Durable Object uses the stable name `global`. Room objects use stable room identifiers. Durable Object class names, migration tag `v1`, environment identity and storage bindings are stateful compatibility boundaries.
+The Lobby Durable Object uses the stable name `global`. The only routable gameplay Room is stable id `room-1`, displayed as **SharkTank**; `room-2` through `room-4` are retired at the Worker boundary. Durable Object class names, migration tag `v1`, environment identity and storage bindings are stateful compatibility boundaries.
 
 ## Worker, engine and renderer boundaries
 

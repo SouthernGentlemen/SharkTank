@@ -92,7 +92,8 @@ function lobbyStub(env: Env): DurableObjectStub {
   return env.LOBBY.get(env.LOBBY.idFromName("global"));
 }
 
-const ALLOWED_ROOMS = new Set(["room-1", "room-2", "room-3", "room-4"]);
+const ROOM_ID = "room-1", ROOM_NAME = "SharkTank";
+const ALLOWED_ROOMS = new Set([ROOM_ID]);
 const PUBLIC_AUDIT_TYPES = new Set(["play", "customize"]);
 function cookie(request: Request, name: string): string | null {
   const found = request.headers.get("cookie")?.split(";").map((v) => v.trim()).find((v) => v.startsWith(name + "="));
@@ -435,13 +436,13 @@ export default {
       // ── WebSocket → Room DO ────────────────────────────────────────────────
       const roomId = parseRoomPath(path);
       if (roomId) {
-        if (request.method !== "GET" || request.headers.get("Upgrade")?.toLowerCase() !== "websocket") return new Response("WebSocket upgrade required", { status: 426 });
         if (!ALLOWED_ROOMS.has(roomId)) return json({ ok: false, error: "unknown room" }, 404);
+        if (request.method !== "GET" || request.headers.get("Upgrade")?.toLowerCase() !== "websocket") return new Response("WebSocket upgrade required", { status: 426 });
         const origin = request.headers.get("origin");
         if (origin && new URL(origin).host !== url.host) return json({ ok: false, error: "origin rejected" }, 403);
         const id = env.ROOM.idFromName(roomId);
         const stub = env.ROOM.get(id);
-        const name = url.searchParams.get("roomName") ?? roomId;
+        const name = ROOM_NAME;
         const fwd = new URL(request.url);
         fwd.searchParams.set("roomId", roomId);
         fwd.searchParams.set("roomName", name);

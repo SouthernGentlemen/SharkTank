@@ -99,6 +99,27 @@ describe("ST-131 full-3D product acceptance", () => {
     expect(state.round).toMatchObject({ number: 2, phase: "active" });
   });
 
+  it("serves only room-1 as SharkTank with eight human seats and twenty-four bots", () => {
+    const worker = read("../src/worker/index.ts");
+    const lobby = read("../src/worker/lobby-do.ts");
+    const room = read("../src/worker/room-do.ts");
+    const presentation = read("../src/worker/presentation.ts");
+    const gameDocument = read("../src/client/game-document.tsx");
+
+    expect(worker).toContain('const ROOM_ID = "room-1", ROOM_NAME = "SharkTank";');
+    expect(worker).toContain("const ALLOWED_ROOMS = new Set([ROOM_ID]);");
+    expect(lobby).toContain('const CATALOG = [{ id: "room-1", name: "SharkTank" }] as const;');
+    for (const retiredRoom of ["room-2", "room-3", "room-4"]) {
+      expect(lobby).not.toContain(`id: "${retiredRoom}"`);
+      expect(presentation).not.toContain(`"${retiredRoom}"`);
+    }
+    expect(room).toContain('const ROOM_NAME = "SharkTank";');
+    expect(room).toContain("CAPACITY = 8, BOT_COUNT = SHARK_CAPACITY - CAPACITY");
+    expect(presentation).toContain('const AUDIT_ROOMS = ["room-1"];');
+    expect(presentation).toContain('{ "room-1": "SharkTank" }');
+    expect(gameDocument).toContain("Swim a shark in SharkTank");
+  });
+
   it("accepts desktop keyboard, optional mouse look and independent mobile dual-stick intent", () => {
     const desktop = desktopAxesForPressed(
       new Set([

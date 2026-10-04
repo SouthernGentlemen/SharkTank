@@ -45,6 +45,8 @@ describe("React game document", () => {
     expect(html).toContain('id="root"');
     expect(html).toContain('id="boot"');
     expect(html).toContain("<h1>Wizard Gang Shark Tank</h1>");
+    expect(html).toContain("Swim a shark in SharkTank");
+    expect(html).not.toContain("one of four tanks");
     expect(html).toContain("The game is loading.");
     expect(html).toContain('href="/evidence/"');
     expect(html).toContain('<script type="module" src="/src/client/main.tsx"></script>');

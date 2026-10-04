@@ -10,7 +10,7 @@ The owner played production `v2.0.0-r1` and found it chunky, hard to play and no
 - **Better music**, a clean mobile UI and smoother animation.
 - **Minimal overhead and no telemetry.** The ISO-era evidence and operations machinery is retired completely, along with all dead code.
 
-The queue comes from two code deep dives plus live production measurements taken on 2026-10-02. The permanent empty-queue rule that authorized this plan-only refill states: `The queue is empty. Select no implementation task.` That sentence describes the pre-change state only; ST-139 below is the first open task. Work only the first open task. Keep later tasks and their order unless the owner changes priority. Each task is sized for about ten minutes of focused implementation; CI, review, merge and release approval are extra.
+The queue comes from two code deep dives plus live production measurements taken on 2026-10-02. The permanent empty-queue rule that authorized this plan-only refill states: `The queue is empty. Select no implementation task.` That sentence describes the pre-change state only. Work only the first open task. Keep later tasks and their order unless the owner changes priority. Each task is sized for about ten minutes of focused implementation; CI, review, merge and release approval are extra.
 
 ### What the deep dives found
 
@@ -141,21 +141,6 @@ Tasks follow these defaults unless the owner changes them before the task starts
 On 2026-10-02 the owner directed that this SharkTank material be deleted from the website. That work belongs to the website repository's own queue and should ship before SharkTank `v2.1.0`. SharkTank adds nothing to replace it.
 
 ## Open tasks
-
-### ST-139 — [FEAT] Serve one tank of eight players and twenty-four bots
-
-**Goal:** Three of four production tanks are broken and the owner wants a single tank. Serve only `room-1`, the healthy Pacific object, as "SharkTank".
-
-**Scope**
-- The Worker's allowed rooms, the Lobby tank list and every per-room loop cover `room-1` only. WebSocket and log routes for `room-2`–`room-4` return 404.
-- One display name ("SharkTank") replaces the four ocean names in the Room, announcements and the game document's boot copy.
-- Capacity stays 8 humans plus 24 bots.
-
-**Acceptance:** Only `room-1` accepts players; other tank ids return 404 in local acceptance.
-
-**Validation:** `npm run check:local-http`; `npm test -- tests/game-document.test.tsx tests/full-3d-product-acceptance.test.ts`.
-
----
 
 ### ST-140 — [FEAT] Join the tank straight from Play and handle a full tank
 
