@@ -6,10 +6,11 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { clampPitch, normalizeYaw, shortestYawDelta, TICKS_PER_SECOND } from "../../engine/index.js";
 import { parseRealtimeServerMessage, withRealtimeProtocol, type ClientMessagePayload, type NetState, type ScoreEntry } from "../../protocol/index.js";
+import { connectionAfterClose, connectionAfterWelcome, type ConnectionStatus } from "./roomConnectionState.js";
 
 const TICK_MS = 1000 / TICKS_PER_SECOND;
 
-export type ConnectionStatus = "connecting" | "open" | "closed" | "incompatible";
+export type { ConnectionStatus } from "./roomConnectionState.js";
 
 export interface DeathInfo {
   by: string | null;
@@ -47,6 +48,7 @@ export interface RoomSocket {
   setBoost: (on: boolean) => void;
   bite: () => void;
   respawn: () => void;
+  retry: () => void;
 }
 
 function wsUrl(roomId: string, roomName: string): string {
@@ -69,6 +71,7 @@ export function useRoomSocket(
   // time, so a late packet cannot make every remote entity visibly speed up or stall.
   const timelineOriginRef = useRef<number | null>(null);
   const wsRef = useRef<WebSocket | null>(null);
+  const retryNowRef = useRef<() => void>(() => {});
   const lastOrientationRef = useRef({ yaw: Infinity, pitch: Infinity });
   const lastOrientationSentAtRef = useRef(0);
   const lastBoostRef = useRef<boolean>(false);
@@ -132,27 +135,29 @@ export function useRoomSocket(
   useEffect(() => {
     if (!roomId) return;
     let closedByUs = false;
-    let retry = 0;
+    let failedAttempts = 0;
     let reconnectTimer: ReturnType<typeof setTimeout> | null = null;
 
-    const connect = () => {
-      setStatus("connecting");
+    const clearReconnectTimer = () => {
+      if (!reconnectTimer) return;
+      clearTimeout(reconnectTimer);
+      reconnectTimer = null;
+    };
+
+    const connect = (keepFullStatus = false) => {
+      if (closedByUs) return;
+      clearReconnectTimer();
+      if (!keepFullStatus) setStatus(failedAttempts === 0 ? "connecting" : "reconnecting");
       const ws = new WebSocket(wsUrl(roomId, roomName));
       wsRef.current = ws;
 
       ws.onopen = () => {
-        retry = 0;
-        setStatus("open");
         send({ t: "hello", name: identityRef.current.name, skin: identityRef.current.skin });
       };
 
       ws.onmessage = (ev) => {
         let raw: unknown;
-        try {
-          raw = JSON.parse(ev.data as string) as unknown;
-        } catch {
-          return;
-        }
+        try { raw = JSON.parse(ev.data as string) as unknown; } catch { return; }
         const parsed = parseRealtimeServerMessage(raw);
         if (!parsed.ok) {
           if (parsed.reason === "stale-schema") {
@@ -164,7 +169,10 @@ export function useRoomSocket(
         }
         const msg = parsed.message;
         switch (msg.t) {
-          case "welcome":
+          case "welcome": {
+            const transition = connectionAfterWelcome();
+            failedAttempts = transition.failedAttempts;
+            setStatus(transition.status);
             bufferRef.current = [];
             timelineOriginRef.current = null;
             setYouId(msg.youId);
@@ -172,17 +180,13 @@ export function useRoomSocket(
             pushSnapshot(msg.state);
             setDeath(null);
             break;
-          case "state":
-            pushSnapshot(msg.state);
-            break;
-          case "leaderboard":
-            setLeaderboard(msg.entries);
-            break;
+          }
+          case "state": pushSnapshot(msg.state); break;
+          case "leaderboard": setLeaderboard(msg.entries); break;
           case "died":
             setDeath({ by: msg.by, action: msg.action, tick: msg.tick, score: msg.score, respawnInMs: msg.respawnInMs, at: performance.now() });
             break;
-          case "pong":
-            break;
+          case "pong": break;
         }
       };
 
@@ -193,27 +197,31 @@ export function useRoomSocket(
           return;
         }
         if (closedByUs) return;
-        setStatus("closed");
         if (event.code === 1012 && event.reason === "maintenance") {
           window.location.assign("/");
           return;
         }
-        // Exponential backoff reconnect (cap ~4s).
-        retry += 1;
-        const delay = Math.min(4000, 250 * 2 ** retry);
-        reconnectTimer = setTimeout(connect, delay);
+        const transition = connectionAfterClose(event.code, event.reason, failedAttempts);
+        failedAttempts = transition.failedAttempts;
+        setStatus(transition.status);
+        if (transition.retryInMs !== null) {
+          reconnectTimer = setTimeout(() => connect(transition.status === "full"), transition.retryInMs);
+        }
       };
-
       ws.onerror = () => ws.close();
     };
 
+    retryNowRef.current = () => {
+      if (closedByUs) return;
+      clearReconnectTimer();
+      failedAttempts = 0;
+      connect();
+    };
     connect();
 
-    // Closing/leaving the page ends the session immediately (server drops the player) and
-    // prevents a reconnect — you're "locked out" until you come back through the menu.
     const onPageHide = () => {
       closedByUs = true;
-      if (reconnectTimer) clearTimeout(reconnectTimer);
+      clearReconnectTimer();
       wsRef.current?.close();
     };
     window.addEventListener("pagehide", onPageHide);
@@ -221,7 +229,8 @@ export function useRoomSocket(
 
     return () => {
       closedByUs = true;
-      if (reconnectTimer) clearTimeout(reconnectTimer);
+      retryNowRef.current = () => {};
+      clearReconnectTimer();
       window.removeEventListener("pagehide", onPageHide);
       window.removeEventListener("beforeunload", onPageHide);
       wsRef.current?.close();
@@ -263,6 +272,7 @@ export function useRoomSocket(
     send({ t: "input", action: { type: "respawn" } });
   }, [send]);
   const bite = useCallback(() => send({ t: "input", action: { type: "bite" } }), [send]);
+  const retry = useCallback(() => retryNowRef.current(), []);
 
   return {
     stateRef,
@@ -276,5 +286,6 @@ export function useRoomSocket(
     setBoost,
     bite,
     respawn,
+    retry,
   };
 }

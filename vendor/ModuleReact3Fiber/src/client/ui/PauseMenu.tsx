@@ -32,7 +32,7 @@ export function PauseMenu({
         <div className="stack">
           <button className="btn btn--primary btn--lg btn--block" onClick={onResume}>Resume</button>
           <button className="btn btn--block" onClick={onSettings}>Settings</button>
-          <button className="btn btn--block" onClick={onQuit}>Quit to tank</button>
+          <button className="btn btn--block" onClick={onQuit}>Back to menu</button>
         </div>
         <p className="dialog-note">
           Press <kbd>{pauseLabel}</kbd> to resume.

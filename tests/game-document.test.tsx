@@ -22,7 +22,6 @@ const mountedPresentationSource = [
   "../vendor/ModuleReact3Fiber/src/client/ui/GameScreen.tsx",
   "../vendor/ModuleReact3Fiber/src/client/ui/HelpOverlay.tsx",
   "../vendor/ModuleReact3Fiber/src/client/ui/Leaderboard.tsx",
-  "../vendor/ModuleReact3Fiber/src/client/ui/Lobby.tsx",
   "../vendor/ModuleReact3Fiber/src/client/ui/MainMenu.tsx",
   "../vendor/ModuleReact3Fiber/src/client/ui/DepthRadar.tsx",
   "../vendor/ModuleReact3Fiber/src/client/ui/PauseMenu.tsx",
