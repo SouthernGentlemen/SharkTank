@@ -5,6 +5,7 @@ import { GAME_LOG_SCHEMA_VERSION, bootstrapRoomSnapshot, shouldRotateGameLogSche
 // A tank holds 32 sharks: up to SHARK_CAPACITY - BOT_COUNT humans, with bots making up
 // the rest so a lightly-populated tank still feels like a full lobby.
 const SHARK_CAPACITY = 32, CAPACITY = 8, BOT_COUNT = SHARK_CAPACITY - CAPACITY;
+const ROOM_NAME = "SharkTank";
 const OCEAN_RADIUS = 82;
 const LEADERBOARD_EVERY = TICKS_PER_SECOND * 2, REPORT_EVERY = TICKS_PER_SECOND * 30;
 const STATE_BROADCAST_EVERY = 2; // 20Hz authoritative simulation, 10Hz snapshots.
@@ -23,7 +24,7 @@ export class Room implements DurableObject {
   private readonly sessions = new Map<WebSocket, Session>();
   private timer: ReturnType<typeof setInterval> | null = null;
   private roomId = "room-local";
-  private roomName = "Tank";
+  private roomName = ROOM_NAME;
   private booted = false;
   private maintenance = false;
   private activeMs = 0;
@@ -69,7 +70,7 @@ export class Room implements DurableObject {
       if (snapshotBoot.persistSnapshot) { await this.ctx.storage.put("snapshot", this.room); this.storageRowsWritten += 1; }
       const bootRowsRead = this.storageRowsRead, bootRowsWritten = this.storageRowsWritten;
       const meta = await this.ctx.storage.get<RoomMeta>("meta");
-      if (meta) { this.roomId = meta.roomId; this.roomName = meta.roomName; this.booted = meta.booted; this.maintenance = meta.maintenance ?? false; this.activeMs = meta.activeMs ?? 0; this.activeSince = null; this.wsMessages = meta.wsMessages ?? 0; this.connections = meta.connections ?? 0; this.storageWrites = meta.storageWrites ?? 0; this.storageRowsRead = (meta.storageRowsRead ?? 0) + bootRowsRead + 1; this.storageRowsWritten = (meta.storageRowsWritten ?? meta.storageWrites ?? 0) + bootRowsWritten; this.lastProfileResultRound = meta.lastProfileResultRound ?? 0; }
+      if (meta) { this.roomId = meta.roomId; this.roomName = ROOM_NAME; this.booted = meta.booted; this.maintenance = meta.maintenance ?? false; this.activeMs = meta.activeMs ?? 0; this.activeSince = null; this.wsMessages = meta.wsMessages ?? 0; this.connections = meta.connections ?? 0; this.storageWrites = meta.storageWrites ?? 0; this.storageRowsRead = (meta.storageRowsRead ?? 0) + bootRowsRead + 1; this.storageRowsWritten = (meta.storageRowsWritten ?? meta.storageWrites ?? 0) + bootRowsWritten; this.lastProfileResultRound = meta.lastProfileResultRound ?? 0; }
       else this.storageRowsRead += 1;
       for (const ws of this.ctx.getWebSockets()) {
         const a = ws.deserializeAttachment() as SessionAttachment | null;
@@ -82,7 +83,7 @@ export class Room implements DurableObject {
 
   async fetch(request: Request): Promise<Response> {
     const url = new URL(request.url);
-    this.roomId = url.searchParams.get("roomId") ?? this.roomId; this.roomName = cleanRoomName(url.searchParams.get("roomName") ?? this.roomName);
+    this.roomId = url.searchParams.get("roomId") ?? this.roomId; this.roomName = ROOM_NAME;
     if (url.pathname.endsWith("/maintenance")) {
       this.maintenance = url.searchParams.get("enabled") === "1";
       if (this.maintenance) for (const ws of [...this.sessions.keys()]) this.close(ws, 1012, "maintenance");
@@ -234,5 +235,4 @@ export class Room implements DurableObject {
   private replayResponse(url: URL): Response { const toTick = Math.max(0, Math.min(this.room.tick, Math.trunc(Number(url.searchParams.get("tick") ?? this.room.tick)))); if (toTick > 100_000) return roomJson({ ok: false, error: "replay tick exceeds safety limit" }, 422); const logs = this.logs(); if (logs.length && logs[0].tick > 0) return roomJson({ ok: false, error: "complete replay history has expired" }, 410); const state = replay({ seed: this.room.seed, id: this.roomId, botCount: BOT_COUNT }, logs, toTick); return roomJson({ ok: true, roomId: this.roomId, schemaVersion: GAME_LOG_SCHEMA_VERSION, tick: toTick, state: toNetState(state) }); }
 }
 
-function cleanRoomName(value: string): string { return value.replace(/[^a-zA-Z0-9 '-]/g, "").slice(0, 32) || "Tank"; }
 function roomJson(data: unknown, status = 200): Response { return new Response(JSON.stringify(data), { status, headers: { "content-type": "application/json; charset=utf-8", "cache-control": "no-store", "x-content-type-options": "nosniff" } }); }

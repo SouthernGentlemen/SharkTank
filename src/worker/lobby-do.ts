@@ -5,12 +5,8 @@ import type {
 import { sanitizeDisplayName } from "module-react3fiber/protocol";
 import { DEFAULT_SKIN, SKINS } from "module-react3fiber/engine";
 
-const CATALOG = [
-  { id: "room-1", name: "Pacific" },
-  { id: "room-2", name: "Atlantic" },
-  { id: "room-3", name: "Indian" },
-  { id: "room-4", name: "Arctic" },
-] as const;
+const CATALOG = [{ id: "room-1", name: "SharkTank" }] as const;
+const ROOM_IDS = new Set<string>(CATALOG.map(({ id }) => id));
 // Human seats per tank. Bots fill the rest of the 32-shark roster (see room-do.ts).
 const CAPACITY = 8,
   STALE_MS = 70_000;
@@ -436,6 +432,7 @@ export class Lobby implements DurableObject {
     void this.ctx.blockConcurrencyWhile(async () => {
       let bootstrapReads = 0;
       this.usage = (await this.ctx.storage.get<Usage>("usage")) ?? this.usage;
+      this.usage.roomsSeen = this.usage.roomsSeen.filter((id) => ROOM_IDS.has(id));
       this.spendHistory = (await this.ctx.storage.get<SpendSample[]>("spendHistory")) ?? [];
       bootstrapReads += 1;
       this.dayBaseline = (await this.ctx.storage.get<DayBaseline>("dayBaseline")) ?? null;
@@ -527,7 +524,7 @@ export class Lobby implements DurableObject {
       const reports =
         (await this.ctx.storage.get<Record<string, Report>>("reports")) ?? {};
       bootstrapReads += 1;
-      for (const [id, report] of Object.entries(reports))
+      for (const [id, report] of Object.entries(reports).filter(([id]) => ROOM_IDS.has(id)))
         this.reports.set(id, {
           ...report,
           bots: report.bots ?? 24,
@@ -759,7 +756,7 @@ export class Lobby implements DurableObject {
     if (path.endsWith("/profile")) return this.profile(request);
     if (path.endsWith("/report") && request.method === "POST") {
       const b = await safeJson<TankRoom & { topName?: string }>(request);
-      if (!b || !CATALOG.some((r) => r.id === b.id))
+      if (!b || !ROOM_IDS.has(b.id))
         return json({ ok: false, error: "invalid room" }, 400);
       const metrics = b as TankRoom & {
         topName?: string;
@@ -1227,7 +1224,7 @@ export class Lobby implements DurableObject {
     );
     this.usage.events += 1;
     this.countWrites(1);
-    if (ev.room && !this.usage.roomsSeen.includes(ev.room))
+    if (ev.room && ROOM_IDS.has(ev.room) && !this.usage.roomsSeen.includes(ev.room))
       this.usage.roomsSeen.push(ev.room);
     this.ctx.waitUntil(this.ctx.storage.put("usage", this.usage));
   }
@@ -2283,6 +2280,7 @@ export class Lobby implements DurableObject {
    */
   private async reloadFromStorage(): Promise<void> {
     this.usage = (await this.ctx.storage.get<Usage>("usage")) ?? this.usage;
+    this.usage.roomsSeen = this.usage.roomsSeen.filter((id) => ROOM_IDS.has(id));
     this.spendHistory = (await this.ctx.storage.get<SpendSample[]>("spendHistory")) ?? [];
     this.dayBaseline = (await this.ctx.storage.get<DayBaseline>("dayBaseline")) ?? null;
     this.maintenance = (await this.ctx.storage.get<MaintenanceState>("maintenance")) ?? { enabled: false, changedAt: 0, reason: "" };
@@ -2290,7 +2288,7 @@ export class Lobby implements DurableObject {
     this.r2Snapshot = (await this.ctx.storage.get<R2Snapshot>("r2Snapshot")) ?? this.r2Snapshot;
     this.reports.clear();
     const reports = (await this.ctx.storage.get<Record<string, Report>>("reports")) ?? {};
-    for (const [id, report] of Object.entries(reports)) this.reports.set(id, report);
+    for (const [id, report] of Object.entries(reports).filter(([id]) => ROOM_IDS.has(id))) this.reports.set(id, report);
     const billingWindow = await this.ctx.storage.get<BillingWindow>("billingWindow");
     if (billingWindow) this.billingWindow = billingWindow;
     this.profileStats = (await this.ctx.storage.get<ProfileStats>("profileStats")) ?? null;

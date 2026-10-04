@@ -128,7 +128,9 @@ describe("Room persisted-state schema boundary", () => {
     expect(source).toContain('this.ctx.storage.put("gameLogSchemaVersion", GAME_LOG_SCHEMA_VERSION)');
     expect(source).toContain('if (snapshotBoot.persistSnapshot) { await this.ctx.storage.put("snapshot", this.room)');
     expect(source).toContain('snapshotBoot.source.endsWith("-reset")');
-    expect(source).toMatch(/this\.roomName = meta\.roomName/);
+    expect(source).toContain('const ROOM_NAME = "SharkTank"');
+    expect(source).toMatch(/this\.roomName = ROOM_NAME/);
+    expect(source).not.toMatch(/this\.roomName = meta\.roomName/);
     expect(source).toMatch(/this\.maintenance = meta\.maintenance \?\? false/);
     expect(source).toMatch(/this\.activeMs = meta\.activeMs \?\? 0/);
   });
