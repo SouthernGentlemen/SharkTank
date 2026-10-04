@@ -56,10 +56,13 @@ export function GameScreen({ room, identity, onAuthoritativeResult, onQuit }: Ga
   const portraitLocked = useTouchPortraitLock(touch);
   const roundUi = useRoundPresentation(socket, onAuthoritativeResult);
   const [dismissedResultRound, setDismissedResultRound] = useState(0);
+  const hasAnnouncedEntry = useRef(false);
 
   useEffect(() => {
+    if (socket.status !== "open" || hasAnnouncedEntry.current) return;
+    hasAnnouncedEntry.current = true;
     announce(`Entered ${room.name}. Playing as ${identity.name}.`);
-  }, [room.name, identity.name, announce]);
+  }, [socket.status, room.name, identity.name, announce]);
 
   const handleQuit = useCallback(() => {
     announce("Left the tank.");
@@ -100,7 +103,8 @@ export function GameScreen({ room, identity, onAuthoritativeResult, onQuit }: Ga
   // Every modal ownership transition disables gameplay input, which also releases held
   // flight/look/ability state in useLocalInput.
   const dialogOpen = settingsOpen || helpOpen || paused;
-  const inputEnabled = !dialogOpen && !socket.death;
+  const connectionBlocked = socket.status === "full" || socket.status === "unreachable";
+  const inputEnabled = !dialogOpen && !socket.death && socket.status === "open";
   const gameplayEnabled = inputEnabled && !portraitLocked && roundUi?.phase !== "result";
 
   return (
@@ -126,7 +130,7 @@ export function GameScreen({ room, identity, onAuthoritativeResult, onQuit }: Ga
       {touch && <TouchControls inputRef={touchInputRef} flightSide={stickSide} enabled={gameplayEnabled} portraitLocked={portraitLocked} />}
       {settings.audio.captions && <Captions caption={caption} />}
 
-      {roundUi?.phase === "result" && dismissedResultRound !== roundUi.number && !dialogOpen && (
+      {roundUi?.phase === "result" && dismissedResultRound !== roundUi.number && !dialogOpen && !connectionBlocked && (
         <RoundResult
           round={roundUi}
           onContinue={() => setDismissedResultRound(roundUi.number)}
@@ -135,14 +139,24 @@ export function GameScreen({ room, identity, onAuthoritativeResult, onQuit }: Ga
 
       {/* Connection banner. Always mounted — see conn-banner:empty in theme.css. */}
       <div role="status" className="conn-banner">
-        {socket.status === "open" ? "" : socket.status === "connecting" ? "Connecting…" : socket.status === "incompatible" ? "Game update required. Reload to reconnect." : "Reconnecting…"}
+        {socket.status === "connecting"
+          ? "Connecting…"
+          : socket.status === "reconnecting"
+            ? "Reconnecting…"
+            : socket.status === "incompatible"
+              ? "Game update required. Reload to reconnect."
+              : ""}
       </div>
 
-      {socket.death && roundUi?.phase !== "result" && (
+      {(socket.status === "full" || socket.status === "unreachable") && (
+        <ConnectionGate status={socket.status} onRetry={socket.retry} onBack={handleQuit} />
+      )}
+
+      {socket.death && roundUi?.phase !== "result" && !connectionBlocked && (
         <DeathOverlay death={socket.death} onRespawn={socket.respawn} onQuit={handleQuit} />
       )}
 
-      {paused && !settingsOpen && !helpOpen && (
+      {paused && !settingsOpen && !helpOpen && !connectionBlocked && (
         <PauseMenu
           onResume={() => setPaused(false)}
           onSettings={() => setSettingsOpen(true)}
@@ -150,9 +164,52 @@ export function GameScreen({ room, identity, onAuthoritativeResult, onQuit }: Ga
           pauseLabel={keyLabel(settings.controls.keybinds.pause)}
         />
       )}
-      {settingsOpen && <Settings onClose={closeSettings} />}
-      {helpOpen && <HelpOverlay onClose={closeHelp} />}
+      {settingsOpen && !connectionBlocked && <Settings onClose={closeSettings} />}
+      {helpOpen && !connectionBlocked && <HelpOverlay onClose={closeHelp} />}
     </main>
+  );
+}
+
+function ConnectionGate({ status, onRetry, onBack }: {
+  status: "full" | "unreachable";
+  onRetry: () => void;
+  onBack: () => void;
+}) {
+  const ref = useRef<HTMLDivElement>(null);
+  const { announce } = useAnnouncer();
+  const full = status === "full";
+  const title = full ? "Tank full — you'll join when a spot opens" : "Can't reach the tank";
+
+  useFocusTrap(ref, true, onBack);
+  useEffect(() => {
+    announce(
+      full
+        ? "Tank full. You'll join when a spot opens. Retrying every 5 seconds."
+        : "Can't reach the tank. Retry or go back.",
+      "assertive",
+    );
+  }, [full, announce]);
+
+  return (
+    <div className="connection-gate">
+      <div
+        ref={ref}
+        className="panel stack connection-gate__card"
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="connection-gate-title"
+        aria-describedby="connection-gate-detail"
+      >
+        <h2 id="connection-gate-title" className="dialog-title">{title}</h2>
+        <p id="connection-gate-detail" className="dialog-note">
+          {full ? "Retrying automatically every 5 seconds." : "Three connection attempts failed. Check your connection and try again."}
+        </p>
+        <div className="stack">
+          {!full && <button className="btn btn--primary btn--lg btn--block" onClick={onRetry}>Retry</button>}
+          <button className={full ? "btn btn--primary btn--lg btn--block" : "btn btn--block"} onClick={onBack}>Back</button>
+        </div>
+      </div>
+    </div>
   );
 }
 

@@ -17,7 +17,7 @@ export function QuickA11y({ onQuit, onHelp, onSettings, collapsed = false }: { o
   const musicOn = au.master > 0 && au.music > 0;
   const toggleMusic = () => update("audio", { music: musicOn ? 0 : 0.5, master: au.master === 0 ? 0.8 : au.master });
 
-  const exit = <IconButton key="exit" icon="exit" label="Exit to tank" onClick={onQuit} />;
+  const exit = <IconButton key="exit" icon="exit" label="Exit to menu" onClick={onQuit} />;
   const music = <button key="music" type="button" className={musicOn ? "icon-button is-active" : "icon-button"} aria-pressed={musicOn} aria-label={`Music: ${musicOn ? "on" : "off"}`} title={`Music: ${musicOn ? "on" : "off"}`} onClick={toggleMusic}><Icon name={musicOn ? "volume" : "volumeOff"} /></button>;
   const help = <IconButton key="help" icon="help" label="Controls" onClick={onHelp} />;
   const display = [

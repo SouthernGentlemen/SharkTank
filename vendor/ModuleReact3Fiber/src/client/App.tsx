@@ -1,4 +1,4 @@
-// App shell + screen state machine: Menu → Tank → Game, with Customize and Settings
+// App shell + screen state machine: Menu → Game, with Customize and Settings
 // reachable from the menu. Wraps everything in the Settings + Announcer providers,
 // renders the skip link and the #main landmark, loads/saves the player profile, and
 // manages focus on screen transitions (moving focus to the new screen's region).
@@ -8,15 +8,15 @@ import "./ui/theme.css";
 import { SettingsProvider, useSettings } from "./settings/SettingsContext.js";
 import { AnnouncerProvider, useAnnouncer } from "./a11y/announcer.js";
 import { MainMenu } from "./ui/MainMenu.js";
-import { Lobby } from "./ui/Lobby.js";
 import { Customize } from "./ui/Customize.js";
 import { Settings } from "./ui/Settings.js";
 import { logUserAction } from "./net/audit.js";
 import { API, type ProfileResponse } from "../protocol/index.js";
 import { DEFAULT_SKIN } from "../engine/index.js";
 
-type Screen = "menu" | "tank" | "customize" | "settings" | "game";
+type Screen = "menu" | "customize" | "settings" | "game";
 const GameScreen = lazy(() => import("./ui/GameScreen.js").then((module) => ({ default: module.GameScreen })));
+const SHARKTANK_ROOM = { id: "room-1", name: "SharkTank" } as const;
 
 export interface AppProps {
   /** Base URL for the server API. Defaults to same origin. */
@@ -40,7 +40,6 @@ function Shell({ baseUrl }: { baseUrl: string }) {
   const [name, setName] = useState("Player");
   const [skin, setSkin] = useState(DEFAULT_SKIN);
   const [best, setBest] = useState(0);
-  const [room, setRoom] = useState<{ id: string; name: string } | null>(null);
   const regionRef = useRef<HTMLDivElement>(null);
 
   // Load the persisted profile once.
@@ -77,7 +76,6 @@ function Shell({ baseUrl }: { baseUrl: string }) {
     if (screen !== "menu" && screen !== "game") regionRef.current?.focus();
     const titles: Record<Screen, string> = {
       menu: "Main menu",
-      tank: "Shark Tank list",
       customize: "Customize",
       settings: "Settings",
       game: "In game",
@@ -85,14 +83,10 @@ function Shell({ baseUrl }: { baseUrl: string }) {
     announce(titles[screen]);
   }, [screen, announce]);
 
-  const join = useCallback(
-    (r: { id: string; name: string }) => {
-      logUserAction({ type: "play", subject: name || "Player", room: r.id, detail: r.name }, baseUrl);
-      setRoom(r);
-      setScreen("game");
-    },
-    [name, baseUrl],
-  );
+  const play = useCallback(() => {
+    logUserAction({ type: "play", subject: name || "Player", room: SHARKTANK_ROOM.id, detail: SHARKTANK_ROOM.name }, baseUrl);
+    setScreen("game");
+  }, [name, baseUrl]);
 
   return (
     <>
@@ -105,12 +99,11 @@ function Shell({ baseUrl }: { baseUrl: string }) {
             <MainMenu
               playerName={name}
               best={best}
-              onPlay={() => setScreen("tank")}
+              onPlay={play}
               onCustomize={() => setScreen("customize")}
               onSettings={() => setScreen("settings")}
             />
           )}
-          {screen === "tank" && <Lobby playerName={name} onJoin={join} onBack={() => setScreen("menu")} baseUrl={baseUrl} />}
           {screen === "customize" && (
             <Customize
               name={name}
@@ -127,16 +120,14 @@ function Shell({ baseUrl }: { baseUrl: string }) {
           {screen === "settings" && <SettingsScreen onBack={() => setScreen("menu")} />}
         </div>
       ) : (
-        room && (
-          <Suspense fallback={<main id="main" className="center-screen" aria-live="polite">Loading tank…</main>}>
-            <GameScreen
-              room={room}
-              identity={{ name: name || "Player", skin }}
-              onAuthoritativeResult={(score) => setBest((current) => Math.max(current, score))}
-              onQuit={() => setScreen("tank")}
-            />
-          </Suspense>
-        )
+        <Suspense fallback={<main id="main" className="center-screen" aria-live="polite">Loading tank…</main>}>
+          <GameScreen
+            room={SHARKTANK_ROOM}
+            identity={{ name: name || "Player", skin }}
+            onAuthoritativeResult={(score) => setBest((current) => Math.max(current, score))}
+            onQuit={() => setScreen("menu")}
+          />
+        </Suspense>
       )}
     </>
   );

@@ -71,7 +71,7 @@ export function DeathOverlay({
             {ready ? "Respawn" : `Respawn in ${remaining}…`}
           </button>
           <button className="btn btn--block" onClick={onQuit}>
-            Quit to tank
+            Back to menu
           </button>
         </div>
         <p className="respawn-note">The tools below stay live while you wait.</p>
