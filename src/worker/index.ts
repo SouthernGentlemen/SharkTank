@@ -1,5 +1,5 @@
 // Local host Worker: serves the built R3F client (via ASSETS), a small JSON API
-// (tank / profile / audit) backed by the Lobby DO, and
+// (health / tank) backed by the Lobby DO, and
 // upgrades /room/:id/ws WebSockets into the Room Durable Object.
 //
 // Imports ONLY the server-safe entry points of module-react3fiber (never the client),
@@ -53,67 +53,12 @@ import {
  */
 
 
-/**
- * Read a request body with a hard byte ceiling, enforced on the bytes that actually arrive.
- *
- * `Content-Length` is absent on a chunked request, so a cap read from that header alone is
- * simply not applied to a body sent with `Transfer-Encoding: chunked` — the check passes on
- * `Number(null) === 0`. The header is still consulted first, because refusing an oversized
- * body before reading it is cheaper, but it is an optimisation rather than the control: the
- * stream is counted as it is consumed and cancelled the moment it passes the cap.
- *
- * Returns null when the body is too large. The caller turns that into a 413.
- */
-const BODY_CAP_BYTES = 16_384;
-async function readCappedBody(request: Request, cap = BODY_CAP_BYTES): Promise<string | null> {
-  const declared = Number(request.headers.get("content-length") ?? NaN);
-  if (Number.isFinite(declared) && declared > cap) return null;
-  const stream = request.body;
-  if (!stream) return "";
-  const reader = stream.getReader();
-  const chunks: Uint8Array[] = [];
-  let total = 0;
-  for (;;) {
-    const { done, value } = await reader.read();
-    if (done) break;
-    if (!value) continue;
-    total += value.byteLength;
-    if (total > cap) { await reader.cancel().catch(() => {}); return null; }
-    chunks.push(value);
-  }
-  const joined = new Uint8Array(total);
-  let offset = 0;
-  for (const chunk of chunks) { joined.set(chunk, offset); offset += chunk.byteLength; }
-  return new TextDecoder().decode(joined);
-}
-
-
 function lobbyStub(env: Env): DurableObjectStub {
   return env.LOBBY.get(env.LOBBY.idFromName("global"));
 }
 
 const ROOM_ID = "room-1", ROOM_NAME = "SharkTank";
 const ALLOWED_ROOMS = new Set([ROOM_ID]);
-const PUBLIC_AUDIT_TYPES = new Set(["play", "customize"]);
-function cookie(request: Request, name: string): string | null {
-  const found = request.headers.get("cookie")?.split(";").map((v) => v.trim()).find((v) => v.startsWith(name + "="));
-  return found ? decodeURIComponent(found.slice(name.length + 1)) : null;
-}
-function profileId(request: Request): { id: string; fresh: boolean } {
-  const existing = cookie(request, "wg_player");
-  return existing && /^[a-f0-9-]{36}$/.test(existing) ? { id: existing, fresh: false } : { id: crypto.randomUUID(), fresh: true };
-}
-/**
- * Rate-limit identity for unauthenticated public writes. It must not be anything the
- * client chooses: `wg_player` is the caller's own cookie, so omitting it mints a fresh
- * identity — and a fresh bucket — on every request. CF-Connecting-IP is stamped by the
- * edge and cannot be set by the client. When it is absent (`wrangler dev`) every caller
- * falls into one shared bucket, which limits harder rather than softer.
- */
-function connectionRateKey(request: Request): string {
-  return request.headers.get("cf-connecting-ip") ?? "edge";
-}
-
 /** Loopback only — traffic that never leaves the machine, so `wrangler dev` still works. */
 function isLoopback(url: URL): boolean {
   const host = url.hostname.replace(/^\[|\]$/g, "");
@@ -187,11 +132,6 @@ async function maintenanceState(env: Env, fresh = false): Promise<MaintenanceSta
   return state;
 }
 /**
- * The public writes that cost money: each one is a write into the single global Lobby
- * Durable Object, which is what the metered spend is mostly made of.
- */
-const METERED_PUBLIC_WRITES = new Set<string>([API.profile, "/api/audit"]);
-/**
  * Paths that keep answering while the gate is closed.
  *
  * The gate closes for two reasons: an operator opens it deliberately, or measured spend
@@ -204,13 +144,11 @@ const METERED_PUBLIC_WRITES = new Set<string>([API.profile, "/api/audit"]);
  * finds out *why* the service stopped, and a transparency estate that goes dark at exactly
  * the moment it has something to explain is worth nothing.
  */
-function maintenanceBypass(path: string, method: string): boolean {
-  if (METERED_PUBLIC_WRITES.has(path) && method !== "GET" && method !== "HEAD") return false;
+function maintenanceBypass(path: string, _method: string): boolean {
   // The stylesheet and enhancement script used by the surviving Worker-rendered pages.
   if (path.startsWith("/styles/") || path === "/assets/human-docs.js") return true;
   return path === "/" || path === "/robots.txt" || path === "/sitemap.xml" ||
-    path === API.health || path === API.tank || path === API.profile ||
-    path === "/api/audit" ||
+    path === API.health || path === API.tank ||
     path === "/status.json" || path === "/spend.json" ||
     path === "/evidence" || path === "/evidence/" ||
     path.startsWith("/logs/game/") ||
@@ -446,15 +384,7 @@ export default {
         const fwd = new URL(request.url);
         fwd.searchParams.set("roomId", roomId);
         fwd.searchParams.set("roomName", name);
-        const headers = new Headers(request.headers);
-        // Never trust a caller-authored profile header. The HttpOnly cookie is the
-        // existing profile identity boundary and only the Worker may translate it.
-        headers.delete("x-profile-id");
-        const playerProfile = cookie(request, "wg_player");
-        if (playerProfile && /^[a-f0-9-]{36}$/.test(playerProfile)) {
-          headers.set("x-profile-id", playerProfile);
-        }
-        return stub.fetch(new Request(fwd.toString(), { method: request.method, headers }));
+        return stub.fetch(new Request(fwd.toString(), request));
       }
 
       // ── HTTP API ───────────────────────────────────────────────────────────
@@ -471,60 +401,57 @@ export default {
         return stub.fetch("https://lobby/list");
       }
 
-      // Profile read/write. The write is unauthenticated by design — one GET mints a
-      // `wg_player` cookie and that cookie is the whole identity — so the cookie cannot be
-      // the throttle key: dropping it buys a fresh identity and a fresh allowance on every
-      // request. `x-rate-key` is built here from the edge connection, exactly as /api/audit
-      // does, and the DO buckets the write on it. Both the body cap and the key are set from
-      // scratch so a client-supplied copy of either never reaches the Durable Object.
-      if (path === API.profile) {
-        if (request.method !== "GET" && request.method !== "POST") return json({ ok: false, error: "method not allowed" }, 405);
-        const owner = profileId(request);
-        let body: string | undefined;
-        if (request.method === "POST") {
-          const read = await readCappedBody(request);
-          if (read === null) return json({ ok: false, error: "payload too large" }, 413);
-          body = read;
+      if (path.startsWith("/api/")) return json({ ok: false, error: "service gated", reason: state.reason || "Safety control active" }, 503);
+          const response = html(renderDowntimeDocument(state), 503);
+          response.headers.set("retry-after", "60");
+          response.headers.set("cache-control", "no-store");
+          return response;
         }
-        const headers = new Headers(request.headers);
-        headers.set("x-profile-id", owner.id);
-        headers.set("content-type", "application/json");
-        headers.set("x-rate-key", connectionRateKey(request));
-        headers.delete("content-length");
-        const res = await lobbyStub(env).fetch("https://lobby/profile", { method: request.method, headers, body });
-        if (!owner.fresh) return res;
-        const out = new Response(res.body, res); out.headers.append("set-cookie", `wg_player=${owner.id}; Path=/; HttpOnly; SameSite=Strict; Max-Age=31536000${url.protocol === "https:" ? "; Secure" : ""}`); return out;
+      }
+      // The page stylesheet, ahead of every other route and of static asset dispatch. Only
+      // the current fingerprint is served: any other /styles/ path is an explicit miss, so a
+      // text/css request can never be answered with the game document.
+      if (path === PAGE_CSS_PATH) return pageCssResponse();
+      if (path.startsWith("/styles/")) return new Response("Not found", { status: 404, headers: { "content-type": "text/plain; charset=utf-8", "cache-control": "no-store", ...SECURITY_HEADERS } });
+
+      if (path === "/play") return movedTo(url, "/play/");
+      if (path === "/favicon.ico") return new Response(null, { status: 404, headers: { "cache-control": "public, max-age=3600", ...SECURITY_HEADERS } });
+      if (path === "/robots.txt") return new Response("User-agent: *\nAllow: /\nDisallow: /admin/\nDisallow: /logs/game/\nDisallow: /*.json$\nDisallow: /*.jsonl$\nSitemap: https://sharktank.wizardgang.ai/sitemap.xml\n", { headers: { "content-type": "text/plain; charset=utf-8", "cache-control": "public, max-age=3600", ...SECURITY_HEADERS } });
+      if (path === "/sitemap.xml") {
+        const routes = CANONICAL_HUMAN_ROUTES;
+        const body = `<?xml version="1.0" encoding="UTF-8"?><urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">${routes.map((route) => `<url><loc>https://sharktank.wizardgang.ai${route}</loc></url>`).join("")}</urlset>`;
+        return new Response(body, { headers: { "content-type": "application/xml; charset=utf-8", "cache-control": "public, max-age=3600", ...SECURITY_HEADERS } });
       }
 
-      // Client-emitted user actions → the Lobby DO's 90-day user log.
-      if (path === "/api/audit" && request.method === "POST") {
-        const owner = profileId(request);
-        const raw = await readCappedBody(request);
-        if (raw === null) return json({ ok: false, error: "payload too large" }, 413);
-        let body: { type?: string; room?: string; detail?: string };
-        try { body = JSON.parse(raw) as { type?: string; room?: string; detail?: string }; } catch { return json({ ok: false, error: "invalid JSON" }, 400); }
-        if (!body.type || !PUBLIC_AUDIT_TYPES.has(body.type)) return json({ ok: false, error: "unsupported public event type" }, 400);
-        const room = typeof body.room === "string" && ALLOWED_ROOMS.has(body.room) ? body.room : undefined;
-        if (body.type === "play" && !room) return json({ ok: false, error: "valid room required" }, 400);
-        const detail = body.type === "play"
-          ? `Selected ${room}`
-          : /^skin [a-z0-9-]{1,32}$/i.test(body.detail ?? "")
-            ? body.detail
-            : "Profile customization opened";
-        // One Durable Object call, not two. x-rate-key is built here from the edge
-        // connection and marks this event as publicly written: the Lobby DO buckets on it
-        // instead of on the caller's cookie, and holds these rows to their own retention
-        // floor. The display name is resolved inside the DO, behind that rate limit, so a
-        // rejected flood costs no profile read. Both headers are built from scratch, so
-        // client-supplied copies never reach the DO.
-        const auditRes = await lobbyStub(env).fetch("https://lobby/event", {
-          method: "POST",
-          headers: { "content-type": "application/json", "x-actor-id": owner.id, "x-rate-key": connectionRateKey(request), "x-profile-id": owner.id },
-          body: JSON.stringify({ ts: Date.now(), type: body.type, room, detail }),
-        });
-        const response = auditRes.status === 429 ? json({ ok: false, error: "rate limited" }, 429) : json({ ok: auditRes.ok }, auditRes.ok ? 200 : 400);
-        if (owner.fresh) response.headers.append("set-cookie", `wg_player=${owner.id}; Path=/; HttpOnly; SameSite=Strict; Max-Age=31536000${url.protocol === "https:" ? "; Secure" : ""}`);
-        return response;
+
+      // ── WebSocket → Room DO ────────────────────────────────────────────────
+      const roomId = parseRoomPath(path);
+      if (roomId) {
+        if (!ALLOWED_ROOMS.has(roomId)) return json({ ok: false, error: "unknown room" }, 404);
+        if (request.method !== "GET" || request.headers.get("Upgrade")?.toLowerCase() !== "websocket") return new Response("WebSocket upgrade required", { status: 426 });
+        const origin = request.headers.get("origin");
+        if (origin && new URL(origin).host !== url.host) return json({ ok: false, error: "origin rejected" }, 403);
+        const id = env.ROOM.idFromName(roomId);
+        const stub = env.ROOM.get(id);
+        const name = ROOM_NAME;
+        const fwd = new URL(request.url);
+        fwd.searchParams.set("roomId", roomId);
+        fwd.searchParams.set("roomName", name);
+        return stub.fetch(new Request(fwd.toString(), request));
+      }
+
+      // ── HTTP API ───────────────────────────────────────────────────────────
+      if (path === API.health) {
+        return json({ ok: true, module: "module-react3fiber", release: env.SHARKTANK_RELEASE ?? "unknown", revision: env.SHARKTANK_RELEASE_REVISION ?? "unknown", time: new Date().toISOString() });
+      }
+
+      if (path === "/version.json") {
+        return json({ product: "SharkTank", release: env.SHARKTANK_RELEASE ?? "unknown", revision: env.SHARKTANK_RELEASE_REVISION ?? "unknown", environment: env.ENVIRONMENT ?? "unknown" });
+      }
+
+      if (path === API.tank) {
+        const stub = env.LOBBY.get(env.LOBBY.idFromName("global"));
+        return stub.fetch("https://lobby/list");
       }
 
       if (path.startsWith("/api/")) return json({ ok: false, error: "unknown endpoint" }, 404);

@@ -51,7 +51,7 @@ See [docs/ACCESSIBILITY.md](docs/ACCESSIBILITY.md), [docs/PRODUCT-ACCEPTANCE.md]
 
 ## Operations and security
 
-Public HTTP and WebSocket input is untrusted. The Worker enforces request/message bounds, allowed rooms and event types, origin checks, rate limits, TLS for operator traffic, strict response security headers, and server-side authority over simulation and score. Durable Objects own authoritative Lobby and Room state; the browser is not authoritative.
+Public HTTP and WebSocket input is untrusted. The Worker enforces request/message bounds, allowed rooms, origin checks, rate limits, TLS for operator traffic, strict response security headers, and server-side authority over simulation and score. Player name, skin, best score and settings stay in one device-local browser record; they are not profile or telemetry writes. Durable Objects still own authoritative operational and Room state; browser preferences never become competitive authority.
 
 The public evidence surface intentionally exposes redacted live status, billing, incidents, control receipts, continuity results, recent service logs, and bounded per-room text logs. Operator routes under `/admin/` require platform-secret credentials; state-changing actions also require same-origin action headers and leave control receipts.
 

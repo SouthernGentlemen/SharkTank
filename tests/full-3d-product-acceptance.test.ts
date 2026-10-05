@@ -127,6 +127,33 @@ describe("ST-131 full-3D product acceptance", () => {
     expect(gameDocument).toContain("Swim a shark in SharkTank");
   });
 
+  it("keeps player data on-device and removes client telemetry/storage plumbing", () => {
+    const app = read("../vendor/ModuleReact3Fiber/src/client/App.tsx");
+    const settings = read("../vendor/ModuleReact3Fiber/src/client/settings/SettingsContext.tsx");
+    const menu = read("../vendor/ModuleReact3Fiber/src/client/ui/MainMenu.tsx");
+    const worker = read("../src/worker/index.ts");
+    const room = read("../src/worker/room-do.ts");
+    const lobby = read("../src/worker/lobby-do.ts");
+    const protocol = read("../vendor/ModuleReact3Fiber/src/protocol/index.ts");
+
+    expect(settings).toContain('const STORAGE_KEY = "sharktank.player.v1"');
+    expect(settings).toContain('const LEGACY_SETTINGS_KEY = "snakeio.settings.v1"');
+    expect(settings).toContain("settings: normalizeSettings(legacy)");
+    expect(settings).toContain("recordBest");
+    expect(app).not.toContain("fetch(");
+    expect(app).not.toContain("logUserAction");
+    expect(app).toContain("onAuthoritativeResult={recordBest}");
+    expect(menu).toContain("· skin {skin} · best {best}");
+    for (const retired of ["/api/profile", "/api/audit", "wg_player", "x-profile-id", "profile-result"]) {
+      expect(worker).not.toContain(retired);
+      expect(room).not.toContain(retired);
+    }
+    expect(protocol).not.toContain('profile: "/api/profile"');
+    expect(lobby).not.toContain('path.endsWith("/profile")');
+    expect(lobby).not.toContain('path.endsWith("/profile-result")');
+    expect(lobby).not.toContain('source === "public"');
+  });
+
   it("accepts desktop keyboard, optional mouse look and independent mobile dual-stick intent", () => {
     const desktop = desktopAxesForPressed(
       new Set([
@@ -255,7 +282,8 @@ describe("ST-131 full-3D product acceptance", () => {
     expect(publicIa).toContain('const adminDenied = await request("/admin/");');
     expect(publicIa).toContain("authenticated /admin/ expected 200");
     expect(publicIa).toContain("await verifyRoomWebSocket()");
-    for (const path of ["/api/health", "/api/tank", "/api/profile"]) expect(publicIa).toContain(path);
+    for (const path of ["/api/health", "/api/tank"]) expect(publicIa).toContain(path);
+    expect(publicIa).toContain('for (const retiredClientPath of ["/api/profile", "/api/audit"])');
 
     expect(wrangler).toContain('"name": "ROOM"');
     expect(wrangler).toContain('"class_name": "Room"');

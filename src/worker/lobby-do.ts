@@ -1,9 +1,5 @@
-import type {
-  TankRoom,
-  Profile,
-} from "module-react3fiber/protocol";
+import type { TankRoom } from "module-react3fiber/protocol";
 import { sanitizeDisplayName } from "module-react3fiber/protocol";
-import { DEFAULT_SKIN, SKINS } from "module-react3fiber/engine";
 
 const CATALOG = [{ id: "room-1", name: "SharkTank" }] as const;
 const ROOM_IDS = new Set<string>(CATALOG.map(({ id }) => id));
@@ -13,34 +9,6 @@ const CAPACITY = 8,
 const AUDIT_RETENTION_MS = 90 * 24 * 60 * 60 * 1000,
   AUDIT_MAX_ROWS = 5_000,
   AUDIT_RATE_PER_MINUTE = 60;
-/**
- * Public writes reach the audit log through the unauthenticated /api/audit route, so they
- * get two limits the trusted server-side callers do not: a per-connection bucket plus a
- * global floor across every public caller at once (Lobby is a singleton DO, so an
- * in-memory counter is a real global limit).
- */
-const PUBLIC_AUDIT_RATE_PER_MINUTE = 240;
-/**
- * Profile writes, per edge connection and across every public caller at once.
- *
- * A profile save is a Durable Object write on the one global instance, and the identity it
- * writes under is a cookie the caller mints for itself, so nothing about the caller bounds
- * it. `PROFILE_CAP` bounds how many rows may be *created*; it says nothing about how often
- * an existing row may be overwritten, and an overwrite costs the same write as a creation.
- * These two buckets are what bound the overwrite. The per-minute figures are set well above
- * a person playing — a save happens on a name change or a new best score — and well below a
- * loop.
- */
-const PROFILE_WRITE_RATE_PER_MINUTE = 20;
-const PUBLIC_PROFILE_WRITE_RATE_PER_MINUTE = 120;
-/**
- * The types /api/audit is allowed to write, and the number of such rows kept. Trimming to
- * AUDIT_MAX_ROWS alone means a flood of public rows evicts every server-recorded row from
- * the 90-day log; holding public rows to their own floor means a flood can only evict
- * other public rows, leaving AUDIT_MAX_ROWS - AUDIT_PUBLIC_MAX_ROWS for real evidence.
- */
-const PUBLIC_AUDIT_TYPES = ["play", "customize"] as const,
-  AUDIT_PUBLIC_MAX_ROWS = 1_500;
 /** Ceiling on retained rate buckets, so keying on the connection cannot grow unbounded. */
 const RATE_BUCKET_CAP = 10_000;
 /**
@@ -67,22 +35,6 @@ const CONTROL_HISTORY_HASH_VERSION = 1,
   CONTROL_HISTORY_GENESIS = "0".repeat(64),
   CONTROL_HISTORY_VERIFY_WINDOW = 2_000,
   CONTROL_HISTORY_REVERIFY_MS = 10 * 60 * 1000;
-/**
- * A client with no cookie is handed a fresh identity, so `profile:*` rows are created by
- * anyone who asks for one and nothing ever removed them. The id format is constrained, so
- * this is a volume problem rather than key injection: unlimited minted UUIDs meant
- * unlimited rows. Creation of *new* rows is what gets capped — an existing profile is
- * always readable and always writable, because the cheap fix (evicting rows to make room)
- * would delete real players' saved names and scores to absorb someone else's flood.
- * Eviction is therefore limited to rows that are provably disposable: never seen for the
- * full audit retention window and holding no score at all. Rows written before this cap
- * existed carry no last-seen stamp and are never evicted on that basis.
- */
-const PROFILE_CAP = 2_000,
-  PROFILE_STALE_MS = AUDIT_RETENTION_MS,
-  PROFILE_SCAN_PAGE = 500,
-  PROFILE_SCAN_PAGES = 8,
-  PROFILE_REFUSAL_AUDIT_INTERVAL_MS = 60_000;
 interface Env {
   AUDIT_GENERATION?: string;
   BILLING_HARD_LIMIT_USD?: string;
@@ -221,17 +173,6 @@ interface ControlHistoryVerification {
   /** Cache keys: a new head or a changed row count forces another pass. */
   headSequence: number | null;
   entryCount: number;
-}
-/**
- * What is actually stored under `profile:<id>`. `seenAt` is bookkeeping for the row cap and
- * is never returned to the client, so the public `Profile` shape is unchanged.
- */
-type StoredProfile = Profile & { seenAt?: number };
-interface ProfileStats {
-  count: number;
-  countedAt: number;
-  /** True when the initial count stopped at the scan bound instead of reaching the end. */
-  truncated: boolean;
 }
 interface ControlHistoryInput {
   ts: number;
@@ -393,9 +334,6 @@ export class Lobby implements DurableObject {
   private historyAnchorLoaded = false;
   /** Last verification pass. Cleared implicitly whenever its cache keys stop matching. */
   private historyVerification: ControlHistoryVerification | null = null;
-  /** Row count for `profile:*`. Null until the first count; see `profileStatsNow`. */
-  private profileStats: ProfileStats | null = null;
-  private lastProfileRefusalAuditAt = 0;
   /** Mirrors the `backupState` key. Loaded on first use, written on every backup event. */
   private backupState: BackupState | null = null;
 
@@ -752,8 +690,6 @@ export class Lobby implements DurableObject {
       });
       return json({ ok: true, billingWindow: await this.billing(), history });
     }
-    if (path.endsWith("/profile-result")) return this.profileResult(request);
-    if (path.endsWith("/profile")) return this.profile(request);
     if (path.endsWith("/report") && request.method === "POST") {
       const b = await safeJson<TankRoom & { topName?: string }>(request);
       if (!b || !ROOM_IDS.has(b.id))
@@ -823,32 +759,11 @@ export class Lobby implements DurableObject {
     }
     if (path.endsWith("/event") && request.method === "POST") {
       const actor = request.headers.get("x-actor-id") ?? "server";
-      // x-rate-key is present only on events the Worker forwarded from the public
-      // /api/audit route, and the Worker derives it from the edge connection. x-actor-id
-      // is the caller's own wg_player cookie, so it cannot be the bucket key: dropping
-      // the cookie would hand every request a fresh identity and a fresh allowance.
-      const publicKey = request.headers.get("x-rate-key");
-      const limited = publicKey
-        ? !this.allow(`ip:${publicKey}`) ||
-          !this.allow("public:all", PUBLIC_AUDIT_RATE_PER_MINUTE)
-        : !this.allow(actor);
-      if (limited) return json({ ok: false, error: "rate limited" }, 429);
+      if (!this.allow(actor)) return json({ ok: false, error: "rate limited" }, 429);
       const ev = await safeJson<AuditEvent>(request);
       if (!ev || !validEventType(ev.type))
         return json({ ok: false, error: "invalid event" }, 400);
-      // Public events name their subject by profile id and let the DO resolve it, rather
-      // than costing the Worker a second call: this is a storage read, and it happens only
-      // once the rate limit above has already passed. The Worker sets x-profile-id from
-      // the wg_player cookie it validated, so it is never client-chosen.
-      const profileOwner = request.headers.get("x-profile-id");
-      if (!ev.subject && profileOwner && /^[a-f0-9-]{36}$/.test(profileOwner)) {
-        const profile = await this.ctx.storage.get<Profile>(
-          `profile:${profileOwner}`,
-        );
-        this.usage.storageRowsRead += 1;
-        ev.subject = profile?.name ?? "Player";
-      }
-      this.record(ev, publicKey ? "public" : "server");
+      this.record(ev);
       return json({ ok: true });
     }
     if (path.endsWith("/audit")) {
@@ -877,7 +792,7 @@ export class Lobby implements DurableObject {
         ...(await this.controlHistory(100)),
       });
     // Full state export. The Worker gates this behind operations authentication; it is
-    // every profile and every receipt in one body and must never answer a public request.
+    // every retained operating key and receipt in one body and must never answer a public request.
     if (path.endsWith("/backup") && request.method === "GET")
       return json({ ok: true, export: await this.exportState() });
     // Record the outcome of a copy the Worker has just written to object storage.
@@ -893,8 +808,7 @@ export class Lobby implements DurableObject {
       return json({ ok: true, backup: await this.recordDrill(Boolean(body.ok), clean(body.detail, 240) ?? "") });
     }
     // Wipe. Used to leave nothing behind in the scratch instance a restore drill restores
-    // into: that instance holds a full copy of every player profile, and an orphaned copy
-    // of personal data is not made acceptable by having been created to test a backup.
+    // into: the scratch instance must not retain an orphaned copy of operating data.
     if (path.endsWith("/wipe") && request.method === "POST") {
       const cleared = await this.wipeState();
       return json({ ok: true, cleared });
@@ -909,223 +823,6 @@ export class Lobby implements DurableObject {
     if (path.endsWith("/status"))
       return json({ ok: true, ...(await this.status()) });
     return json({ ok: true, rooms: this.list() });
-  }
-
-  private async profile(request: Request): Promise<Response> {
-    const owner = request.headers.get("x-profile-id");
-    if (!owner || !/^[a-f0-9-]{36}$/.test(owner))
-      return json({ ok: false, error: "invalid profile" }, 400);
-    const key = `profile:${owner}`;
-    const stored = await this.ctx.storage.get<StoredProfile>(key);
-    const previous: StoredProfile = stored ?? {
-      name: "Player",
-      skin: DEFAULT_SKIN,
-      best: 0,
-    };
-    this.usage.storageRowsRead += 1;
-    if (request.method === "GET")
-      return json({ ok: true, profile: publicProfile(previous) });
-    if (request.method !== "POST")
-      return json({ ok: false, error: "method not allowed" }, 405);
-    // Throttle before the body is read and before either branch below. x-rate-key is set by
-    // the Worker from the edge connection; it is never the caller's own cookie, because the
-    // cookie is self-issued. Absent, every caller shares one bucket, which limits harder.
-    const rateKey = request.headers.get("x-rate-key");
-    if (
-      !this.allow(`profile:${rateKey ?? "edge"}`, PROFILE_WRITE_RATE_PER_MINUTE) ||
-      !this.allow("profile:all", PUBLIC_PROFILE_WRITE_RATE_PER_MINUTE)
-    )
-      return json({ ok: false, error: "rate limited" }, 429);
-    const body = await safeJson<Partial<Profile>>(request);
-    if (!body) return json({ ok: false, error: "invalid JSON" }, 400);
-    const skin = SKINS.some((s) => s.id === body.skin)
-      ? body.skin!
-      : previous.skin;
-    const settings =
-      body.settings && JSON.stringify(body.settings).length <= 8_192
-        ? body.settings
-        : previous.settings;
-    const next: StoredProfile = {
-      name: sanitizeDisplayName(body.name ?? previous.name),
-      skin,
-      // Public profile writes own cosmetics/settings only. Round scores are accepted
-      // exclusively from the Room Durable Object through /profile-result.
-      best: previous.best,
-      settings,
-      seenAt: Date.now(),
-    };
-    // Writing over a row that already exists adds nothing to the row count, so the row
-    // ceiling never refuses it and a saved name or score is never lost. The write itself is
-    // still metered: the throttle above applies to both branches.
-    if (stored) {
-      this.countWrites(1);
-      await this.ctx.storage.put(key, next);
-      return json({ ok: true, profile: publicProfile(next), persisted: true });
-    }
-    if (!(await this.admitNewProfile()))
-      // The row is refused, not the request: the client keeps playing under the identity it
-      // asked for and simply gets no server-side copy of it. Failing the save closed would
-      // take the game down for everyone the moment someone decided to mint UUIDs.
-      return json({ ok: true, profile: publicProfile(next), persisted: false });
-    this.countWrites(1);
-    await this.ctx.storage.put(key, next);
-    if (this.profileStats) {
-      this.profileStats.count += 1;
-      this.countWrites(1);
-      this.ctx.waitUntil(this.ctx.storage.put("profileStats", this.profileStats));
-    }
-    return json({ ok: true, profile: publicProfile(next), persisted: true });
-  }
-
-  private async profileResult(request: Request): Promise<Response> {
-    if (request.method !== "POST") return json({ ok: false, error: "method not allowed" }, 405);
-    const owner = request.headers.get("x-profile-id");
-    if (!owner || !/^[a-f0-9-]{36}$/.test(owner)) return json({ ok: false, error: "invalid profile" }, 400);
-    const body = await safeJson<{ best?: unknown; name?: unknown; skin?: unknown }>(request);
-    if (!body || typeof body.best !== "number" || !Number.isFinite(body.best)) {
-      return json({ ok: false, error: "invalid result" }, 400);
-    }
-
-    const key = `profile:${owner}`;
-    const stored = await this.ctx.storage.get<StoredProfile>(key);
-    this.usage.storageRowsRead += 1;
-    const fallbackName = typeof body.name === "string" ? sanitizeDisplayName(body.name) : "Player";
-    const fallbackSkin = typeof body.skin === "string" && SKINS.some((skin) => skin.id === body.skin)
-      ? body.skin
-      : DEFAULT_SKIN;
-    const previous: StoredProfile = stored ?? {
-      name: fallbackName,
-      skin: fallbackSkin,
-      best: 0,
-    };
-    const next: StoredProfile = {
-      ...previous,
-      best: Math.max(previous.best, clampInt(body.best, 0, 1e9)),
-      seenAt: Date.now(),
-    };
-
-    if (stored) {
-      this.countWrites(1);
-      await this.ctx.storage.put(key, next);
-      return json({ ok: true, profile: publicProfile(next), persisted: true });
-    }
-    if (!(await this.admitNewProfile())) {
-      return json({ ok: true, profile: publicProfile(next), persisted: false });
-    }
-    this.countWrites(1);
-    await this.ctx.storage.put(key, next);
-    if (this.profileStats) {
-      this.profileStats.count += 1;
-      this.countWrites(1);
-      this.ctx.waitUntil(this.ctx.storage.put("profileStats", this.profileStats));
-    }
-    return json({ ok: true, profile: publicProfile(next), persisted: true });
-  }
-
-  /**
-   * Decide whether one more `profile:*` row may be created. Under the cap this is a pure
-   * in-memory check; only at the cap does it do any work, and then it sweeps first and
-   * refuses second, in that order.
-   */
-  private async admitNewProfile(): Promise<boolean> {
-    if ((await this.profileStatsNow()).count < PROFILE_CAP) return true;
-    await this.pruneProfiles();
-    if ((this.profileStats?.count ?? PROFILE_CAP) < PROFILE_CAP) return true;
-    // Refusals are the loud case, and an audit row per refused request would let the flood
-    // it exists to bound flood the log instead. One row per minute records that it is
-    // happening without becoming the next amplifier.
-    const now = Date.now();
-    if (now - this.lastProfileRefusalAuditAt >= PROFILE_REFUSAL_AUDIT_INTERVAL_MS) {
-      this.lastProfileRefusalAuditAt = now;
-      this.record({
-        ts: now,
-        type: "profiles-refused",
-        subject: "system",
-        detail: `new player record creation refused at the ${PROFILE_CAP} record ceiling; existing records continue to load and save`,
-      });
-    }
-    return false;
-  }
-  /**
-   * Count `profile:*` rows once, then keep the number in step by hand. The count is paged
-   * and stops at the scan bound rather than reading an unbounded table into memory; a run
-   * that hits the bound is marked truncated, and a truncated count is only ever an
-   * underestimate of a set already past the ceiling, so it still refuses.
-   */
-  private async profileStatsNow(): Promise<ProfileStats> {
-    if (this.profileStats) return this.profileStats;
-    const saved = await this.ctx.storage.get<ProfileStats>("profileStats");
-    this.usage.storageRowsRead += 1;
-    if (saved) {
-      this.profileStats = saved;
-      return saved;
-    }
-    let count = 0,
-      startAfter: string | undefined,
-      truncated = false;
-    for (let page = 0; page < PROFILE_SCAN_PAGES; page += 1) {
-      const batch = await this.ctx.storage.list<StoredProfile>({
-        prefix: "profile:",
-        limit: PROFILE_SCAN_PAGE,
-        startAfter,
-      });
-      this.usage.storageRowsRead += batch.size;
-      count += batch.size;
-      if (batch.size < PROFILE_SCAN_PAGE) break;
-      startAfter = [...batch.keys()].at(-1);
-      if (page === PROFILE_SCAN_PAGES - 1) truncated = true;
-    }
-    this.profileStats = { count, countedAt: Date.now(), truncated };
-    this.countWrites(1);
-    await this.ctx.storage.put("profileStats", this.profileStats);
-    return this.profileStats;
-  }
-  /**
-   * Drop only rows that are provably disposable: last written longer ago than the audit
-   * retention window *and* holding no score at all. A row with a score is somebody's record
-   * and is never dropped; a row with no last-seen stamp predates this cap and is never
-   * dropped either, since there is no evidence it is abandoned. That deliberately leaves a
-   * fresh flood unprunable — the ceiling, not the sweep, is what stops that.
-   */
-  private async pruneProfiles(): Promise<void> {
-    const now = Date.now(),
-      doomed: string[] = [];
-    let startAfter: string | undefined;
-    for (let page = 0; page < PROFILE_SCAN_PAGES; page += 1) {
-      const batch = await this.ctx.storage.list<StoredProfile>({
-        prefix: "profile:",
-        limit: PROFILE_SCAN_PAGE,
-        startAfter,
-      });
-      this.usage.storageRowsRead += batch.size;
-      for (const [profileKey, profile] of batch)
-        if (
-          typeof profile?.seenAt === "number" &&
-          now - profile.seenAt > PROFILE_STALE_MS &&
-          !(profile.best > 0)
-        )
-          doomed.push(profileKey);
-      if (batch.size < PROFILE_SCAN_PAGE) break;
-      startAfter = [...batch.keys()].at(-1);
-    }
-    if (!doomed.length) return;
-    this.countWrites(doomed.length);
-    await this.ctx.storage.delete(doomed);
-    if (this.profileStats) {
-      this.profileStats.count = Math.max(
-        0,
-        this.profileStats.count - doomed.length,
-      );
-      this.profileStats.countedAt = now;
-      this.countWrites(1);
-      await this.ctx.storage.put("profileStats", this.profileStats);
-    }
-    this.record({
-      ts: now,
-      type: "profiles-pruned",
-      subject: "system",
-      detail: `${doomed.length} unused player record${doomed.length === 1 ? "" : "s"} with no score dropped to keep the record count within its limit`,
-    });
   }
 
   /**
@@ -1192,7 +889,7 @@ export class Lobby implements DurableObject {
     for (const [key, bucket] of this.rates)
       if (now - bucket.start >= 60_000) this.rates.delete(key);
   }
-  private record(ev: AuditEvent, source: "server" | "public" = "server"): void {
+  private record(ev: AuditEvent): void {
     const ts = clampInt(
       ev.ts || Date.now(),
       Date.now() - AUDIT_RETENTION_MS,
@@ -1206,17 +903,6 @@ export class Lobby implements DurableObject {
       ev.subject ? sanitizeDisplayName(ev.subject) : null,
       clean(ev.detail, 160),
     );
-    // Publicly written rows are trimmed to their own floor first, so a flood through the
-    // unauthenticated route evicts other public rows instead of server-recorded evidence.
-    if (source === "public") {
-      const placeholders = PUBLIC_AUDIT_TYPES.map(() => "?").join(",");
-      this.trackSql(
-        `DELETE FROM audit WHERE type IN (${placeholders}) AND id NOT IN (SELECT id FROM audit WHERE type IN (${placeholders}) ORDER BY id DESC LIMIT ?)`,
-        ...PUBLIC_AUDIT_TYPES,
-        ...PUBLIC_AUDIT_TYPES,
-        AUDIT_PUBLIC_MAX_ROWS,
-      );
-    }
     this.trackSql(
       "DELETE FROM audit WHERE ts < ? OR id NOT IN (SELECT id FROM audit ORDER BY id DESC LIMIT ?)",
       Date.now() - AUDIT_RETENTION_MS,
@@ -1261,7 +947,7 @@ export class Lobby implements DurableObject {
           rooms: this.usage.roomsSeen.length,
           total: 1 + this.usage.roomsSeen.length,
         },
-        storage: "Durable Object SQLite audit + profiles + game logs",
+        storage: "Durable Object SQLite audit + game logs",
       },
       // Operations-only. In-memory throttles are only worth anything if this object stays
       // resident: a bootId that changes between requests means every rate bucket is being
@@ -1271,7 +957,6 @@ export class Lobby implements DurableObject {
         bootedAt: this.bootedAt,
         residentMs: Date.now() - this.bootedAt,
         rateBuckets: this.rates.size,
-        publicWindowCount: this.rates.get("public:all")?.count ?? 0,
       },
       billingWindow,
       // Shape and timing of the last state copy. Public: it is the only way a reader can
@@ -2214,7 +1899,7 @@ export class Lobby implements DurableObject {
       controlHistory,
       counts: {
         kv: Object.keys(sortedKv).length,
-        profiles: Object.keys(sortedKv).filter((key) => key.startsWith("profile:")).length,
+        profiles: 0,
         audit: audit.length,
         controlHistory: controlHistory.length,
       },
@@ -2291,7 +1976,6 @@ export class Lobby implements DurableObject {
     for (const [id, report] of Object.entries(reports).filter(([id]) => ROOM_IDS.has(id))) this.reports.set(id, report);
     const billingWindow = await this.ctx.storage.get<BillingWindow>("billingWindow");
     if (billingWindow) this.billingWindow = billingWindow;
-    this.profileStats = (await this.ctx.storage.get<ProfileStats>("profileStats")) ?? null;
     this.backupState = (await this.ctx.storage.get<BackupState>("backupState")) ?? null;
     // The anchor and the cached verification both describe the chain that was here a
     // moment ago. Drop them so the next read re-derives them from the restored rows.
@@ -2303,7 +1987,7 @@ export class Lobby implements DurableObject {
   /**
    * Delete every key and both tables. Only ever called on the scratch instance used by a
    * restore drill; the drill's own `finally` calls it whether the drill passed or failed,
-   * so a failed drill does not become the thing that leaves profiles lying around.
+   * so a failed drill does not leave scratch operating data behind.
    */
   private async wipeState(): Promise<number> {
     let startAfter: string | undefined, pages = 0;
@@ -2385,15 +2069,6 @@ export class Lobby implements DurableObject {
     return next;
   }
 }
-/** Strip the internal last-seen bookkeeping before a profile leaves the Worker. */
-function publicProfile(profile: StoredProfile): Profile {
-  return {
-    name: profile.name,
-    skin: profile.skin,
-    best: profile.best,
-    ...(profile.settings ? { settings: profile.settings } : {}),
-  };
-}
 /**
  * The one and only receipt hash. Both the append path and the verifier call this, because
  * two implementations that drift by a single field or key order would make verification
@@ -2453,7 +2128,7 @@ async function hashControlEntry(
 function validEventType(type: unknown): type is string {
   return (
     typeof type === "string" &&
-    /^(room-boot|join|leave|death|play|customize|skin|settings|nav|quit)$/.test(
+    /^(room-boot|join|leave|death)$/.test(
       type,
     )
   );

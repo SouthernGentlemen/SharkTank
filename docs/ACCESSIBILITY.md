@@ -26,4 +26,4 @@ Any failure in those checks is a product defect; the automated proof does not wa
 
 The production renderer is React Three Fiber/WebGL only and gameplay is full X/Y/Z. There is no Canvas2D or planar accessibility fallback. Desktop jet-style flight, mobile dual-stick input, depth-aware non-color cues, semantic DOM equivalents, reduced motion, captions, spatial underwater audio, Apex, Feeding Frenzy, directional bite + burst combat, scoring, prey and movement all consume the same authoritative state.
 
-Local prediction and remote interpolation are presentation paths only. Accessibility and performance settings cannot remove authoritative actors or competitive cues. Room schema 11, realtime protocol 11 and package version 2.0.0 remain current.
+Local prediction and remote interpolation are presentation paths only. Accessibility and performance settings cannot remove authoritative actors or competitive cues. Accessibility settings are stored only in the unified device-local player record and do not create telemetry or server profile writes. Room schema 11 and realtime protocol 11 remain current.
