@@ -122,7 +122,6 @@ describe("ST-131 full-3D product acceptance", () => {
     expect(room).toContain("CAPACITY = 8, BOT_COUNT = SHARK_CAPACITY - CAPACITY");
     expect(room).not.toContain('return new Response("room full", { status: 503');
     expect(room).toContain('if (this.full()) return this.close(ws, 1013, "room full");');
-    expect(presentation).toContain('const AUDIT_ROOMS = ["room-1"];');
     expect(presentation).toContain('{ "room-1": "SharkTank" }');
     expect(gameDocument).toContain("Swim a shark in SharkTank");
   });
@@ -280,8 +279,8 @@ describe("ST-131 full-3D product acceptance", () => {
     expect(localAcceptance).toContain('"CLOUDFLARE_API_TOKEN"');
     expect(publicIa).toContain('const canonical = ["/", "/play/"];');
     expect(publicIa).toContain('"/evidence", "/evidence/", "/status.json", "/spend.json"');
-    expect(publicIa).toContain('const adminDenied = await request("/admin/");');
-    expect(publicIa).toContain("authenticated /admin/ expected 200");
+    expect(publicIa).toContain('for (const adminPath of ["/admin", "/admin/"');
+    expect(publicIa).toContain("POST /admin/maintenance expected 404");
     expect(publicIa).toContain("await verifyRoomWebSocket()");
     expect(publicIa).toContain('const health = await request("/api/health")');
     expect(publicIa).toContain('for (const retiredClientPath of ["/api/tank", "/api/profile", "/api/audit"])');
@@ -321,7 +320,7 @@ describe("ST-131 full-3D product acceptance", () => {
       "Physical touch acceptance",
       "Support-surface acceptance",
       "NOT RUN",
-      "Never use production credentials to satisfy ST-131",
+      "Do not use production credentials for local acceptance",
     ]) expect(manual).toContain(phrase);
   });
 });

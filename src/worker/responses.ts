@@ -1,5 +1,3 @@
-import type { Env } from "./env.js";
-
 /** Applied to every response this Worker emits. HSTS keeps clients off plaintext after one visit. */
 /**
  * CSP for the static asset path — the React game shell, which `html()` never touches.
@@ -90,19 +88,4 @@ function movedTo(url: URL, target: string): Response {
   return new Response(null, { status: 301, headers: { location: `${destination.pathname}${destination.search}${destination.hash}`, "cache-control": "no-store", ...SECURITY_HEADERS } });
 }
 
-function opsDenied(env: Env): Response {
-  // No credential prompt when no token is configured — there is nothing valid to send.
-  const headers: Record<string, string> = { "cache-control": "no-store", ...SECURITY_HEADERS };
-  if (env.OPS_TOKEN) headers["www-authenticate"] = 'Basic realm="WizardGang Ops", charset="UTF-8"';
-  return new Response(env.OPS_TOKEN ? "Operations authentication required" : "Operations authentication is not configured", { status: env.OPS_TOKEN ? 401 : 503, headers });
-}
-function tlsRequired(): Response {
-  return new Response("TLS required. This endpoint refuses plaintext HTTP.", { status: 403, headers: { "cache-control": "no-store", ...SECURITY_HEADERS } });
-}
-
-function ndjson(events: unknown[]): Response {
-  const body = events.map((e) => JSON.stringify(e)).join("\n") + (events.length ? "\n" : "");
-  return new Response(body, { headers: { "content-type": "application/x-ndjson; charset=utf-8", "cache-control": "no-store", "x-robots-tag": "noindex" } });
-}
-
-export { assetCsp, SECURITY_HEADERS, json, mintNonce, html, movedTo, opsDenied, tlsRequired, ndjson };
+export { assetCsp, SECURITY_HEADERS, json, mintNonce, html, movedTo };

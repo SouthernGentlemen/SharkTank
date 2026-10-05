@@ -142,21 +142,6 @@ On 2026-10-02 the owner directed that this SharkTank material be deleted from th
 
 ## Open tasks
 
-### ST-146 — [REFACTOR] Remove the operator console and maintenance gate
-
-**Goal:** The admin console, maintenance switch and operator credentials exist only for the retired operations program.
-
-**Scope**
-- Remove `/admin/*`, operator authentication (`OPS_TOKEN`, `OPS_USERNAME`) and the TLS gate that only protected it. Keep the plain HTTPS redirect.
-- Remove the maintenance gate and downtime document, the Room's maintenance close (1012) and the client's maintenance redirect.
-- Remove the deploy script's operator-secret requirement, the operator notes in `.env.example`, and local acceptance's operator checks.
-
-**Acceptance:** `/admin/` returns 404, and deploy no longer requires operator secrets.
-
-**Validation:** `node --test scripts/deploy-prod-cases.mjs scripts/local-worker-acceptance-cases.mjs`; `npm run check:local-http`; `npm test -- tests/accessibility-contract.test.ts`.
-
----
-
 ### ST-147 — [REFACTOR] Send `/` to the game and delete the Worker document stack
 
 **Goal:** The Worker still renders its own overview and not-found pages, with a dedicated stylesheet, an enhancement script and a CSP nonce kept for Cloudflare's injected analytics.
@@ -175,10 +160,10 @@ On 2026-10-02 the owner directed that this SharkTank material be deleted from th
 
 ### ST-148 — [REFACTOR] Remove billing metering, the spend limit, backups and their bindings
 
-**Goal:** The Lobby still meters usage, enforces a spend limit, and copies its state to R2 on a daily cron.
+**Goal:** The Lobby still meters usage, retains spend-threshold calculations, and copies its state to R2 on a daily cron.
 
 **Scope**
-- Remove the Lobby's billing window, usage counters and spend enforcement, plus the backup, export and restore-drill code and the Worker's `scheduled()` handler.
+- Remove the Lobby's billing window, usage counters and remaining spend-threshold code, plus the backup, export and restore-drill code and the Worker's `scheduled()` handler.
 - From `wrangler.jsonc`, remove the R2 binding, the cron trigger, the version-metadata binding, and the `AUDIT_GENERATION`, `GAME_LOG_GENERATION`, `BILLING_HARD_LIMIT_USD`, `R2_BUCKET_NAME` and `R2_PREFIX` vars. Update the repository-baseline checks.
 
 **Acceptance:** No binding or code path writes to R2 or runs on a schedule.

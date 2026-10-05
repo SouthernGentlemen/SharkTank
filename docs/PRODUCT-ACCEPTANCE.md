@@ -18,7 +18,7 @@ git diff --check HEAD^
 
 The focused product test composes existing deterministic contracts into one acceptance wall for the device-local player record, menu/tank/game lifecycle, death and respawn, authoritative best-score update, round result/reset, desktop and mobile input math, mouse-look mirroring, low/medium/high quality profiles, reduced-motion/high-contrast/caption/color-label presentation hooks, a maximum tracked-shark room, maximum prey bounds, and a sustained authoritative Feeding Frenzy.
 
-The canonical check starts a credential-free local Worker with a test-owned operator token. Its HTTP acceptance covers `/`, `/play/`, unauthenticated and authenticated `/admin/`, the surviving health/tank APIs, explicit 404s for retired `/evidence/`, `/status.json`, `/spend.json`, `/api/profile` and `/api/audit`, static game assets, and an upgraded Room Durable Object WebSocket hello/welcome exchange. Provider credentials are stripped from that local process.
+The canonical check starts a credential-free local Worker. Its HTTP acceptance covers `/`, `/play/`, 404s for `/admin/*`, the surviving health/tank APIs, explicit 404s for retired `/evidence/`, `/status.json`, `/spend.json`, `/api/profile` and `/api/audit`, static game assets, and an upgraded Room Durable Object WebSocket hello/welcome exchange. Provider credentials are stripped from that local process.
 
 The repository baseline and product acceptance also pin the compatibility boundaries surrounding the accepted full-3D release: package version 2.0.0 with tracked release revision 1, wire state schema 11, realtime protocol 11, Durable Object classes `Room` and `Lobby`, migration tag `v1`, bindings, squash-only GitHub settings, protected `verify`, immutable release tags, release-before-deploy sequencing, and the protected production environment.
 
@@ -68,12 +68,12 @@ The automated local HTTP gate is the primary deterministic proof. For a manual b
 
 - `/` renders the overview.
 - `/evidence/`, `/status.json`, and `/spend.json` return 404; `/version.json` remains available for release identity.
-- `/admin/` rejects an unauthenticated request and renders the operator console only with the test environment's acceptance credential.
+- `/admin/` and its former data and mutation routes return 404 without an authentication challenge.
 - `/api/health` returns its current JSON contract.
 - `/api/tank`, `/api/profile`, `/api/audit`, and `/logs/game/room-1.txt` return 404; the browser keeps name, skin, best score and settings in one device-local record and sends no client telemetry.
 - `/room/<room-id>/ws` upgrades only as a WebSocket, accepts protocol 11 hello/input, and returns authoritative protocol 11 state.
 
-Never use production credentials to satisfy ST-131.
+Do not use production credentials for local acceptance.
 
 ## Acceptance record
 

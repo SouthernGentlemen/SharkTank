@@ -1,6 +1,6 @@
 # SharkTank
 
-SharkTank is a realtime full-3D multiplayer shark game at `/play/`, backed by authoritative Cloudflare Durable Objects. Production exposes one gameplay tank: `room-1`, displayed as **SharkTank**, with 8 human seats and 24 server-authoritative bots. The same Worker serves a short overview at `/`, release identity at `/version.json`, and an authenticated operator console at `/admin/`.
+SharkTank is a realtime full-3D multiplayer shark game at `/play/`, backed by authoritative Cloudflare Durable Objects. Production exposes one gameplay tank: `room-1`, displayed as **SharkTank**, with 8 human seats and 24 server-authoritative bots. The same Worker serves a short overview at `/` and release identity at `/version.json`.
 
 ## Command map
 
@@ -50,9 +50,9 @@ See [docs/ACCESSIBILITY.md](docs/ACCESSIBILITY.md), [docs/PRODUCT-ACCEPTANCE.md]
 
 ## Operations and security
 
-Public HTTP and WebSocket input is untrusted. The Worker enforces request/message bounds, allowed rooms, origin checks, rate limits, TLS for operator traffic, strict response security headers, and server-side authority over simulation and score. Player name, skin, best score and settings stay in one device-local browser record; they are not profile or telemetry writes. The Room owns authoritative competitive state only in memory for the lifetime of the object, while the Lobby still owns the operational state scheduled for later retirement; browser preferences never become competitive authority.
+Public HTTP and WebSocket input is untrusted. The Worker enforces request/message bounds, allowed rooms, origin checks, rate limits, HTTPS redirects, strict response security headers, and server-side authority over simulation and score. Player name, skin, best score and settings stay in one device-local browser record; they are not profile or telemetry writes. The Room owns authoritative competitive state only in memory for the lifetime of the object, while the Lobby still owns the operational state scheduled for later retirement; browser preferences never become competitive authority.
 
-The retired public evidence/status/spend surfaces return 404. Operator routes under `/admin/` remain authenticated; state-changing actions also require same-origin action headers and leave control receipts.
+The retired public evidence/status/spend surfaces and all `/admin/*` routes return 404. The maintenance gate and operator credentials are gone; billing and backup internals remain until their queued removal.
 
 The scheduled Worker copies Lobby state to the configured R2 binding. Restore drills read the retained copy into a scratch Durable Object, compare state digests, record the result, and wipe scratch state; they never overwrite live production state.
 
