@@ -4,10 +4,12 @@ SharkTank is one Cloudflare Worker deployment with one React Three Fiber browser
 
 ```text
 browser ── HTTPS ──> Worker router ──> Lobby Durable Object
-   │                    │             profiles, status, billing,
+   │                    │             status, billing,
    │                    │             receipts, logs, backups
    │                    ├───────────> Room Durable Objects
-   └── WebSocket ───────┘             authoritative full X/Y/Z simulation
+   ├── localStorage                    authoritative full X/Y/Z simulation
+   │   name / skin / best / settings
+   └── WebSocket ───────┘
                         │
                         ├───────────> Static Assets
                         └───────────> R2 state copies
@@ -28,7 +30,7 @@ The Lobby Durable Object uses the stable name `global`. The only routable gamepl
 
 `src/worker/presentation-react.tsx` renders the overview, evidence, admin, downtime and not-found documents with React 19 `renderToStaticMarkup`. These documents are complete without JavaScript.
 
-`/play/` is the one explicit browser application boundary. `src/client/game-document.tsx` owns the React 19 game shell, `src/client/main.tsx` mounts the browser app, and Vite owns the client module graph and content-hashed assets.
+`/play/` is the one explicit browser application boundary. `src/client/game-document.tsx` owns the React 19 game shell, `src/client/main.tsx` mounts the browser app, and Vite owns the client module graph and content-hashed assets. Name, skin, best score and systems settings share one device-local `localStorage` record; the legacy `snakeio.settings.v1` settings record migrates into it on first load.
 
 The gameplay renderer is React Three Fiber / Three.js only. `GameViewport` mounts one R3F `Canvas`; `Scene` composes the ocean environment, shark actors, prey, effects and chase camera. Gameplay is full X/Y/Z. Authoritative orientation is yaw + pitch. Roll/banking is presentation-only. Canvas2D is not a hidden fallback.
 
@@ -84,7 +86,7 @@ Repeated prey/environment work is bounded or batched where practical. Render-fra
 
 ## Operations, persistence and release
 
-Lobby state includes profiles, status, billing, receipts, service logs and backup evidence. Scheduled copies are written through the R2 binding. Restore drills reconstruct retained Lobby state into scratch Durable Object state without overwriting live production data.
+Lobby state no longer stores player profiles or public client-action events. It still holds the operations state scheduled for retirement in later queue tasks: status, billing, receipts, server-originated service logs and backup evidence. Scheduled copies are written through the R2 binding. Restore drills reconstruct retained Lobby state into scratch Durable Object state without overwriting live production data.
 
 Room Durable Objects persist schema-11 gameplay snapshots and rotate incompatible replay/log state through the current schema seam. Stable Room/Lobby Durable Object identities and migration tag `v1` are not ordinary refactor targets.
 

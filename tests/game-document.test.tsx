@@ -12,6 +12,8 @@ const mainSource = read("../src/client/main.tsx");
 const humanDocsSource = read("../src/client/human-docs.ts");
 const workerPresentationSource = read("../src/worker/presentation-react.tsx");
 const appSource = read("../vendor/ModuleReact3Fiber/src/client/App.tsx");
+const settingsSource = read("../vendor/ModuleReact3Fiber/src/client/settings/SettingsContext.tsx");
+const menuSource = read("../vendor/ModuleReact3Fiber/src/client/ui/MainMenu.tsx");
 const mountedPresentationSource = [
   "../vendor/ModuleReact3Fiber/src/client/App.tsx",
   "../vendor/ModuleReact3Fiber/src/client/game/GameViewport.tsx",
@@ -76,6 +78,16 @@ describe("React game document", () => {
     expect(mainSource).toContain("createRoot(el).render(");
     expect(mainSource).toContain('import "./styles.css"');
     expect(appSource).toContain('lazy(() => import("./ui/GameScreen.js")');
+  });
+
+  it("keeps player data device-local and the mounted app free of telemetry HTTP", () => {
+    expect(settingsSource).toContain('const STORAGE_KEY = "sharktank.player.v1"');
+    expect(settingsSource).toContain('const LEGACY_SETTINGS_KEY = "snakeio.settings.v1"');
+    expect(settingsSource).toContain("localStorage.removeItem(LEGACY_SETTINGS_KEY)");
+    expect(settingsSource).toContain("recordBest");
+    expect(appSource).not.toContain("fetch(");
+    expect(appSource).not.toContain("logUserAction");
+    expect(menuSource).toContain("· skin {skin} · best {best}");
   });
 
   it("makes the game document explicit instead of using a repository-wide SPA fallback", () => {

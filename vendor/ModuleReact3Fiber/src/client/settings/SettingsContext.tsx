@@ -4,6 +4,8 @@
 // renderer read the same object, so a settings change takes effect live.
 
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
+import { DEFAULT_SKIN, SKINS } from "../../engine/index.js";
+import { sanitizeDisplayName } from "../../protocol/name-policy.js";
 
 export interface Keybinds {
   pitchUp: string;
@@ -118,99 +120,143 @@ export const DEFAULT_SETTINGS: Settings = {
   a11y: { theme: "system", contrast: "normal", motion: "full", fontScale: 1, colorblindLabels: true },
 };
 
-const STORAGE_KEY = "snakeio.settings.v1";
+const STORAGE_KEY = "sharktank.player.v1";
+const LEGACY_SETTINGS_KEY = "snakeio.settings.v1";
+
+export interface DevicePlayer {
+  name: string;
+  skin: string;
+  best: number;
+}
+
+interface DevicePlayerData extends DevicePlayer {
+  settings: Settings;
+}
 
 interface SettingsApi {
   settings: Settings;
+  player: DevicePlayer;
   /** Patch a nested section, e.g. update("audio", { master: 0.5 }). */
   update: <K extends keyof Settings>(section: K, patch: Partial<Settings[K]>) => void;
   reset: () => void;
+  updatePlayer: (patch: Partial<DevicePlayer>) => void;
+  recordBest: (score: number) => void;
 }
 
 const Ctx = createContext<SettingsApi | null>(null);
-
-/**
- * Does the operating system ask for reduced motion?
- *
- * `theme.css` states that this preference is respected, and in CSS it is. The canvas is
- * where all the motion actually lives, and the canvas reads `settings.a11y.motion`, which
- * was hard-coded to "full" — so the claim was true of the stylesheet and false of the game.
- * The draw loop already threads `motion` correctly; only the default was wrong.
- *
- * This is SC 2.3.3 (AAA), so it was never an AA failure. It is fixed because the file said
- * it was already done.
- */
 const REDUCED_MOTION_QUERY = "(prefers-reduced-motion: reduce)";
+
 function systemPrefersReducedMotion(): boolean {
   return typeof window !== "undefined" && typeof window.matchMedia === "function"
     && window.matchMedia(REDUCED_MOTION_QUERY).matches;
 }
+
 function systemMotion(): Settings["a11y"]["motion"] {
   return systemPrefersReducedMotion() ? "reduced" : "full";
 }
 
-function load(): Settings {
+function record(value: unknown): value is Record<string, unknown> {
+  return typeof value === "object" && value !== null;
+}
+
+function readStorage(key: string): Record<string, unknown> | null {
+  if (typeof localStorage === "undefined") return null;
   try {
-    const raw = localStorage.getItem(STORAGE_KEY);
-    // The system preference is the default, never an override: once someone has chosen a
-    // value in the settings menu, that choice is stored and wins. Only an absent stored
-    // value falls through to the media query.
-    if (!raw) return { ...DEFAULT_SETTINGS, a11y: { ...DEFAULT_SETTINGS.a11y, motion: systemMotion() } };
-    const parsed = JSON.parse(raw) as Partial<Settings>;
-    // Old or malformed control blobs are allowed to load, but the active desktop map
-    // must always remain complete and conflict-free.
-    const cleanBinds = normalizeKeybinds(
-      (parsed.controls?.keybinds ?? {}) as Partial<Keybinds> | Record<string, unknown>,
-    );
-    // Deep-ish merge so new fields in future versions get defaults.
-    return {
-      graphics: { ...DEFAULT_SETTINGS.graphics, ...parsed.graphics },
-      audio: { ...DEFAULT_SETTINGS.audio, ...parsed.audio },
-      controls: {
-        ...DEFAULT_SETTINGS.controls,
-        ...parsed.controls,
-        keybinds: cleanBinds,
-      },
-      a11y: { ...DEFAULT_SETTINGS.a11y, motion: parsed.a11y?.motion ?? systemMotion(), ...parsed.a11y },
-    };
+    const raw = localStorage.getItem(key);
+    if (!raw) return null;
+    const parsed: unknown = JSON.parse(raw);
+    return record(parsed) ? parsed : null;
   } catch {
-    return { ...DEFAULT_SETTINGS, a11y: { ...DEFAULT_SETTINGS.a11y, motion: systemMotion() } };
+    return null;
   }
 }
 
-/**
- * Did the stored settings already carry an explicit motion choice, at the moment this tab
- * started?
- *
- * It has to be read once, before anything is written back. The provider persists the whole
- * settings object on every change, so after the first write the stored blob always has a
- * motion value in it — asking storage a second time would answer "the user chose" for a
- * value the user never touched.
- */
-function motionWasChosen(): boolean {
-  try {
-    const raw = localStorage.getItem(STORAGE_KEY);
-    if (!raw) return false;
-    return typeof (JSON.parse(raw) as Partial<Settings>).a11y?.motion === "string";
-  } catch {
-    return false;
+function normalizeSettings(value: unknown): Settings {
+  const parsed = record(value) ? value as Partial<Settings> : {};
+  const controls = record(parsed.controls) ? parsed.controls as Partial<Settings["controls"]> : {};
+  const cleanBinds = normalizeKeybinds(
+    (controls.keybinds ?? {}) as Partial<Keybinds> | Record<string, unknown>,
+  );
+  return {
+    graphics: { ...DEFAULT_SETTINGS.graphics, ...(record(parsed.graphics) ? parsed.graphics : {}) },
+    audio: { ...DEFAULT_SETTINGS.audio, ...(record(parsed.audio) ? parsed.audio : {}) },
+    controls: {
+      ...DEFAULT_SETTINGS.controls,
+      ...controls,
+      keybinds: cleanBinds,
+    },
+    a11y: {
+      ...DEFAULT_SETTINGS.a11y,
+      motion: record(parsed.a11y) && typeof parsed.a11y.motion === "string"
+        ? parsed.a11y.motion
+        : systemMotion(),
+      ...(record(parsed.a11y) ? parsed.a11y : {}),
+    },
+  };
+}
+
+function validSkin(value: unknown): value is string {
+  return typeof value === "string" && SKINS.some((skin) => skin.id === value);
+}
+
+function normalizeBest(value: unknown): number {
+  return typeof value === "number" && Number.isFinite(value)
+    ? Math.max(0, Math.trunc(value))
+    : 0;
+}
+
+function loadData(): DevicePlayerData {
+  const current = readStorage(STORAGE_KEY);
+  if (current) {
+    return {
+      name: typeof current.name === "string" ? sanitizeDisplayName(current.name) : "Player",
+      skin: validSkin(current.skin) ? current.skin : DEFAULT_SKIN,
+      best: normalizeBest(current.best),
+      settings: normalizeSettings(current.settings),
+    };
   }
+
+  // Migrate the pre-ST-142 settings-only record into the unified device record.
+  const legacy = readStorage(LEGACY_SETTINGS_KEY);
+  return {
+    name: "Player",
+    skin: DEFAULT_SKIN,
+    best: 0,
+    settings: normalizeSettings(legacy),
+  };
+}
+
+function motionWasChosen(): boolean {
+  const current = readStorage(STORAGE_KEY);
+  const currentSettings = current && record(current.settings) ? current.settings : null;
+  const currentA11y = currentSettings && record(currentSettings.a11y) ? currentSettings.a11y : null;
+  if (currentA11y && typeof currentA11y.motion === "string") return true;
+
+  const legacy = readStorage(LEGACY_SETTINGS_KEY);
+  const legacyA11y = legacy && record(legacy.a11y) ? legacy.a11y : null;
+  return Boolean(legacyA11y && typeof legacyA11y.motion === "string");
+}
+
+function defaultData(): DevicePlayerData {
+  return {
+    name: "Player",
+    skin: DEFAULT_SKIN,
+    best: 0,
+    settings: {
+      ...DEFAULT_SETTINGS,
+      graphics: { ...DEFAULT_SETTINGS.graphics },
+      audio: { ...DEFAULT_SETTINGS.audio },
+      controls: { ...DEFAULT_SETTINGS.controls, keybinds: { ...DEFAULT_KEYBINDS } },
+      a11y: { ...DEFAULT_SETTINGS.a11y, motion: systemMotion() },
+    },
+  };
 }
 
 export function SettingsProvider({ children }: { children: ReactNode }) {
-  const [settings, setSettings] = useState<Settings>(() =>
-    typeof localStorage === "undefined" ? DEFAULT_SETTINGS : load(),
+  const [data, setData] = useState<DevicePlayerData>(() =>
+    typeof localStorage === "undefined" ? defaultData() : loadData(),
   );
 
-  /**
-   * Follow the system preference while the player has not expressed one.
-   *
-   * `TouchControls` already does exactly this for `(pointer: coarse)`; the same shape is
-   * used here so there is one way this codebase reacts to a media query. The subscription
-   * stops mattering the moment a stored motion value exists, which is why the guard reads
-   * storage rather than state — state has by then been written by the persist effect below
-   * on every settings change, stored or not.
-   */
   const motionChosen = useRef(motionWasChosen());
   useEffect(() => {
     if (motionChosen.current) return;
@@ -218,53 +264,77 @@ export function SettingsProvider({ children }: { children: ReactNode }) {
     const query = window.matchMedia(REDUCED_MOTION_QUERY);
     const sync = () => {
       if (motionChosen.current) return;
-      setSettings((prev) => {
+      setData((prev) => {
         const next = query.matches ? "reduced" : "full";
-        return prev.a11y.motion === next ? prev : { ...prev, a11y: { ...prev.a11y, motion: next } };
+        return prev.settings.a11y.motion === next
+          ? prev
+          : { ...prev, settings: { ...prev.settings, a11y: { ...prev.settings.a11y, motion: next } } };
       });
     };
     query.addEventListener("change", sync);
     return () => query.removeEventListener("change", sync);
   }, []);
 
-  // Persist + apply accessibility prefs to the document root.
+  // One device-local record owns player identity, best score and all settings.
   useEffect(() => {
     try {
-      localStorage.setItem(STORAGE_KEY, JSON.stringify(settings));
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(data));
+      localStorage.removeItem(LEGACY_SETTINGS_KEY);
     } catch {
       /* storage may be unavailable; non-fatal */
     }
     const html = document.documentElement;
-    const { theme, contrast, motion, fontScale } = settings.a11y;
+    const { theme, contrast, motion, fontScale } = data.settings.a11y;
     if (theme === "system") html.removeAttribute("data-theme");
     else html.setAttribute("data-theme", theme);
     html.setAttribute("data-contrast", contrast === "high" ? "high" : "normal");
     html.setAttribute("data-motion", motion === "reduced" ? "reduced" : "full");
     html.setAttribute("data-font-scale", String(Math.max(9, Math.min(16, Math.round(fontScale * 10)))));
-  }, [settings]);
+  }, [data]);
 
   const update = useCallback(<K extends keyof Settings>(section: K, patch: Partial<Settings[K]>) => {
-    // Setting motion from the settings menu is the explicit choice that stops the system
-    // preference from moving it again.
     if (section === "a11y" && "motion" in (patch as Partial<Settings["a11y"]>)) motionChosen.current = true;
-    setSettings((prev) => ({ ...prev, [section]: { ...prev[section], ...patch } }));
+    setData((prev) => ({
+      ...prev,
+      settings: { ...prev.settings, [section]: { ...prev.settings[section], ...patch } },
+    }));
   }, []);
 
-  // Reset goes back to following the system, which is what "reset" means for a preference
-  // whose default is the system's.
   const reset = useCallback(() => {
     motionChosen.current = false;
-    setSettings({ ...DEFAULT_SETTINGS, a11y: { ...DEFAULT_SETTINGS.a11y, motion: systemMotion() } });
+    setData((prev) => ({ ...prev, settings: defaultData().settings }));
   }, []);
 
-  const api = useMemo(() => ({ settings, update, reset }), [settings, update, reset]);
+  const updatePlayer = useCallback((patch: Partial<DevicePlayer>) => {
+    setData((prev) => ({
+      ...prev,
+      ...(patch.name !== undefined ? { name: sanitizeDisplayName(patch.name) } : {}),
+      ...(patch.skin !== undefined && validSkin(patch.skin) ? { skin: patch.skin } : {}),
+      ...(patch.best !== undefined ? { best: normalizeBest(patch.best) } : {}),
+    }));
+  }, []);
+
+  const recordBest = useCallback((score: number) => {
+    if (!Number.isFinite(score)) return;
+    const next = normalizeBest(score);
+    setData((prev) => next > prev.best ? { ...prev, best: next } : prev);
+  }, []);
+
+  const player = useMemo<DevicePlayer>(
+    () => ({ name: data.name, skin: data.skin, best: data.best }),
+    [data.name, data.skin, data.best],
+  );
+  const api = useMemo(
+    () => ({ settings: data.settings, player, update, reset, updatePlayer, recordBest }),
+    [data.settings, player, update, reset, updatePlayer, recordBest],
+  );
   return <Ctx.Provider value={api}>{children}</Ctx.Provider>;
 }
 
 export function useSettings(): SettingsApi {
-  const v = useContext(Ctx);
-  if (!v) throw new Error("useSettings must be used within <SettingsProvider>");
-  return v;
+  const value = useContext(Ctx);
+  if (!value) throw new Error("useSettings must be used within <SettingsProvider>");
+  return value;
 }
 
 /** Human-readable label for a KeyboardEvent.code/key used in keybind UIs. */

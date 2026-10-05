@@ -142,21 +142,6 @@ On 2026-10-02 the owner directed that this SharkTank material be deleted from th
 
 ## Open tasks
 
-### ST-142 — [REFACTOR] Keep player data on the device and stop client telemetry
-
-**Goal:** The client posts every settings change, name, skin and play action to the server.
-
-**Scope**
-- Keep name, skin, best score and settings in one `localStorage` record, migrating the old `snakeio.settings.v1` key. Best score updates from the authoritative round result the client already receives.
-- Delete `client/net/audit.ts` (`logUserAction`) and its calls.
-- Remove `/api/profile`, `/api/audit`, the `wg_player` cookie, the Room's round-result posting and `x-profile-id` handling, and the Lobby's profile and public-event storage.
-
-**Acceptance:** The menu shows the device-local name, skin and best score. During play the client requests nothing but the game shell, assets and the tank WebSocket (test).
-
-**Validation:** `npm test -- tests/full-3d-product-acceptance.test.ts tests/game-document.test.tsx tests/name-policy.test.ts`; `npm run check:local-http`.
-
----
-
 ### ST-143 — [REFACTOR] Remove Room logging, reporting and replay endpoints
 
 **Goal:** Player inputs are written to SQL, every join, leave and death is reported to the Lobby, and usage is metered. None of it serves the game.
