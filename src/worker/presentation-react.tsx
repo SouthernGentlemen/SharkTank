@@ -4,7 +4,6 @@ import type { MaintenanceState } from "./env.js";
 import {
   PAGE_CSS_PATH,
   adminViewerHtml,
-  evidenceDashboardHtml,
 } from "./presentation.js";
 
 const CSP_NONCE_SLOT = "__WG_CSP_NONCE__";
@@ -13,17 +12,16 @@ const WIZARDGANG_FAVICON = "data:image/svg+xml,%3Csvg%20xmlns%3D%22http%3A%2F%2F
 
 const PRIMARY_NAV = [
   ["/", "Overview"],
-  ["/evidence/", "Evidence"],
   ["/play/", "Play"],
 ] as const;
 
 const ESTATE_FOOTER = [
-  ["Public", [["/", "Overview"], ["/evidence/", "Evidence"], ["/play/", "Play"]]],
-  ["Machine evidence", [["/status.json", "Status JSON"], ["/spend.json", "Spend JSON"], ["/version.json", "Version JSON"]]],
+  ["Public", [["/", "Overview"], ["/play/", "Play"]]],
+  ["Release", [["/version.json", "Version JSON"]]],
   ["Technical", [["https://github.com/Wizard-Gang/SharkTank", "GitHub source"]]],
 ] as const;
 
-type AuditedRawArtifactKind = "evidence" | "admin";
+type AuditedRawArtifactKind = "admin";
 
 interface DocumentMetadata {
   title: string;
@@ -96,7 +94,7 @@ function EstateFooter() {
           ))}
         </nav>
         <p className="footer-note">
-          SharkTank is the game. Evidence and operator tools report the running service without changing gameplay.
+          SharkTank is the game. Operator tools remain protected; public release identity stays at /version.json.
         </p>
       </div>
     </footer>
@@ -150,14 +148,13 @@ function renderGeneratedDocument(metadata: DocumentMetadata, kind: AuditedRawArt
   return renderDocument(metadata, <GeneratedMain kind={kind} html={generatedHtml} />);
 }
 
-function ProofTile({ href, label, value, detail, tone }: { href: string; label: string; value: string; detail: string; tone: string }) {
+function ProofTile({ label, value, detail, tone }: { label: string; value: string; detail: string; tone: string }) {
   return (
-    <a className={"trust-tile " + tone} href={href}>
+    <div className={"trust-tile " + tone}>
       <span className="trust-tile__label">{label}</span>
       <span className="trust-tile__value">{value}</span>
       <span className="trust-tile__detail">{detail}</span>
-      <span className="trust-tile__go" aria-hidden="true">→</span>
-    </a>
+    </div>
   );
 }
 
@@ -189,7 +186,6 @@ function OverviewMain({ input }: { input: OverviewPresentationInput }) {
           <p>SharkTank is a realtime multiplayer game backed by authoritative Cloudflare Durable Objects. Swim a shark, grow, and race the leaderboard while the same service exposes a concise live operations snapshot.</p>
           <div className="action-links">
             <a className="button" href="/play/">Play →</a>
-            <a className="button secondary" href="/evidence/">Evidence →</a>
             <a className="button secondary" href="https://github.com/Wizard-Gang/SharkTank">GitHub →</a>
             <a className="button secondary" href="https://demo.wizardgang.ai/assurance">Portfolio assurance →</a>
           </div>
@@ -200,12 +196,12 @@ function OverviewMain({ input }: { input: OverviewPresentationInput }) {
         </figure>
       </section>
       <section aria-labelledby="live-snapshot">
-        <div className="section-head"><div><div className="eyebrow">Live snapshot</div><h2 id="live-snapshot">Current service state.</h2></div><a className="action-link" href="/evidence/">Open Evidence →</a></div>
+        <div className="section-head"><div><div className="eyebrow">Live snapshot</div><h2 id="live-snapshot">Current service state.</h2></div></div>
         <div className="trust-grid">
-          <ProofTile href="/evidence/#availability" label="Tank availability" value={input.tank.availabilityPercent + "%"} detail={input.tank.windowLabel + " from recorded incidents"} tone="tone-green" />
-          <ProofTile href="/evidence/#spend" label="Metered resource cost" value={"$" + input.spendUsd.toFixed(4)} detail={"of the $" + input.hardLimitUsd.toFixed(2) + " hard stop"} tone="tone-cyan" />
-          <ProofTile href="/version.json" label="Current release" value={input.release} detail={input.environment + " environment"} tone="tone-cyan" />
-          <ProofTile href="/evidence/#receipts" label="Receipt chain" value={chainOk ? "Verified" : "Unverified"} detail={input.integrity.entryCount + " receipts · " + input.integrity.algorithm} tone={chainOk ? "tone-green" : "tone-red"} />
+          <ProofTile label="Tank availability" value={input.tank.availabilityPercent + "%"} detail={input.tank.windowLabel + " from recorded incidents"} tone="tone-green" />
+          <ProofTile label="Metered resource cost" value={"$" + input.spendUsd.toFixed(4)} detail={"of the $" + input.hardLimitUsd.toFixed(2) + " hard stop"} tone="tone-cyan" />
+          <ProofTile label="Current release" value={input.release} detail={input.environment + " environment"} tone="tone-cyan" />
+          <ProofTile label="Receipt chain" value={chainOk ? "Verified" : "Unverified"} detail={input.integrity.entryCount + " receipts · " + input.integrity.algorithm} tone={chainOk ? "tone-green" : "tone-red"} />
         </div>
       </section>
     </main>
@@ -274,25 +270,13 @@ export function renderOverviewDocument(input: OverviewPresentationInput): string
   return renderDocument(
     {
       title: "SharkTank — Realtime multiplayer game",
-      description: "Play the realtime multiplayer SharkTank game and inspect live availability, spend, release identity, and receipt-chain evidence.",
+      description: "Play the realtime multiplayer SharkTank game and inspect the current live-service snapshot and release identity.",
       canonicalPath: "/",
     },
     <OverviewMain input={input} />,
   );
 }
 
-
-export function renderEvidenceDocument(...args: Parameters<typeof evidenceDashboardHtml>): string {
-  return renderGeneratedDocument(
-    {
-      title: "SharkTank — Live production evidence",
-      description: "Live tank status, billing, incidents, control receipts, continuity evidence, and bounded service logs from the running SharkTank service.",
-      canonicalPath: "/evidence/",
-    },
-    "evidence",
-    evidenceDashboardHtml(...args),
-  );
-}
 
 export function renderAdminDocument(): string {
   return renderGeneratedDocument({ title: "Shark — Admin" }, "admin", adminViewerHtml());
@@ -338,7 +322,7 @@ export function renderDowntimeDocument(state: MaintenanceState): string {
             <h1>The game is offline right now</h1>
             <p className="downtime-quip">{quip}</p>
             <div className="downtime-trigger"><span>Current trigger</span><strong>{trigger}</strong></div>
-            <p><a className="action-link" href="/evidence/#availability">Check live status and incident history →</a></p>
+            <p>Try again after the service reopens.</p>
           </div>
         </main>
       </body>

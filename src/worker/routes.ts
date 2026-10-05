@@ -1,4 +1,4 @@
-export const CANONICAL_HUMAN_ROUTES = ["/", "/evidence/", "/play/"] as const;
+export const CANONICAL_HUMAN_ROUTES = ["/", "/play/"] as const;
 
 /** `/room/:id/ws` → the matching Room DO. Returns the room id, or null if not a room path. */
 export function parseRoomPath(path: string): string | null {

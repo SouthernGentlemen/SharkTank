@@ -49,7 +49,8 @@ describe("React game document", () => {
     expect(html).toContain("Swim a shark in SharkTank");
     expect(html).not.toContain("one of four tanks");
     expect(html).toContain("The game is loading.");
-    expect(html).toContain('href="/evidence/"');
+    expect(html).not.toContain('href="/evidence/"');
+    expect(html).not.toContain("View live evidence");
     expect(html).toContain('<script type="module" src="/src/client/main.tsx"></script>');
     expect(source).toContain("renderToStaticMarkup(<GameDocument />)");
     expect(html).not.toMatch(/<style\b/i);

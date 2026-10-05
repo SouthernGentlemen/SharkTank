@@ -23,7 +23,7 @@ function GameDocument() {
         <meta property="og:title" content="Play SharkTank — WizardGang" />
         <meta
           property="og:description"
-          content="The realtime multiplayer workload behind SharkTank's live production evidence."
+          content="The realtime multiplayer SharkTank game backed by authoritative server state."
         />
         <meta property="og:url" content="https://sharktank.wizardgang.ai/play/" />
         <meta property="og:type" content="website" />
@@ -41,9 +41,6 @@ function GameDocument() {
             <p>
               Realtime multiplayer Shark Tank. Swim a shark in SharkTank, eat to grow,
               and race the leaderboard. The game is loading.
-            </p>
-            <p>
-              <a href="/evidence/">View live evidence →</a>
             </p>
           </main>
         </div>
