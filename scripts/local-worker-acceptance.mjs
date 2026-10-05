@@ -74,7 +74,7 @@ export async function waitForReady({
         redirect: "manual",
         headers: { "cache-control": "no-cache" },
       });
-      if (response.status === 200) return;
+      if (response.status === 308 && response.headers.get("location") === "/play/") return;
     } catch {
       // Workerd can refuse connections while Wrangler is still starting.
     }
@@ -184,7 +184,7 @@ function runNodeScript(path, baseUrl, spawnSyncFn = spawnSync) {
 }
 
 export function runHttpAcceptanceChecks(baseUrl, { spawnSyncFn = spawnSync } = {}) {
-  runNodeScript("./check-public-ia.mjs", baseUrl, spawnSyncFn);
+  runNodeScript("./check-game-surface.mjs", baseUrl, spawnSyncFn);
 }
 
 async function waitForPortRelease(

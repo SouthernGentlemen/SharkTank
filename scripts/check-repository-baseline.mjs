@@ -61,7 +61,7 @@ has(packageJson.scripts?.typecheck ?? "", "vendor/ModuleReact3Fiber/tsconfig.jso
 const vite = read("vite.config.ts");
 has(vite, 'name: "sharktank-react-game-document"', "Vite must own the React game document");
 has(vite, 'assets/[name]-[hash].js', "Vite game modules must remain content hashed");
-has(vite, '"human-docs": humanDocsEntry', "Vite must build the first-party human-docs enhancement module");
+expect(!vite.includes("human-docs"), "Vite must have no Worker-document enhancement entry");
 
 const wrangler = read("wrangler.jsonc");
 for (const needle of [
@@ -79,11 +79,14 @@ for (const needle of [
 
 const gameDocument = read("src/client/game-document.tsx");
 const clientMain = read("src/client/main.tsx");
-const workerPresentation = read("src/worker/presentation-react.tsx");
+const worker = read("src/worker/index.ts");
+const responses = read("src/worker/responses.ts");
 const architecture = read("docs/ARCHITECTURE.md");
 has(gameDocument, "renderToStaticMarkup(<GameDocument />)", "/play/ document must render from React at build time");
 has(clientMain, "createRoot(el).render(", "/play/ must remain the explicit interactive client boundary");
-expect(!/hydrateRoot|BrowserRouter|createBrowserRouter/.test(workerPresentation), "ordinary Worker documents must not hydrate or use a client router");
+expect(!worker.includes("renderOverviewDocument") && !worker.includes("renderNotFoundDocument"), "Worker must emit no document HTML");
+has(responses, "script-src 'self'", "game CSP must allow first-party scripts");
+expect(!/nonce-|cloudflareinsights/.test(responses), "game CSP must have no nonce or Insights allowance");
 has(architecture, "`/play/` is the one explicit browser application boundary", "architecture must document the game-client boundary");
 has(architecture, "WG-ARCH-001 project-specific boundaries", "architecture must record intentional baseline boundaries");
 has(architecture, "squash-only", "architecture must record the repository-specific single-commit delivery departure");
@@ -99,8 +102,8 @@ for (const match of distIndex.matchAll(/<script\b([^>]*)>([\s\S]*?)<\/script>/gi
 const builtAssets = readdirSync(join(root, "dist/assets"));
 expect(builtAssets.some((name) => /^index-[A-Za-z0-9_-]+\.js$/.test(name)), "build must emit a content-hashed game entry");
 expect(builtAssets.some((name) => /^index-[A-Za-z0-9_-]+\.css$/.test(name)), "build must emit content-hashed game CSS");
-expect(builtAssets.some((name) => name !== "human-docs.js" && !name.startsWith("index-") && /-[A-Za-z0-9_-]+\.js$/.test(name)), "build must retain a content-hashed lazy game chunk");
-expect(builtAssets.includes("human-docs.js"), "build must emit the stable first-party human-docs enhancement module");
+expect(builtAssets.some((name) => !name.startsWith("index-") && /-[A-Za-z0-9_-]+\.js$/.test(name)), "build must retain a content-hashed lazy game chunk");
+expect(!builtAssets.includes("human-docs.js"), "build must omit the retired human-docs module");
 
 for (const required of [
   "README.md","AGENTS.md","CONTRIBUTING.md","SECURITY.md","LICENSE",".gitignore",

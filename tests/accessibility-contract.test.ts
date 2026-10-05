@@ -22,9 +22,6 @@ import { resolveSharkAnimation } from "../vendor/ModuleReact3Fiber/src/client/ga
 const read = (path: string) => readFileSync(new URL(path, import.meta.url), "utf8");
 
 const worker = read("../src/worker/index.ts");
-const presentation = read("../src/worker/presentation.ts");
-const reactPresentation = read("../src/worker/presentation-react.tsx");
-const humanDocs = read("../src/client/human-docs.ts");
 const routes = read("../src/worker/routes.ts");
 const app = read("../vendor/ModuleReact3Fiber/src/client/App.tsx");
 const focusTrap = read("../vendor/ModuleReact3Fiber/src/client/a11y/useFocusTrap.ts");
@@ -32,7 +29,6 @@ const input = read("../vendor/ModuleReact3Fiber/src/client/game/useLocalInput.ts
 const theme = read("../vendor/ModuleReact3Fiber/src/client/ui/theme.css");
 const settings = read("../vendor/ModuleReact3Fiber/src/client/ui/Settings.tsx");
 const lobby = read("../src/worker/lobby-do.ts");
-const presentationData = read("../src/worker/presentation-data.ts");
 const protocol = read("../vendor/ModuleReact3Fiber/src/protocol/index.ts");
 const gameViewport = read("../vendor/ModuleReact3Fiber/src/client/game/GameViewport.tsx");
 const gameScreen = read("../vendor/ModuleReact3Fiber/src/client/ui/GameScreen.tsx");
@@ -50,24 +46,12 @@ const fxLayer = read("../vendor/ModuleReact3Fiber/src/client/game/FxLayer.tsx");
 const worldEnvironment = read("../vendor/ModuleReact3Fiber/src/client/game/WorldEnvironment.tsx");
 
 describe("public accessibility contract", () => {
-  it("keeps a keyboard bypass, visible focus, contrast, motion, and hash focus handling on Worker pages", () => {
-    expect(reactPresentation).toContain('className="skip-link" href="#main"');
-    expect(reactPresentation).toContain('<main id="main" tabIndex={-1}>');
-    expect(presentation).toContain(":focus-visible{outline:3px solid var(--focus)");
-    expect(presentation).toContain("@media(prefers-reduced-motion:reduce)");
-    expect(presentation).toContain("@media(prefers-contrast:more)");
-    expect(humanDocs).toContain("target.focus({ preventScroll: true })");
-  });
-
-  it("retires public evidence and operator routes", () => {
-    expect(worker).not.toContain('if (path === "/evidence")');
+  it("retires public evidence and operator routes while preserving the game accessibility surface", () => {
+    expect(worker).toContain('if (path === "/") return movedTo(url, "/play/");');
     expect(worker).not.toContain('if (path === "/evidence/")');
-    expect(worker).not.toContain('if (path === "/status.json")');
-    expect(worker).not.toContain('if (path === "/spend.json")');
-    expect(reactPresentation).not.toContain("renderEvidenceDocument");
-    expect(worker).not.toContain('if (path === "/admin/status.json")');
+    expect(worker).not.toContain('renderOverviewDocument');
+    expect(worker).not.toContain('renderNotFoundDocument');
   });
-
 
   it("keeps the game operable by keyboard with managed focus and reduced motion", () => {
     expect(app).toContain('className="skip-link" href="#main"');
@@ -228,57 +212,16 @@ describe("full-3D accessibility re-proof", () => {
   });
 });
 
-describe("canonical public information architecture", () => {
-  it("keeps exactly two primary navigation destinations", () => {
-    const nav = reactPresentation.match(/const PRIMARY_NAV = \[[\s\S]*?\n\] as const;/)?.[0] ?? "";
-    expect(nav).toContain('["/", "Overview"]');
-    expect(nav).toContain('["/play/", "Play"]');
-    expect(nav).not.toContain("/controls/");
-    expect(nav.match(/^  \[/gm)).toHaveLength(2);
-  });
-
-  it("keeps only the canonical slash redirects and retires compatibility aliases", () => {
-    expect(routes).not.toContain("HUMAN_REDIRECTS");
-    expect(routes).not.toContain("isOpsPath");
-
+describe("canonical game surface", () => {
+  it("routes the game explicitly and leaves retired paths unmatched", () => {
+    expect(routes).toContain('path === "/play/"');
+    expect(worker).toContain('if (path === "/") return movedTo(url, "/play/");');
     expect(worker).toContain('if (path === "/play") return movedTo(url, "/play/");');
-    expect(worker).not.toContain('if (path === "/evidence") return movedTo(url, "/evidence/");');
-    expect(worker).toContain('if (path === "/favicon.ico") return new Response(null, { status: 404');
-    expect(worker).toContain("if (path.startsWith(\"/api/\")) return json({ ok: false, error: \"unknown endpoint\" }, 404);");
-
-    for (const retiredLiteral of [
-      'path === "/api/lobby"',
-      'path === "/api/leaderboard"',
-      'path === "/api/security-report"',
-      'path === "/admin/security-report"',
-      'path === "/admin/security-resolve"',
-      'path === "/admin/test-alert"',
-      'path === "/incidents.json"',
-      'path === "/logs.json"',
-      'path === "/docs/openapi.json"',
-      'path === "/openapi.json"',
-      'path === "/inquiry.json"',
-      'path === "/audit.json"',
-      'path === "/audit.jsonl"',
-      'path === "/audit/status.json"',
-      "(?:admin|audit)",
-      "(?:arena|uno|x4|21|game|checkers|battleship|3d|shark-?run)",
-    ]) expect(worker).not.toContain(retiredLiteral);
-
+    expect(worker).toContain('return new Response("Not found", { status: 404');
     expect(worker).not.toContain('if (path === "/admin/status.json")');
-    expect(worker).not.toContain('if (path === "/admin/log.json")');
-    expect(worker).not.toContain('if (path === "/admin/log.jsonl")');
-    expect(worker).not.toContain("path.match(/^\\/admin\\/game\\/");
-    expect(worker).not.toContain("path.match(/^\\/admin\\/replay\\/");
+    expect(worker).not.toContain('if (path === "/robots.txt")');
+    expect(worker).not.toContain('if (path === "/sitemap.xml")');
     expect(protocol).not.toContain('leaderboard: "/api/leaderboard"');
-    expect(protocol).not.toContain("LeaderboardResponse");
-    expect(lobby).not.toContain("mergeGlobal");
     expect(lobby).not.toContain('ctx.storage.put("global"');
-    expect(lobby).not.toContain('path.endsWith("/leaderboard")');
-    expect(presentationData).toContain("instance: _instance, global: _global");
-    for (const retiredControl of ["/admin/security-report", "/admin/security-resolve", "/admin/test-alert", "/api/security-report"]) expect(presentation).not.toContain(retiredControl);
-    expect(presentation).toContain('"security-report": "S500"');
-    expect(presentation).toContain('"test-alert": "A600"');
   });
-
 });

@@ -30,7 +30,7 @@
     "audit:dependencies": "node scripts/dependency-advisories.mjs",
     "deploy:wizardgangprod": "node scripts/deploy-prod.mjs",
     "deploy:wizardgangprod:dry-run": "node scripts/deploy-prod.mjs --dry-run",
-    "check:public-ia": "node scripts/check-public-ia.mjs",
+    "check:game-surface": "node scripts/check-game-surface.mjs",
     "dev": "node scripts/local.mjs",
     "start": "npm run dev:worker",
     "check:change-contract": "node --test scripts/change-contract-cases.mjs && node scripts/check-change-contract.mjs",

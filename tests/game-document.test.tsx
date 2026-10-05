@@ -9,8 +9,6 @@ const viteSource = read("../vite.config.ts");
 const wranglerSource = read("../wrangler.jsonc");
 const workerSource = read("../src/worker/index.ts");
 const mainSource = read("../src/client/main.tsx");
-const humanDocsSource = read("../src/client/human-docs.ts");
-const workerPresentationSource = read("../src/worker/presentation-react.tsx");
 const appSource = read("../vendor/ModuleReact3Fiber/src/client/App.tsx");
 const settingsSource = read("../vendor/ModuleReact3Fiber/src/client/settings/SettingsContext.tsx");
 const menuSource = read("../vendor/ModuleReact3Fiber/src/client/ui/MainMenu.tsx");
@@ -99,11 +97,9 @@ describe("React game document", () => {
     expect(workerSource).toContain("if (!gameShell && !staticAsset)");
   });
 
-  it("keeps the game client separate from non-game static documents", () => {
+  it("keeps the game client on its explicit browser route", () => {
     expect(mainSource).not.toMatch(/BrowserRouter|createBrowserRouter/);
     expect(source).not.toMatch(/BrowserRouter|createBrowserRouter|hydrateRoot/);
-    expect(workerPresentationSource + humanDocsSource).not.toMatch(
-      /hydrateRoot|createRoot|BrowserRouter|createBrowserRouter/,
-    );
+    expect(workerSource).toContain('if (path === "/") return movedTo(url, "/play/");');
   });
 });
