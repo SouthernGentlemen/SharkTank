@@ -63,7 +63,7 @@ On the server, the Worker serves only the game shell, its assets, `/version.json
   - No telemetry, analytics, audit logs, usage metering or persisted game state.
   - After ST-149 the only Durable Object is `Room`.
   - Nothing new may add a server write, a log stream or a tracking request.
-- **One protocol change.** ST-163 moves the wire to protocol 12. Its prey species table covers every planned species, so later fish tasks need no protocol change. With nothing persisted after ST-144, there is no stored schema to migrate.
+- **One protocol change.** ST-239 moves the wire to protocol 12. Its prey species table covers every planned species, so later fish tasks need no protocol change. With nothing persisted after ST-144, there is no stored schema to migrate.
 - **Determinism stays intact.** Engine rule changes stay seeded and testable, and update the determinism tests in the same task.
 - **Docs and contract tests move with behavior.** README, ARCHITECTURE, ACCESSIBILITY and PRODUCT-ACCEPTANCE describe current behavior and are updated in the same commit as the change. A test is never deleted without replacing its behavior proof, unless the feature it covered is deleted too.
 - **Removals are complete.** A task that removes a feature also removes its routes, styles, settings, copy, scripts, tests and docs in the same commit.
@@ -73,7 +73,7 @@ On the server, the Worker serves only the game shell, its assets, `/version.json
   - Nothing flashes faster than three times per second.
 - **Mobile budgets are respected.** No React state updates per frame. Repeated actors, coral and particles stay instanced and quality-bounded. Touch targets are at least 48 px and safe-area aware.
 - **No new runtime dependencies.** React 19, React Three Fiber 9 and Three remain the stack. Audio is first-party Web Audio synthesis, and any visual asset is first-party and committed locally.
-- **Releases happen only at the queued checkpoints** (ST-141, ST-166, ST-182, ST-191, ST-204, ST-220). Before each, the owner runs the relevant PRODUCT-ACCEPTANCE manual rows on a real phone and a desktop browser, then approves the protected `production` environment.
+- **Releases happen only at the queued checkpoints** (ST-141, ST-224, ST-242, ST-258, ST-267, ST-280, ST-296). Before each, the owner runs the relevant PRODUCT-ACCEPTANCE manual rows on a real phone and a desktop browser, then approves the protected `production` environment.
 - **Validation for every task** is the focused tests named in the task, plus `npm ci`, `npm run check`, `npm run audit:dependencies` and `git diff --check` on the exact head.
 
 ### Owner decisions recorded with defaults
@@ -88,24 +88,24 @@ Tasks follow these defaults unless the owner changes them before the task starts
    - the $5 spend hard-stop.
 
    Production control moves to the Cloudflare dashboard (route toggle, rollback, account billing alerts). The owner accepted this on 2026-10-02 (ST-143–ST-149).
-4. The Lobby Durable Object and everything it stores are deleted by a `v2` migration. The owner confirmed the deletion on 2026-10-02. It runs when the owner approves the `v2.1.0` production deploy; the `production` environment requires the owner's review (ST-149, ST-166).
+4. The Lobby Durable Object and everything it stores are deleted. The owner confirmed the deletion on 2026-10-02. Since the owner moved the `sharktank` rename forward (2026-10-05), the `v2.1.0` cut-over deploys a new `sharktank` Worker without `Lobby`, and the stored data goes when `wizardgangprod` is retired at R3 (ST-149, ST-222, ST-224).
 5. Cloudflare cleanup outside the code:
-   - After the `v2.1.0` deploy is verified, the agent deletes the now-unused `OPS_TOKEN` and `OPS_USERNAME` Worker secrets with wrangler (ST-166). Earlier deletion would block deploys, because today's deploy script requires them.
+   - The `OPS_TOKEN` and `OPS_USERNAME` Worker secrets stay on `wizardgangprod` and go when it is retired at R3 after the `v2.1.0` cut-over (ST-224); the new `sharktank` Worker never has them.
    - Cloudflare Web Analytics is not injected on the game (checked 2026-10-02), so only its dead CSP allowance goes (ST-147).
    - The old `sharktank/` copies in the shared R2 bucket are a one-time manual dashboard deletion for the owner. Nothing reads them after ST-148.
-6. A bigger ocean: radius 120 (from 82), water column 36 (from 24) and about 480 ambient fish (from 200) (ST-183).
+6. A bigger ocean: radius 120 (from 82), water column 36 (from 24) and about 480 ambient fish (from 200) (ST-259).
 7. Fish and coral variety:
    - eight school looks (sardine, anchovy, silverside, clownfish, blue tang, yellow tang, angelfish, parrotfish);
    - new tuna, rays, squid and a rare golden fish;
-   - brain, branching, plate, fan and tube coral plus kelp (ST-184–ST-190).
-8. Touch play defaults to one-thumb **Simple** steering, with dual-stick as **Advanced**; desktop WASD flight with arrow-key look is unchanged. Portrait play is allowed (ST-173, ST-176).
-9. The wall becomes a non-lethal current (ST-170).
-10. Combat rules (ST-180):
+   - brain, branching, plate, fan and tube coral plus kelp (ST-260–ST-266).
+8. Touch play defaults to one-thumb **Simple** steering, with dual-stick as **Advanced**; desktop WASD flight with arrow-key look is unchanged. Portrait play is allowed (ST-249, ST-252).
+9. The wall becomes a non-lethal current (ST-246).
+10. Combat rules (ST-256):
     - a shark at least 1.5× the victim's length devours it in one bite;
     - even fights take two bites;
     - health regenerates at 4 HP/s.
-11. Music is a first-party adaptive score, on by default at 35% once the first tap unlocks audio, with a visible mute (ST-198–ST-201).
-12. Releases are semantic versions at each checkpoint: `v2.0.1`, `v2.1.0`, `v2.2.0`, `v2.3.0`, `v2.4.0`, `v2.5.0`.
+11. Music is a first-party adaptive score, on by default at 35% once the first tap unlocks audio, with a visible mute (ST-274–ST-277).
+12. Releases are semantic versions at each checkpoint: `v2.0.1`, `v2.1.0` (the `sharktank` cut-over, ST-224), `v2.2.0`, `v2.3.0`, `v2.4.0`, `v2.5.0`, `v2.6.0`.
 13. The release and change-control tooling (controlled commits, protected releases, GitHub settings checks) stays as it is for now (owner, 2026-10-02).
 
 ### Tuning reference
@@ -114,21 +114,21 @@ Tasks follow these defaults unless the owner changes them before the task starts
 | --- | --- | --- | --- |
 | Tanks | 4 listed, 3 unjoinable | 1 tank: 8 players + 24 bots | ST-139 |
 | Server footprint | Lobby object, evidence/admin pages, SQL input log, billing, backups, cron, R2 | Room in memory only; Worker serves game, assets, version and socket | ST-142–ST-149 |
-| Remote interpolation | 45 ms delay vs 100 ms snapshots; frozen ~72% of frames | 1.5 × snapshot interval (150 ms), drift-locked, ≤ 120 ms extrapolation | ST-156–ST-158 |
-| Snapshot weight | ~30 KB × 10 Hz ≈ 295 KB/s | ≤ 14 KB typical × 10 Hz | ST-163–ST-164 |
-| Steering send | ≤ 10 Hz, 0.05/0.04 rad deadband | 20 Hz, 0.015 rad, trailing final send | ST-160 |
-| Pitch on release | Held | Auto-levels at ~1.2 rad/s | ST-167 |
-| Surface and seabed | Pitch snapped to 0 | Proportional glide band (3 units) | ST-168 |
-| Shark overlap | Instant heading snap | Positional push, headings kept | ST-169 |
-| Wall | Death on contact | Inward current from 4 units inside, no death | ST-170 |
-| Eating | Body centre, radius 1.2 + prey r, 2 chomps/tick | Mouth, 1.2 + 0.55 × scale + prey r, swept, 4 chomps/tick | ST-178 |
-| Biting | Centre-to-centre ≤ 3.4 (+0.8), 50° cone | Mouth to victim body surface ≤ 1.8 + 0.3 × scale, 65° cone | ST-179 |
-| Damage | 34–42 per bite, ≥ 3 bites, no regen | Devour at ≥ 1.5× length; 50 (60 burst) even; 20 nibble; 4 HP/s regen | ST-180 |
-| Ocean | Radius 82, column 24, ~200 fish | Radius 120, column 36, ~480 fish | ST-183 |
-| Fish | 2 looks | 8 school looks + tuna, squid, rays, golden fish | ST-186–ST-190 |
-| Coral | 3 rock clusters outside the wall | Reef sites of brain, branching, plate, fan and tube coral plus kelp | ST-184–ST-185 |
-| Growth | +0.18 length per point; flat scale curve | Five tiers reachable in one round; Megalodon ≈ 2.5× spawn scale | ST-192 |
-| Music | Six-note loop on `setInterval`, off by default | Layered adaptive score on the audio clock, on at 35% | ST-198–ST-201 |
+| Remote interpolation | 45 ms delay vs 100 ms snapshots; frozen ~72% of frames | 1.5 × snapshot interval (150 ms), drift-locked, ≤ 120 ms extrapolation | ST-232–ST-234 |
+| Snapshot weight | ~30 KB × 10 Hz ≈ 295 KB/s | ≤ 14 KB typical × 10 Hz | ST-239–ST-240 |
+| Steering send | ≤ 10 Hz, 0.05/0.04 rad deadband | 20 Hz, 0.015 rad, trailing final send | ST-236 |
+| Pitch on release | Held | Auto-levels at ~1.2 rad/s | ST-243 |
+| Surface and seabed | Pitch snapped to 0 | Proportional glide band (3 units) | ST-244 |
+| Shark overlap | Instant heading snap | Positional push, headings kept | ST-245 |
+| Wall | Death on contact | Inward current from 4 units inside, no death | ST-246 |
+| Eating | Body centre, radius 1.2 + prey r, 2 chomps/tick | Mouth, 1.2 + 0.55 × scale + prey r, swept, 4 chomps/tick | ST-254 |
+| Biting | Centre-to-centre ≤ 3.4 (+0.8), 50° cone | Mouth to victim body surface ≤ 1.8 + 0.3 × scale, 65° cone | ST-255 |
+| Damage | 34–42 per bite, ≥ 3 bites, no regen | Devour at ≥ 1.5× length; 50 (60 burst) even; 20 nibble; 4 HP/s regen | ST-256 |
+| Ocean | Radius 82, column 24, ~200 fish | Radius 120, column 36, ~480 fish | ST-259 |
+| Fish | 2 looks | 8 school looks + tuna, squid, rays, golden fish | ST-262–ST-266 |
+| Coral | 3 rock clusters outside the wall | Reef sites of brain, branching, plate, fan and tube coral plus kelp | ST-260–ST-261 |
+| Growth | +0.18 length per point; flat scale curve | Five tiers reachable in one round; Megalodon ≈ 2.5× spawn scale | ST-268 |
+| Music | Six-note loop on `setInterval`, off by default | Layered adaptive score on the audio clock, on at 35% | ST-274–ST-277 |
 
 ### Cross-repository boundary
 
@@ -138,7 +138,7 @@ Tasks follow these defaults unless the owner changes them before the task starts
 - a SharkTank case study that previews removed rockets and claims ISO-aligned operations;
 - project data whose operations link points at `/evidence/`, which ST-145 deletes.
 
-On 2026-10-02 the owner directed that this SharkTank material be deleted from the website. That work belongs to the website repository's own queue and should ship before SharkTank `v2.1.0`. SharkTank adds nothing to replace it.
+On 2026-10-02 the owner directed that this SharkTank material be deleted from the website. That work shipped in the website's `v1.3.0` on 2026-10-05. SharkTank adds nothing to replace it.
 
 ## Open tasks
 
@@ -178,7 +178,7 @@ On 2026-10-02 the owner directed that this SharkTank material be deleted from th
 
 **Scope**
 - Every Room boots a fresh round. Stop writing snapshots and metadata, and delete any legacy stored state once on boot.
-- Delete `src/worker/room-state-schema.ts`, `tests/room-persistence-schema.test.ts` and the engine's persisted `schemaVersion` field. The wire keeps its version until ST-163.
+- Delete `src/worker/room-state-schema.ts`, `tests/room-persistence-schema.test.ts` and the engine's persisted `schemaVersion` field. The wire keeps its version until ST-239.
 - Use standard WebSockets with in-memory sessions and drop hibernation attachments; the tick loop keeps the object awake while anyone is connected.
 
 **Acceptance:** A restarted Room serves a fresh round, and nothing reads or writes Durable Object storage.
@@ -252,8 +252,8 @@ On 2026-10-02 the owner directed that this SharkTank material be deleted from th
 
 **Scope**
 - Remove the `Lobby` class, its bindings and its remaining code.
-- Add migration `v2` with `deleted_classes: ["Lobby"]`. It irreversibly deletes stored profiles, receipts, logs and backup records when the owner approves the next production deploy. The owner confirmed the deletion on 2026-10-02.
-- Update the repository-baseline checks and the README and ARCHITECTURE boundaries: `Room` becomes the only class, with migrations `v1` and `v2`.
+- Add no deletion migration. `wizardgangprod` is never deployed again: ST-224 deploys `sharktank` with a fresh migration history, and the stored profiles, receipts, logs and backup records are deleted with `wizardgangprod` at R3. The owner confirmed the deletion on 2026-10-02.
+- Update the repository-baseline checks and the README and ARCHITECTURE boundaries: `Room` becomes the only class.
 
 **Acceptance:** The Worker exports only `Room`; config and baseline checks agree.
 
@@ -261,7 +261,61 @@ On 2026-10-02 the owner directed that this SharkTank material be deleted from th
 
 ---
 
-### ST-150 — [DOCS] Retire the ISO-era documents and provenance records
+### ST-222 — [OPS] Decide how `Room` crosses to the sharktank Worker
+
+**Goal:** Phase 4 of the Cloudflare consolidation renames `wizardgangprod` to `sharktank`, and the owner moved that rename (2026-10-05) to right after the lean refactor. Production still runs `v2.0.1` at this point, so the cut-over deploy is also the first deploy of the memory-only `Room` (ST-144) and of a Worker without `Lobby` (ST-149).
+
+**Scope**
+- Read production `Room` and `Lobby` storage on `wizardgangprod` (read only) and record what is stored.
+- The default is a fresh `Room` class under `sharktank`, with no transfer: the new `Room` keeps nothing in storage, and `Lobby` does not exist on the new Worker. Whatever `wizardgangprod` still stores is deleted with that Worker at R3, as the owner confirmed for the Lobby on 2026-10-02. If the read finds data the owner might want kept, stop and ask before ST-223.
+- Record the read, the decision and the exact migration block ST-223 commits on the PR.
+
+**Acceptance:** The PR states fresh class (or the owner's alternative) with evidence, and the exact migration block ST-223 commits.
+
+---
+
+### ST-223 — [OPS] Adopt the shared wg-edge shell and the baseline deploy workflow as the sharktank Worker
+
+**Goal:** SharkTank runs on baseline's shared Worker shell, conforming config and single deploy path. Baseline's `config/cloudflare.json` and `config/secrets.json` are the authority.
+
+**Scope**
+- Vendor baseline `platform/` verbatim from a merged baseline commit (BASE-030 `67b4b86847e0d635a3f6fe4c21618a25d5bc71a0` or later), and commit the `platform/vendor.lock.json` that `npm run vendor:lock -- <commit>` prints in baseline.
+- Replace `wrangler.jsonc` with one conforming top-level Worker:
+  - name and `WG_APP` `sharktank`, with custom domain `sharktank.wizardgang.ai`;
+  - compatibility date 2026-08-31 with `nodejs_compat`;
+  - `workers_dev` and `preview_urls` false, and observability on;
+  - `Room` as the only Durable Object, with the ST-222 migration;
+  - no cron, D1, R2 or KV;
+  - `ASSETS`, plus Secrets Store bindings for `WG_OPS_TOKEN` and `WG_SESSION_KEY` with the store ID the owner recorded in baseline runbook step 3.5;
+  - no `env` blocks.
+- `node platform/conformance/cli.mjs wrangler --worker sharktank` passes.
+- The Worker entry uses `createEdge`. The shell provides the host guard, `/version.json`, headers, errors and 404s. The app handler serves `/` → `/play/`, `/play/`, assets and the tank WebSocket.
+- The release path calls `Wizard-Gang/baseline/.github/workflows/deploy-worker.yml` pinned to the same baseline commit as `platform/`, with `worker: sharktank` and `secrets: inherit`. A called workflow sees only the secrets its caller passes, so without `inherit` the deploy reads an empty token (WizardGang's v1.3.0 deploy failed that way on 2026-10-05). Remove the in-repo deploy workflow, its scripts and the `PRODUCTION_DEPLOY_ENABLED` gate; the `production` environment approval replaces it. Nothing reads `secrets.CLOUDFLARE_ACCOUNT_ID`.
+
+**Acceptance:** `npm run check` runs the vendored `pin` and `wrangler` conformance checks, local acceptance plays a round, and no deploy happens in this task.
+
+---
+
+### ST-224 — [OPS] Release the lean update as the sharktank cut-over, v2.1.0
+
+**Goal:** Ship ST-142 through ST-149 and ST-222 and ST-223. The first deploy through `deploy-worker.yml` creates the `sharktank` Worker and moves `sharktank.wizardgang.ai` from `wizardgangprod`.
+
+**Scope**
+- Semantic minor release.
+- The wizardgang.ai change is already live (WizardGang `v1.3.0`, 2026-10-05).
+- Before release, the owner records the manual rows for data use and the one-tank flow.
+- `sharktank.wizardgang.ai` is a Worker custom domain on `wizardgangprod`. The locked wrangler 4.147.0 runs non-interactively in CI and then moves an existing custom domain to the new Worker without a prompt (WizardGang's cut-over moved `wizardgang.ai` that way). It cannot override a hand-made DNS record: before deploying, confirm the host has none, or the owner deletes it immediately before the deploy.
+- The production deploy token must hold Secrets Store Edit (baseline runbook step 3.6) for the `WG_OPS_TOKEN` and `WG_SESSION_KEY` bindings.
+- Owner follow-up from baseline's runbooks:
+  - retire `wizardgangprod` (R3). Its `Lobby`, `Room` data, cron and `OPS_TOKEN`/`OPS_USERNAME` secrets go with it. R3's precondition assumes a transferred `Room`, so a baseline change aligns it with the ST-222 decision first;
+  - retire `wizardgang-demo-assets` (R1), now that ST-148 is deployed;
+  - delete the `production` secret `CLOUDFLARE_ACCOUNT_ID` (now a variable) and the `PRODUCTION_DEPLOY_ENABLED` variable.
+
+**Acceptance:** `v2.1.0` is live as `sharktank` at 100% of traffic with one Durable Object class, serving only the game surface. `https://sharktank.wizardgang.ai/version.json` reports `sharktank`, 2.1.0 and the tag commit, and a full round plays. Baseline `npm run verify:cloudflare` shows no `sharktank` drift. Protected approval is honored; stop and report if it is pending.
+
+---
+
+### ST-226 — [DOCS] Retire the ISO-era documents and provenance records
 
 **Goal:** Leave documentation that describes a lean game, not an evidence program.
 
@@ -276,7 +330,7 @@ On 2026-10-02 the owner directed that this SharkTank material be deleted from th
 
 ---
 
-### ST-151 — [REFACTOR] Remove dead engine, protocol and package code
+### ST-227 — [REFACTOR] Remove dead engine, protocol and package code
 
 **Goal:** Delete code nothing imports or calls.
 
@@ -293,7 +347,7 @@ On 2026-10-02 the owner directed that this SharkTank material be deleted from th
 
 ---
 
-### ST-152 — [REFACTOR] Remove dead rendering and test-only code from the client
+### ST-228 — [REFACTOR] Remove dead rendering and test-only code from the client
 
 **Goal:** Production modules carry rendering leftovers and code that exists only for tests.
 
@@ -308,7 +362,7 @@ On 2026-10-02 the owner directed that this SharkTank material be deleted from th
 
 ---
 
-### ST-153 — [REFACTOR] Fold the vendored game package into src
+### ST-229 — [REFACTOR] Fold the vendored game package into src
 
 **Goal:** The game lives in a pretend package with its own manifest, tsconfig, docs, licence, `file:` dependency, module aliases and second typecheck.
 
@@ -323,13 +377,13 @@ On 2026-10-02 the owner directed that this SharkTank material be deleted from th
 
 ---
 
-### ST-154 — [REFACTOR] Replace the snake trail with one shark position
+### ST-230 — [REFACTOR] Replace the snake trail with one shark position
 
 **Goal:** Sharks carry a breadcrumb trail resampled every tick that always yields one point, plus two always-false fields.
 
 **Scope**
 - In the engine, replace `path`, `segments`, `sampleTrail`, `segmentCount`, `SEGMENT_SPACING` and `TAIL_MARGIN` with a single `position`, and delete `boosting` and `chargeTicks`.
-- Prediction, actors, radar and audio read `position`. The wire still sends `segments: [position]` until ST-163.
+- Prediction, actors, radar and audio read `position`. The wire still sends `segments: [position]` until ST-239.
 
 **Acceptance:** Movement, eating, combat and determinism tests pass unchanged.
 
@@ -337,11 +391,11 @@ On 2026-10-02 the owner directed that this SharkTank material be deleted from th
 
 ---
 
-### ST-155 — [REFACTOR] Rename snake-era names to sharks
+### ST-231 — [REFACTOR] Rename snake-era names to sharks
 
 **Goal:** Sharks are still called snakes throughout the code.
 
-**Scope:** Rename `Snake`, `snakes`, `SnakeLabels` and `snake-label` to `Shark`, `sharks`, `SharkLabels` and `shark-label` in the engine and client. The wire key changes in ST-163.
+**Scope:** Rename `Snake`, `snakes`, `SnakeLabels` and `snake-label` to `Shark`, `sharks`, `SharkLabels` and `shark-label` in the engine and client. The wire key changes in ST-239.
 
 **Acceptance:** No snake naming remains outside the wire adapter.
 
@@ -349,7 +403,7 @@ On 2026-10-02 the owner directed that this SharkTank material be deleted from th
 
 ---
 
-### ST-156 — [FIX] Stop remote sharks and fish freezing between snapshots
+### ST-232 — [FIX] Stop remote sharks and fish freezing between snapshots
 
 **Goal:** The 45 ms interpolation delay is shorter than the 100 ms snapshot interval, so remote actors freeze on about 72% of frames.
 
@@ -364,7 +418,7 @@ On 2026-10-02 the owner directed that this SharkTank material be deleted from th
 
 ---
 
-### ST-157 — [FIX] Keep the interpolation clock locked to the server tick rate
+### ST-233 — [FIX] Keep the interpolation clock locked to the server tick rate
 
 **Goal:** The tick-to-client clock is fixed at the first packet and drifts over a session.
 
@@ -376,7 +430,7 @@ On 2026-10-02 the owner directed that this SharkTank material be deleted from th
 
 ---
 
-### ST-158 — [FEAT] Extrapolate remote actors briefly when a snapshot is late
+### ST-234 — [FEAT] Extrapolate remote actors briefly when a snapshot is late
 
 **Goal:** A late packet should not freeze the world.
 
@@ -388,7 +442,7 @@ On 2026-10-02 the owner directed that this SharkTank material be deleted from th
 
 ---
 
-### ST-159 — [FIX] Drive animation and banking from continuous client time
+### ST-235 — [FIX] Drive animation and banking from continuous client time
 
 **Goal:** Swim phases use the stalled server tick, and remote banking spikes on snapshot steps.
 
@@ -403,7 +457,7 @@ On 2026-10-02 the owner directed that this SharkTank material be deleted from th
 
 ---
 
-### ST-160 — [PERF] Send steering intent at 20 Hz with a trailing final update
+### ST-236 — [PERF] Send steering intent at 20 Hz with a trailing final update
 
 **Goal:** The Room steers from stale, coarse targets.
 
@@ -415,7 +469,7 @@ On 2026-10-02 the owner directed that this SharkTank material be deleted from th
 
 ---
 
-### ST-161 — [FEAT] Predict the dash locally the instant it is pressed
+### ST-237 — [FEAT] Predict the dash locally the instant it is pressed
 
 **Goal:** The local dash waits one round trip before it moves.
 
@@ -427,7 +481,7 @@ On 2026-10-02 the owner directed that this SharkTank material be deleted from th
 
 ---
 
-### ST-162 — [FIX] Blend reconciliation corrections instead of snapping the camera
+### ST-238 — [FIX] Blend reconciliation corrections instead of snapping the camera
 
 **Goal:** Large corrections teleport the local shark and the camera.
 
@@ -439,7 +493,7 @@ On 2026-10-02 the owner directed that this SharkTank material be deleted from th
 
 ---
 
-### ST-163 — [API] Pack snapshots into compact realtime protocol 12
+### ST-239 — [API] Pack snapshots into compact realtime protocol 12
 
 **Goal:** Prey objects with long ids and repeated keys make up most of every snapshot.
 
@@ -460,7 +514,7 @@ On 2026-10-02 the owner directed that this SharkTank material be deleted from th
 
 ---
 
-### ST-164 — [PERF] Cull prey snapshots to each player's surroundings
+### ST-240 — [PERF] Cull prey snapshots to each player's surroundings
 
 **Goal:** Every player receives every fish in the tank.
 
@@ -475,7 +529,7 @@ On 2026-10-02 the owner directed that this SharkTank material be deleted from th
 
 ---
 
-### ST-165 — [PERF] Pick quality automatically and lower resolution under load
+### ST-241 — [PERF] Pick quality automatically and lower resolution under load
 
 **Goal:** Phones default to High quality and never adapt.
 
@@ -489,22 +543,20 @@ On 2026-10-02 the owner directed that this SharkTank material be deleted from th
 
 ---
 
-### ST-166 — [OPS] Release the lean and smooth update as v2.1.0
+### ST-242 — [OPS] Release the smooth update as v2.2.0
 
-**Goal:** Ship ST-142 through ST-165.
+**Goal:** Ship ST-226 through ST-241.
 
 **Scope**
-- Semantic minor release.
-- This deploy runs the owner-confirmed Lobby deletion on the owner's production approval and moves clients to protocol 12.
-- The wizardgang.ai change should already be live.
-- Before release, the owner records the manual rows for smoothness, data use and the one-tank flow.
-- After the deploy is verified, delete the now-unused `OPS_TOKEN` and `OPS_USERNAME` secrets with `wrangler secret delete --env wizardgangprod`, and record it on the merged PR or the GitHub Release.
+- Semantic minor release through `deploy-worker.yml` as `sharktank`.
+- This deploy moves clients to protocol 12.
+- Before release, the owner records the manual rows for smoothness.
 
-**Acceptance:** `v2.1.0` is live with one Durable Object class, the Worker serves only the game surface, and no operator secret remains. Protected approval is honored; stop and report if it is pending.
+**Acceptance:** `v2.2.0` is live as `sharktank`. Protected approval is honored; stop and report if it is pending.
 
 ---
 
-### ST-167 — [FEAT] Auto-level pitch and ease keyboard steering
+### ST-243 — [FEAT] Auto-level pitch and ease keyboard steering
 
 **Goal:** Held pitch drives sharks into the surface or seabed, and keys jump straight to full turn rate.
 
@@ -519,7 +571,7 @@ On 2026-10-02 the owner directed that this SharkTank material be deleted from th
 
 ---
 
-### ST-168 — [FIX] Glide along the surface and seabed instead of snapping pitch
+### ST-244 — [FIX] Glide along the surface and seabed instead of snapping pitch
 
 **Goal:** Pitch snaps to zero on contact while the client keeps requesting it, which jitters.
 
@@ -531,7 +583,7 @@ On 2026-10-02 the owner directed that this SharkTank material be deleted from th
 
 ---
 
-### ST-169 — [FIX] Separate overlapping sharks softly instead of snapping headings
+### ST-245 — [FIX] Separate overlapping sharks softly instead of snapping headings
 
 **Goal:** Overlap rewrites both sharks' headings instantly.
 
@@ -543,7 +595,7 @@ On 2026-10-02 the owner directed that this SharkTank material be deleted from th
 
 ---
 
-### ST-170 — [FEAT] Replace the lethal arena wall with a soft returning current
+### ST-246 — [FEAT] Replace the lethal arena wall with a soft returning current
 
 **Goal:** Touching the wall kills.
 
@@ -558,7 +610,7 @@ On 2026-10-02 the owner directed that this SharkTank material be deleted from th
 
 ---
 
-### ST-171 — [FEAT] Frame the chase camera closer and higher
+### ST-247 — [FEAT] Frame the chase camera closer and higher
 
 **Goal:** The local shark reads as a small silhouette seen from directly behind.
 
@@ -570,7 +622,7 @@ On 2026-10-02 the owner directed that this SharkTank material be deleted from th
 
 ---
 
-### ST-172 — [FEAT] Add gentle aim assist toward prey and bite targets
+### ST-248 — [FEAT] Add gentle aim assist toward prey and bite targets
 
 **Goal:** Lining up a moving fish in 3D by thumb is hard.
 
@@ -582,7 +634,7 @@ On 2026-10-02 the owner directed that this SharkTank material be deleted from th
 
 ---
 
-### ST-173 — [FEAT] Make one-thumb Simple steering the touch default
+### ST-249 — [FEAT] Make one-thumb Simple steering the touch default
 
 **Goal:** Two-stick 3D flight is demanding for casual phone players.
 
@@ -597,7 +649,7 @@ On 2026-10-02 the owner directed that this SharkTank material be deleted from th
 
 ---
 
-### ST-174 — [FEAT] Map the Simple stick's vertical axis to a climb or dive angle
+### ST-250 — [FEAT] Map the Simple stick's vertical axis to a climb or dive angle
 
 **Goal:** Push up to climb, let go to level.
 
@@ -609,7 +661,7 @@ On 2026-10-02 the owner directed that this SharkTank material be deleted from th
 
 ---
 
-### ST-175 — [FEAT] Move Bite and Dash into the thumb arc with cooldown rings
+### ST-251 — [FEAT] Move Bite and Dash into the thumb arc with cooldown rings
 
 **Goal:** On touch, the ability buttons sit over the leaderboard and out of reach.
 
@@ -624,7 +676,7 @@ On 2026-10-02 the owner directed that this SharkTank material be deleted from th
 
 ---
 
-### ST-176 — [FEAT] Allow portrait play with a portrait control layout
+### ST-252 — [FEAT] Allow portrait play with a portrait control layout
 
 **Goal:** Portrait currently shows no controls at all.
 
@@ -639,7 +691,7 @@ On 2026-10-02 the owner directed that this SharkTank material be deleted from th
 
 ---
 
-### ST-177 — [REFACTOR] Share one size curve and mouth and body geometry between engine and renderer
+### ST-253 — [REFACTOR] Share one size curve and mouth and body geometry between engine and renderer
 
 **Goal:** Hit boxes and visuals must agree on how big a shark is and where its mouth is.
 
@@ -654,7 +706,7 @@ On 2026-10-02 the owner directed that this SharkTank material be deleted from th
 
 ---
 
-### ST-178 — [FEAT] Eat from the mouth with a size-scaled, swept radius
+### ST-254 — [FEAT] Eat from the mouth with a size-scaled, swept radius
 
 **Goal:** Prey the snout visibly touches is not eaten, and dashes can pass fish between ticks.
 
@@ -666,7 +718,7 @@ On 2026-10-02 the owner directed that this SharkTank material be deleted from th
 
 ---
 
-### ST-179 — [FEAT] Land bites anywhere on the victim's body with a wider cone
+### ST-255 — [FEAT] Land bites anywhere on the victim's body with a wider cone
 
 **Goal:** A bite that visibly lands on a tail misses.
 
@@ -681,7 +733,7 @@ On 2026-10-02 the owner directed that this SharkTank material be deleted from th
 
 ---
 
-### ST-180 — [FEAT] Devour much smaller sharks in one bite and regenerate health
+### ST-256 — [FEAT] Devour much smaller sharks in one bite and regenerate health
 
 **Goal:** Every kill needs three or more bites and health never recovers.
 
@@ -699,7 +751,7 @@ On 2026-10-02 the owner directed that this SharkTank material be deleted from th
 
 ---
 
-### ST-181 — [FEAT] Mark which sharks you can eat and which can eat you
+### ST-257 — [FEAT] Mark which sharks you can eat and which can eat you
 
 **Goal:** Make the size rule readable at a glance.
 
@@ -711,17 +763,17 @@ On 2026-10-02 the owner directed that this SharkTank material be deleted from th
 
 ---
 
-### ST-182 — [OPS] Release the controls and combat update as v2.2.0
+### ST-258 — [OPS] Release the controls and combat update as v2.3.0
 
-**Goal:** Ship ST-167 through ST-181.
+**Goal:** Ship ST-243 through ST-257.
 
 **Scope:** Semantic minor release after the owner records the manual rows: landscape and portrait, Simple and Dual, thumb-arc abilities, keyboard easing and the new combat.
 
-**Acceptance:** `v2.2.0` is live. Protected approval is honored; stop and report if it is pending.
+**Acceptance:** `v2.3.0` is live. Protected approval is honored; stop and report if it is pending.
 
 ---
 
-### ST-183 — [FEAT] Make the tank bigger with one shared ocean constant
+### ST-259 — [FEAT] Make the tank bigger with one shared ocean constant
 
 **Goal:** The ocean is small, and its size is defined in five places.
 
@@ -730,13 +782,13 @@ On 2026-10-02 the owner directed that this SharkTank material be deleted from th
 - Scale the prey budget: about 480 ambient fish, a cap of 720, 8 spawns per tick, 24 schools and 60 Frenzy chum.
 - Bots, spawning, Frenzy volume and fog keep working at the new size.
 
-**Acceptance:** Tests use the shared constant; at full population the per-player snapshot still meets the ST-164 budget.
+**Acceptance:** Tests use the shared constant; at full population the per-player snapshot still meets the ST-240 budget.
 
 **Validation:** `npm test -- tests/ocean-arena.test.ts tests/volumetric-engine.test.ts tests/swimming-camera.test.ts tests/bot-ai-3d.test.ts tests/feeding-frenzy-3d.test.ts tests/client-performance.test.ts`.
 
 ---
 
-### ST-184 — [FEAT] Grow coral reefs across the seabed
+### ST-260 — [FEAT] Grow coral reefs across the seabed
 
 **Goal:** The only reefs are three rock clusters outside the wall.
 
@@ -752,7 +804,7 @@ On 2026-10-02 the owner directed that this SharkTank material be deleted from th
 
 ---
 
-### ST-185 — [FEAT] Sway the kelp and vary coral colour and size
+### ST-261 — [FEAT] Sway the kelp and vary coral colour and size
 
 **Goal:** Reefs should look alive, not stamped.
 
@@ -764,7 +816,7 @@ On 2026-10-02 the owner directed that this SharkTank material be deleted from th
 
 ---
 
-### ST-186 — [FEAT] Keep reef fish schooling around the coral
+### ST-262 — [FEAT] Keep reef fish schooling around the coral
 
 **Goal:** Tie the reef fish to the reefs so coral matters.
 
@@ -776,7 +828,7 @@ On 2026-10-02 the owner directed that this SharkTank material be deleted from th
 
 ---
 
-### ST-187 — [FEAT] Give every school its own species look
+### ST-263 — [FEAT] Give every school its own species look
 
 **Goal:** Only two fish looks exist.
 
@@ -793,7 +845,7 @@ On 2026-10-02 the owner directed that this SharkTank material be deleted from th
 
 ---
 
-### ST-188 — [FEAT] Add tuna schools and gliding rays
+### ST-264 — [FEAT] Add tuna schools and gliding rays
 
 **Goal:** Give hunters bigger, faster and rarer prey.
 
@@ -808,7 +860,7 @@ On 2026-10-02 the owner directed that this SharkTank material be deleted from th
 
 ---
 
-### ST-189 — [FEAT] Add darting squid and a rare golden fish
+### ST-265 — [FEAT] Add darting squid and a rare golden fish
 
 **Goal:** Create chase moments.
 
@@ -822,7 +874,7 @@ On 2026-10-02 the owner directed that this SharkTank material be deleted from th
 
 ---
 
-### ST-190 — [FEAT] Model tuna, squid, rays and the golden fish
+### ST-266 — [FEAT] Model tuna, squid, rays and the golden fish
 
 **Goal:** Every new species should read at a glance.
 
@@ -838,17 +890,17 @@ On 2026-10-02 the owner directed that this SharkTank material be deleted from th
 
 ---
 
-### ST-191 — [OPS] Release the bigger ocean update as v2.3.0
+### ST-267 — [OPS] Release the bigger ocean update as v2.4.0
 
-**Goal:** Ship ST-183 through ST-190.
+**Goal:** Ship ST-259 through ST-266.
 
 **Scope:** Semantic minor release after the owner records the manual rows for the bigger ocean, reefs, species readability and frame budgets on a real phone.
 
-**Acceptance:** `v2.3.0` is live. Protected approval is honored; stop and report if it is pending.
+**Acceptance:** `v2.4.0` is live. Protected approval is honored; stop and report if it is pending.
 
 ---
 
-### ST-192 — [FEAT] Grow through five named tiers within a round
+### ST-268 — [FEAT] Grow through five named tiers within a round
 
 **Goal:** Growth is invisible and has no milestones.
 
@@ -862,7 +914,7 @@ On 2026-10-02 the owner directed that this SharkTank material be deleted from th
 
 ---
 
-### ST-193 — [FEAT] Give smaller sharks a turning edge over bigger ones
+### ST-269 — [FEAT] Give smaller sharks a turning edge over bigger ones
 
 **Goal:** Give small sharks counterplay against hunters.
 
@@ -874,7 +926,7 @@ On 2026-10-02 the owner directed that this SharkTank material be deleted from th
 
 ---
 
-### ST-194 — [FEAT] Seed prey near human sharks and greet each spawn with a school
+### ST-270 — [FEAT] Seed prey near human sharks and greet each spawn with a school
 
 **Goal:** Food should always be nearby.
 
@@ -886,7 +938,7 @@ On 2026-10-02 the owner directed that this SharkTank material be deleted from th
 
 ---
 
-### ST-195 — [FEAT] Stop bots farming fresh spawns
+### ST-271 — [FEAT] Stop bots farming fresh spawns
 
 **Goal:** Keep the size ladder climbable for people.
 
@@ -898,7 +950,7 @@ On 2026-10-02 the owner directed that this SharkTank material be deleted from th
 
 ---
 
-### ST-196 — [FEAT] Celebrate every tier-up with an evolution moment
+### ST-272 — [FEAT] Celebrate every tier-up with an evolution moment
 
 **Goal:** Make growth feel like progress.
 
@@ -910,7 +962,7 @@ On 2026-10-02 the owner directed that this SharkTank material be deleted from th
 
 ---
 
-### ST-197 — [FEAT] Count eat streaks and float score gains
+### ST-273 — [FEAT] Count eat streaks and float score gains
 
 **Goal:** Make eating feel great.
 
@@ -922,11 +974,11 @@ On 2026-10-02 the owner directed that this SharkTank material be deleted from th
 
 ---
 
-### ST-198 — [REFACTOR] Schedule music on the audio clock with lookahead
+### ST-274 — [REFACTOR] Schedule music on the audio clock with lookahead
 
 **Goal:** Music notes come from `setInterval`, which jitters on phones.
 
-**Scope:** A timer wakes about every 25 ms and schedules notes up to 100 ms ahead on `AudioContext.currentTime`. The melody is unchanged until ST-199.
+**Scope:** A timer wakes about every 25 ms and schedules notes up to 100 ms ahead on `AudioContext.currentTime`. The melody is unchanged until ST-275.
 
 **Acceptance:** Fake-clock scheduler tests pass; start, stop and visibility handling are unchanged.
 
@@ -934,7 +986,7 @@ On 2026-10-02 the owner directed that this SharkTank material be deleted from th
 
 ---
 
-### ST-199 — [FEAT] Compose a layered underwater score with pads and bass
+### ST-275 — [FEAT] Compose a layered underwater score with pads and bass
 
 **Goal:** Replace the six-note loop.
 
@@ -946,7 +998,7 @@ On 2026-10-02 the owner directed that this SharkTank material be deleted from th
 
 ---
 
-### ST-200 — [FEAT] Add percussion and a lead motif to the score
+### ST-276 — [FEAT] Add percussion and a lead motif to the score
 
 **Goal:** Give the score layers that can carry intensity.
 
@@ -958,7 +1010,7 @@ On 2026-10-02 the owner directed that this SharkTank material be deleted from th
 
 ---
 
-### ST-201 — [FEAT] Drive music intensity from gameplay and turn music on by default
+### ST-277 — [FEAT] Drive music intensity from gameplay and turn music on by default
 
 **Goal:** Music should rise with danger, Frenzy and Apex, and players should actually hear it.
 
@@ -981,7 +1033,7 @@ On 2026-10-02 the owner directed that this SharkTank material be deleted from th
 
 ---
 
-### ST-202 — [FEAT] Route audio through an underwater reverb and limiter bus
+### ST-278 — [FEAT] Route audio through an underwater reverb and limiter bus
 
 **Goal:** Make everything sound underwater, without clipping.
 
@@ -993,7 +1045,7 @@ On 2026-10-02 the owner directed that this SharkTank material be deleted from th
 
 ---
 
-### ST-203 — [FEAT] Replace harsh beeps and droning cues with crunches, whooshes, plucks and a swim layer
+### ST-279 — [FEAT] Replace harsh beeps and droning cues with crunches, whooshes, plucks and a swim layer
 
 **Goal:** SFX are square and saw chirps, and the swim and presence cues drone about once a second.
 
@@ -1008,17 +1060,17 @@ On 2026-10-02 the owner directed that this SharkTank material be deleted from th
 
 ---
 
-### ST-204 — [OPS] Release the growth and music update as v2.4.0
+### ST-280 — [OPS] Release the growth and music update as v2.5.0
 
-**Goal:** Ship ST-192 through ST-203.
+**Goal:** Ship ST-268 through ST-279.
 
 **Scope:** Semantic minor release after the owner records the manual rows for tiers, streaks, bot fairness and audio on a real phone and a desktop browser.
 
-**Acceptance:** `v2.4.0` is live. Protected approval is honored; stop and report if it is pending.
+**Acceptance:** `v2.5.0` is live. Protected approval is honored; stop and report if it is pending.
 
 ---
 
-### ST-205 — [FEAT] Replace the HUD cards with one compact top bar and status chips
+### ST-281 — [FEAT] Replace the HUD cards with one compact top bar and status chips
 
 **Goal:** Five cards and a two-line Frenzy banner cover the top of a phone.
 
@@ -1030,7 +1082,7 @@ On 2026-10-02 the owner directed that this SharkTank material be deleted from th
 
 ---
 
-### ST-206 — [FEAT] Collapse the leaderboard to the top three plus you
+### ST-282 — [FEAT] Collapse the leaderboard to the top three plus you
 
 **Goal:** A ten-row board is too much for a phone.
 
@@ -1042,7 +1094,7 @@ On 2026-10-02 the owner directed that this SharkTank material be deleted from th
 
 ---
 
-### ST-207 — [FEAT] Point to off-screen threats, Apex, Frenzy and golden fish from the screen edge
+### ST-283 — [FEAT] Point to off-screen threats, Apex, Frenzy and golden fish from the screen edge
 
 **Goal:** In a bigger ocean, players need direction at a glance rather than in a text list.
 
@@ -1061,7 +1113,7 @@ On 2026-10-02 the owner directed that this SharkTank material be deleted from th
 
 ---
 
-### ST-208 — [FEAT] Shrink name tags and fade them with distance
+### ST-284 — [FEAT] Shrink name tags and fade them with distance
 
 **Goal:** 136 px name pills overlap the HUD.
 
@@ -1073,7 +1125,7 @@ On 2026-10-02 the owner directed that this SharkTank material be deleted from th
 
 ---
 
-### ST-209 — [FEAT] Rebuild the death and round-result cards
+### ST-285 — [FEAT] Rebuild the death and round-result cards
 
 **Goal:** Make deaths quick to recover from and round ends worth celebrating.
 
@@ -1088,7 +1140,7 @@ On 2026-10-02 the owner directed that this SharkTank material be deleted from th
 
 ---
 
-### ST-210 — [FEAT] Refresh the main menu with an inline name and live skin preview
+### ST-286 — [FEAT] Refresh the main menu with an inline name and live skin preview
 
 **Goal:** Make the first screen about the game, not a form.
 
@@ -1100,7 +1152,7 @@ On 2026-10-02 the owner directed that this SharkTank material be deleted from th
 
 ---
 
-### ST-211 — [FEAT] Coach the first thirty seconds with one-time hints
+### ST-287 — [FEAT] Coach the first thirty seconds with one-time hints
 
 **Goal:** Teach new players without a tutorial screen.
 
@@ -1112,7 +1164,7 @@ On 2026-10-02 the owner directed that this SharkTank material be deleted from th
 
 ---
 
-### ST-212 — [FEAT] Light and countershade the sharks
+### ST-288 — [FEAT] Light and countershade the sharks
 
 **Goal:** Unlit sharks read as flat blobs.
 
@@ -1124,7 +1176,7 @@ On 2026-10-02 the owner directed that this SharkTank material be deleted from th
 
 ---
 
-### ST-213 — [FEAT] Replace sphere-and-cone sharks with a smooth body and blade fins
+### ST-289 — [FEAT] Replace sphere-and-cone sharks with a smooth body and blade fins
 
 **Goal:** Remove the chunky sphere-and-cone look.
 
@@ -1136,7 +1188,7 @@ On 2026-10-02 the owner directed that this SharkTank material be deleted from th
 
 ---
 
-### ST-214 — [FEAT] Bend the shark body with a continuous spine wave
+### ST-290 — [FEAT] Bend the shark body with a continuous spine wave
 
 **Goal:** Smooth swimming instead of rigid parts.
 
@@ -1148,7 +1200,7 @@ On 2026-10-02 the owner directed that this SharkTank material be deleted from th
 
 ---
 
-### ST-215 — [FEAT] Open the jaws on every bite
+### ST-291 — [FEAT] Open the jaws on every bite
 
 **Goal:** Show the attack, not just its result.
 
@@ -1160,7 +1212,7 @@ On 2026-10-02 the owner directed that this SharkTank material be deleted from th
 
 ---
 
-### ST-216 — [FEAT] Trail dash wakes and pop prey at the mouth
+### ST-292 — [FEAT] Trail dash wakes and pop prey at the mouth
 
 **Goal:** Make dashing and eating visible.
 
@@ -1172,7 +1224,7 @@ On 2026-10-02 the owner directed that this SharkTank material be deleted from th
 
 ---
 
-### ST-217 — [FEAT] Shake the camera and flash bitten sharks on impact
+### ST-293 — [FEAT] Shake the camera and flash bitten sharks on impact
 
 **Goal:** Hits should be felt and seen. The Camera motion toggle currently does nothing.
 
@@ -1184,7 +1236,7 @@ On 2026-10-02 the owner directed that this SharkTank material be deleted from th
 
 ---
 
-### ST-218 — [FEAT] Draw a visible current curtain at the arena edge
+### ST-294 — [FEAT] Draw a visible current curtain at the arena edge
 
 **Goal:** The soft wall should be visible before you reach it.
 
@@ -1196,7 +1248,7 @@ On 2026-10-02 the owner directed that this SharkTank material be deleted from th
 
 ---
 
-### ST-219 — [REFACTOR] Sweep the last dead code, styles and copy
+### ST-295 — [REFACTOR] Sweep the last dead code, styles and copy
 
 **Goal:** Leave nothing unused behind after the wave.
 
@@ -1208,60 +1260,10 @@ On 2026-10-02 the owner directed that this SharkTank material be deleted from th
 
 ---
 
-### ST-220 — [OPS] Release the polish update as v2.5.0
+### ST-296 — [OPS] Release the polish update as v2.6.0
 
-**Goal:** Ship ST-205 through ST-219.
+**Goal:** Ship ST-281 through ST-295.
 
 **Scope:** Semantic minor release after the owner records the layout, zoom, screen-reader, contrast and visual-readability rows on a real phone and a desktop browser.
 
-**Acceptance:** `v2.5.0` is live. Protected approval is honored; stop and report if it is pending.
-
----
-
-### ST-222 — [OPS] Rehearse the Room transfer to the sharktank Worker
-
-**Goal:** Phase 4 of the Cloudflare consolidation renames `wizardgangprod` to `sharktank`. Prove how `Room` crosses that boundary before production does.
-
-**Scope**
-- On a scratch Worker pair, deploy the current `Room` under an old name, then a new name with a `transferred_classes` migration from the old Worker's `Room`, and record what state and connections survive.
-- Read production `Room` storage (read only). After ST-144 nothing should be stored. If it is empty, record the owner-approved fallback: a fresh `Room` class under `sharktank`, with no transfer.
-- Delete the scratch Workers. Record the commands, results and decision on the PR.
-
-**Acceptance:** The PR states transfer or fresh class with evidence, and the exact migration block ST-223 commits.
-
----
-
-### ST-223 — [OPS] Adopt the shared wg-edge shell and the baseline deploy workflow as the sharktank Worker
-
-**Goal:** SharkTank runs on baseline's shared Worker shell, conforming config and single deploy path. Baseline's `config/cloudflare.json` and `config/secrets.json` are the authority.
-
-**Scope**
-- Vendor baseline `platform/` verbatim from a merged baseline commit (BASE-028 or later), and commit the `platform/vendor.lock.json` that `npm run vendor:lock -- <commit>` prints in baseline.
-- Replace `wrangler.jsonc` with one conforming top-level Worker:
-  - name and `WG_APP` `sharktank`, with custom domain `sharktank.wizardgang.ai`;
-  - compatibility date 2026-08-31 with `nodejs_compat`;
-  - `workers_dev` and `preview_urls` false, and observability on;
-  - `Room` as the only Durable Object, with the ST-222 migration;
-  - no cron, D1, R2 or KV;
-  - `ASSETS`, plus Secrets Store bindings for `WG_OPS_TOKEN` and `WG_SESSION_KEY` with the store ID the owner recorded in baseline runbook step 3.5;
-  - no `env` blocks.
-- `node platform/conformance/cli.mjs wrangler --worker sharktank` passes.
-- The Worker entry uses `createEdge`. The shell provides the host guard, `/version.json`, headers, errors and 404s. The app handler serves `/` → `/play/`, `/play/`, assets and the tank WebSocket.
-- The release path calls `Wizard-Gang/baseline/.github/workflows/deploy-worker.yml` pinned to a merged baseline commit with `worker: sharktank`, never `secrets: inherit`. Remove the in-repo deploy workflow, its scripts and the `PRODUCTION_DEPLOY_ENABLED` gate; the `production` environment approval replaces it. Nothing reads `secrets.CLOUDFLARE_ACCOUNT_ID`.
-
-**Acceptance:** `npm run check` runs the vendored `pin` and `wrangler` conformance checks, local acceptance plays a round, and no deploy happens in this task.
-
----
-
-### ST-224 — [OPS] Release the sharktank cut-over as v2.6.0
-
-**Goal:** The first deploy through `deploy-worker.yml` creates the `sharktank` Worker and moves `sharktank.wizardgang.ai` from `wizardgangprod`.
-
-**Scope**
-- Semantic minor release. Before deploying, check how the locked wrangler treats a custom domain still attached to `wizardgangprod`. If it refuses non-interactively, the owner detaches it from the old Worker immediately before the deploy.
-- Owner follow-up from baseline's runbooks:
-  - retire `wizardgangprod` (R3), once `npm run verify:cloudflare` lists no `wizardgangprod` Durable Object;
-  - retire `wizardgang-demo-assets` (R1), now that ST-148 is deployed;
-  - delete the `production` secret `CLOUDFLARE_ACCOUNT_ID` (now a variable) and the `PRODUCTION_DEPLOY_ENABLED` variable.
-
-**Acceptance:** `v2.6.0` is live as `sharktank` at 100% of traffic. `https://sharktank.wizardgang.ai/version.json` reports `sharktank`, 2.6.0 and the tag commit, and a full round plays. Baseline `npm run verify:cloudflare` shows no `sharktank` drift. Protected approval is honored; stop and report if it is pending.
+**Acceptance:** `v2.6.0` is live. Protected approval is honored; stop and report if it is pending.
