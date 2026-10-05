@@ -108,7 +108,6 @@ describe("ST-131 full-3D product acceptance", () => {
     const worker = read("../src/worker/index.ts");
     const lobby = read("../src/worker/lobby-do.ts");
     const room = read("../src/worker/room-do.ts");
-    const presentation = read("../src/worker/presentation.ts");
     const gameDocument = read("../src/client/game-document.tsx");
 
     expect(worker).toContain('const ROOM_ID = "room-1", ROOM_NAME = "SharkTank";');
@@ -116,13 +115,11 @@ describe("ST-131 full-3D product acceptance", () => {
     expect(lobby).toContain('const CATALOG = [{ id: "room-1", name: "SharkTank" }] as const;');
     for (const retiredRoom of ["room-2", "room-3", "room-4"]) {
       expect(lobby).not.toContain(`id: "${retiredRoom}"`);
-      expect(presentation).not.toContain(`"${retiredRoom}"`);
     }
     expect(room).not.toContain('const ROOM_NAME = "SharkTank";');
     expect(room).toContain("CAPACITY = 8, BOT_COUNT = SHARK_CAPACITY - CAPACITY");
     expect(room).not.toContain('return new Response("room full", { status: 503');
     expect(room).toContain('if (this.full()) return this.close(ws, 1013, "room full");');
-    expect(presentation).toContain('{ "room-1": "SharkTank" }');
     expect(gameDocument).toContain("Swim a shark in SharkTank");
   });
 
@@ -258,7 +255,7 @@ describe("ST-131 full-3D product acceptance", () => {
 
   it("keeps support surfaces and release/provider compatibility boundaries inside the existing acceptance gates", () => {
     const localAcceptance = read("../scripts/local-worker-acceptance.mjs");
-    const publicIa = read("../scripts/check-public-ia.mjs");
+    const gameSurface = read("../scripts/check-game-surface.mjs");
     const wrangler = read("../wrangler.jsonc");
     const ci = read("../.github/workflows/ci.yml");
     const tagRelease = read("../.github/workflows/tag-release.yml");
@@ -274,16 +271,12 @@ describe("ST-131 full-3D product acceptance", () => {
       rulesets: Array<{ name: string; bypassActors: unknown[] }>;
     };
 
-    expect(localAcceptance).toContain('runNodeScript("./check-public-ia.mjs"');
+    expect(localAcceptance).toContain('runNodeScript("./check-game-surface.mjs"');
     expect(localAcceptance).not.toContain('runNodeScript("./check-evidence.mjs"');
     expect(localAcceptance).toContain('"CLOUDFLARE_API_TOKEN"');
-    expect(publicIa).toContain('const canonical = ["/", "/play/"];');
-    expect(publicIa).toContain('"/evidence", "/evidence/", "/status.json", "/spend.json"');
-    expect(publicIa).toContain('for (const adminPath of ["/admin", "/admin/"');
-    expect(publicIa).toContain("POST /admin/maintenance expected 404");
-    expect(publicIa).toContain("await verifyRoomWebSocket()");
-    expect(publicIa).toContain('const health = await request("/api/health")');
-    expect(publicIa).toContain('for (const retiredClientPath of ["/api/tank", "/api/profile", "/api/audit"])');
+    expect(gameSurface).toContain('const root = await request("/?from=acceptance")');
+    expect(gameSurface).toContain('await checkRoomSocket()');
+    expect(gameSurface).toContain('"/robots.txt", "/sitemap.xml"');
 
     expect(wrangler).toContain('"name": "ROOM"');
     expect(wrangler).toContain('"class_name": "Room"');

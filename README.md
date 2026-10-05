@@ -1,6 +1,6 @@
 # SharkTank
 
-SharkTank is a realtime full-3D multiplayer shark game at `/play/`, backed by authoritative Cloudflare Durable Objects. Production exposes one gameplay tank: `room-1`, displayed as **SharkTank**, with 8 human seats and 24 server-authoritative bots. The same Worker serves a short overview at `/` and release identity at `/version.json`.
+SharkTank is a realtime full-3D multiplayer shark game at `/play/`, backed by authoritative Cloudflare Durable Objects. Production exposes one gameplay tank: `room-1`, displayed as **SharkTank**, with 8 human seats and 24 server-authoritative bots. The same Worker redirects `/` to `/play/` and serves release identity at `/version.json`.
 
 ## Command map
 
@@ -15,7 +15,7 @@ Use Node.js 26.10.0 from `.node-version` and npm 12.1.0 from `packageManager`. R
 | `npm run build` | Build the Vite production output locally. |
 | `npm run check` | Canonical credential-free acceptance gate: plan/change contracts, type checks, tests, build, repository/history/provenance/settings checks, local HTTP acceptance, dependency-policy cases, and whitespace. |
 | `npm run audit:dependencies` | Separate live network advisory gate. CI and release verification require it. |
-| `npm run check:public-ia -- http://127.0.0.1:8787` | Focused local check of the public MVP information architecture. |
+| `npm run check:game-surface -- http://127.0.0.1:8787` | Focused local check of the game HTTP and WebSocket surface. |
 | `npm run verify:github-settings` | Read-only comparison of live GitHub merge/ruleset settings with the committed authority. Requires repository-administration read access. |
 | `npm run apply:github-settings` | Explicit bounded mutation of GitHub merge/ruleset settings to the committed authority, followed by a fresh verification. |
 | `npm run deploy:wizardgangprod:dry-run` | Local deployment dry-run. It requires a semantic release tag at `HEAD` and the Cloudflare account identifier but does not deploy production. |
@@ -50,7 +50,7 @@ See [docs/ACCESSIBILITY.md](docs/ACCESSIBILITY.md), [docs/PRODUCT-ACCEPTANCE.md]
 
 ## Operations and security
 
-Public HTTP and WebSocket input is untrusted. The Worker enforces request/message bounds, allowed rooms, origin checks, rate limits, HTTPS redirects, strict response security headers, and server-side authority over simulation and score. Player name, skin, best score and settings stay in one device-local browser record; they are not profile or telemetry writes. The Room owns authoritative competitive state only in memory for the lifetime of the object, while the Lobby still owns the operational state scheduled for later retirement; browser preferences never become competitive authority.
+Public HTTP and WebSocket input is untrusted. Unknown paths return plain-text 404s. The Worker enforces request/message bounds, allowed rooms, origin checks, rate limits, HTTPS redirects, strict response security headers, and server-side authority over simulation and score. Player name, skin, best score and settings stay in one device-local browser record; they are not profile or telemetry writes. The Room owns authoritative competitive state only in memory for the lifetime of the object, while the Lobby still owns the operational state scheduled for later retirement; browser preferences never become competitive authority.
 
 The retired public evidence/status/spend surfaces and all `/admin/*` routes return 404. The maintenance gate and operator credentials are gone; billing and backup internals remain until their queued removal.
 
@@ -71,7 +71,7 @@ The provenance CSVs under `docs/history/` remain validator inputs for imported s
 ## Repository map
 
 - `src/worker/` — Worker routing, memory-only Room and operational Lobby Durable Objects, and protected operations.
-- `src/client/` — game browser entry plus optional enhancement for Worker-rendered pages.
+- `src/client/` — Vite-built game document and browser entry.
 - `vendor/ModuleReact3Fiber/src/engine/` — deterministic full-3D authoritative simulation.
 - `vendor/ModuleReact3Fiber/src/protocol/` — schema/protocol 11 HTTP and realtime shapes.
 - `vendor/ModuleReact3Fiber/src/client/` — browser-only R3F renderer, controls, local prediction, remote interpolation, audio and DOM game UI.

@@ -19,17 +19,15 @@ browser ── HTTPS ──> Worker router ──> Lobby Durable Object
 
 The retired `/evidence/`, `/status.json` and `/spend.json` surfaces return 404; `/version.json` remains the public release-identity endpoint.
 
-- `/` — server-rendered product and live-operating overview.
+- `/` — permanent redirect to `/play/`.
 - `/play/` — the interactive realtime full-3D game.
-- `/admin/*` — retired; all requests return 404.
+- `/admin/*` and unknown paths — plain-text 404.
 
 The Lobby Durable Object uses the stable name `global`. The only routable gameplay Room is stable id `room-1`, displayed as **SharkTank**; `room-2` through `room-4` are retired at the Worker boundary. Durable Object class names, migration tag `v1`, environment identity and storage bindings are stateful compatibility boundaries.
 
 ## Worker, engine and renderer boundaries
 
-`src/worker/index.ts` owns request sequencing and controller flow. `src/worker/routes.ts` owns route predicates, `src/worker/responses.ts` owns security-aware responses, and `src/worker/presentation-data.ts` owns public shaping and redaction.
-
-`src/worker/presentation-react.tsx` renders the overview and not-found documents with React 19 `renderToStaticMarkup`. These documents are complete without JavaScript.
+`src/worker/index.ts` owns request sequencing and controller flow. `src/worker/routes.ts` owns route predicates, and `src/worker/responses.ts` owns security-aware responses. The Worker emits no HTML; it serves the Vite-built game document through Static Assets. The game shell and assets use first-party-only script CSP without a nonce or analytics allowance.
 
 `/play/` is the one explicit browser application boundary. `src/client/game-document.tsx` owns the React 19 game shell, `src/client/main.tsx` mounts the browser app, and Vite owns the client module graph and content-hashed assets. Name, skin, best score and systems settings share one device-local `localStorage` record; the legacy `snakeio.settings.v1` settings record migrates into it on first load.
 

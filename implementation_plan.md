@@ -142,22 +142,6 @@ On 2026-10-02 the owner directed that this SharkTank material be deleted from th
 
 ## Open tasks
 
-### ST-147 — [REFACTOR] Send `/` to the game and delete the Worker document stack
-
-**Goal:** The Worker still renders its own overview and not-found pages, with a dedicated stylesheet, an enhancement script and a CSP nonce kept for Cloudflare's injected analytics.
-
-**Scope**
-- `/` redirects (308) to `/play/`; unknown paths return a plain-text 404.
-- Delete `presentation.ts`, `presentation-react.tsx`, `presentation-data.ts`, the page-stylesheet route, `src/client/human-docs.ts` (with its Vite entry and baseline checks), robots and sitemap. Delete their tests, and trim `tests/public-copy-contract.test.ts` to the game menu.
-- The asset CSP becomes `script-src 'self'` with no per-response nonce and no Cloudflare Insights allowance.
-- Replace `scripts/check-public-ia.mjs` with a smaller `check-game-surface.mjs`. It checks the `/` redirect, `/play/`, assets, `/version.json`, the tank WebSocket, and 404s for every retired path.
-
-**Acceptance:** The Worker emits no HTML of its own and the game shell loads under the stricter CSP.
-
-**Validation:** `npm run check:local-http`; `npm run check:repository-baseline`; `npm test`.
-
----
-
 ### ST-148 — [REFACTOR] Remove billing metering, the spend limit, backups and their bindings
 
 **Goal:** The Lobby still meters usage, retains spend-threshold calculations, and copies its state to R2 on a daily cron.

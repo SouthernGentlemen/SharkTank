@@ -1,5 +1,5 @@
-// Local host Worker: serves the built R3F client (via ASSETS), the health API,
-// and upgrades /room/:id/ws WebSockets into the Room Durable Object.
+// Local host Worker: redirects to the built R3F client (via ASSETS), serves
+// release and health JSON, and upgrades /room/:id/ws into the Room Durable Object.
 //
 // Imports ONLY the server-safe entry points of module-react3fiber (never the client),
 // so no browser libs leak into the Worker/DO bundle.
@@ -9,35 +9,8 @@ import { API } from "module-react3fiber/protocol";
 export { Room } from "./room-do.js";
 export { Lobby } from "./lobby-do.js";
 import type { Env } from "./env.js";
-import { assetCsp, SECURITY_HEADERS, html, json, mintNonce, movedTo } from "./responses.js";
-import { CANONICAL_HUMAN_ROUTES, isGameShellPath, isStaticAssetPath, parseRoomPath } from "./routes.js";
-import { numberValue, publicBillingWindow, recordValue } from "./presentation-data.js";
-import {
-  INCIDENTS,
-  PAGE_CSS_PATH,
-  incidentSummary,
-  pageCssResponse,
-  tankCopy,
-  type PublicEvidenceStatus,
-} from "./presentation.js";
-import {
-  renderNotFoundDocument,
-  renderOverviewDocument,
-} from "./presentation-react.js";
-
-
-/**
- * The billing window as the public may see it.
- *
- * The DO's own record carries the running deployment version id and the production R2
- * bucket name. Neither is a secret in the credential sense, but both are unauthenticated
- * infrastructure disclosure — the version id dates the running build and the bucket name
- * names a real storage target.
- *
- * Keyed on field name and applied at every depth, because the same shapes repeat under
- * `services` and `allTime.services`.
- */
-
+import { assetCsp, SECURITY_HEADERS, json, movedTo } from "./responses.js";
+import { isGameShellPath, isStaticAssetPath, parseRoomPath } from "./routes.js";
 
 function lobbyStub(env: Env): DurableObjectStub {
   return env.LOBBY.get(env.LOBBY.idFromName("global"));
@@ -61,12 +34,6 @@ function isSecureRequest(request: Request, url: URL): boolean {
   return url.protocol === "https:";
 }
 
-/**
- * Availability is reported over the life of the project, not a rolling 24 hours. A
- * 24-hour window silently forgets every incident older than a day, which made the
- * evidence pages read as "nothing has ever happened" the moment a day passed. Anchored
- * to the first hour of the build so the window only ever grows.
- */
 /* ── State backup ────────────────────────────────────────────────────
    The tank Durable Object holds the receipt chain, the 90-day action log, player
    profiles and spend history, and until now none of it was copied anywhere. A copy
@@ -221,20 +188,9 @@ export default {
           return new Response(null, { status: 308, headers: { location: secure, "cache-control": "no-store", ...SECURITY_HEADERS } });
         }
       }
-      // The page stylesheet, ahead of every other route and of static asset dispatch. Only
-      // the current fingerprint is served: any other /styles/ path is an explicit miss, so a
-      // text/css request can never be answered with the game document.
-      if (path === PAGE_CSS_PATH) return pageCssResponse();
-      if (path.startsWith("/styles/")) return new Response("Not found", { status: 404, headers: { "content-type": "text/plain; charset=utf-8", "cache-control": "no-store", ...SECURITY_HEADERS } });
-
+      if (path === "/") return movedTo(url, "/play/");
       if (path === "/play") return movedTo(url, "/play/");
       if (path === "/favicon.ico") return new Response(null, { status: 404, headers: { "cache-control": "public, max-age=3600", ...SECURITY_HEADERS } });
-      if (path === "/robots.txt") return new Response("User-agent: *\nAllow: /\nDisallow: /*.json$\nDisallow: /*.jsonl$\nSitemap: https://sharktank.wizardgang.ai/sitemap.xml\n", { headers: { "content-type": "text/plain; charset=utf-8", "cache-control": "public, max-age=3600", ...SECURITY_HEADERS } });
-      if (path === "/sitemap.xml") {
-        const routes = CANONICAL_HUMAN_ROUTES;
-        const body = `<?xml version="1.0" encoding="UTF-8"?><urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">${routes.map((route) => `<url><loc>https://sharktank.wizardgang.ai${route}</loc></url>`).join("")}</urlset>`;
-        return new Response(body, { headers: { "content-type": "application/xml; charset=utf-8", "cache-control": "public, max-age=3600", ...SECURITY_HEADERS } });
-      }
 
 
       // ── WebSocket → Room DO ────────────────────────────────────────────────
@@ -264,34 +220,6 @@ export default {
 
       if (path.startsWith("/api/")) return json({ ok: false, error: "unknown endpoint" }, 404);
 
-      // ── MVP overview ─────────────────────────────────────────────────────────
-      // One Lobby status read supplies incident-derived availability, billing,
-      // receipt-chain integrity and the current release identity.
-      if (path === "/") {
-        const statusRes = await lobbyStub(env).fetch("https://lobby/status");
-        const data = (await statusRes.json()) as PublicEvidenceStatus;
-        const incidents = [...INCIDENTS, ...(data.maintenanceIncidents ?? [])].map((incident) => ({
-          ...incident,
-          title: tankCopy(incident.title),
-          summary: tankCopy(incident.summary),
-        }));
-        const billing = publicBillingWindow(data.billingWindow ?? {});
-        const integrity = data.historyIntegrity ?? {
-          mode: "append-only tamper-evident hash chain",
-          algorithm: "SHA-256",
-          entryCount: 0,
-          headHash: null,
-        };
-        return html(renderOverviewDocument({
-          tank: incidentSummary(incidents),
-          integrity,
-          spendUsd: numberValue(recordValue(billing.allTime).estimatedVariableUsd),
-          hardLimitUsd: numberValue(billing.hardLimitUsd) || 5,
-          release: env.SHARKTANK_RELEASE ?? "development",
-          environment: env.ENVIRONMENT ?? "unknown",
-        }));
-      }
-
     } catch (e) {
       // The message can carry internal paths, binding names and storage keys, and this
       // handler answers unauthenticated requests. It goes to the Worker log, where an
@@ -305,7 +233,7 @@ export default {
     const gameShell = isGameShellPath(path);
     const staticAsset = isStaticAssetPath(path);
     if (!gameShell && !staticAsset) {
-      return html(renderNotFoundDocument(), 404);
+      return new Response("Not found", { status: 404, headers: { "content-type": "text/plain; charset=utf-8", "cache-control": "no-store", ...SECURITY_HEADERS } });
     }
 
     // /play/ intentionally maps to the one
@@ -314,7 +242,10 @@ export default {
       ? new Request(new URL("/index.html", request.url), { method: request.method, headers: request.headers })
       : request;
     const asset = await env.ASSETS.fetch(assetTarget);
-    const secured = new Response(asset.body, asset); for (const [key, value] of Object.entries(SECURITY_HEADERS)) secured.headers.set(key, value); secured.headers.set("content-security-policy", assetCsp(mintNonce())); return secured;
+    if (asset.status === 404) {
+      return new Response("Not found", { status: 404, headers: { "content-type": "text/plain; charset=utf-8", "cache-control": "no-store", ...SECURITY_HEADERS } });
+    }
+    const secured = new Response(asset.body, asset); for (const [key, value] of Object.entries(SECURITY_HEADERS)) secured.headers.set(key, value); secured.headers.set("content-security-policy", assetCsp); return secured;
   },
 
   // Cron. One daily copy of tank state to object storage; see runBackup. The handler

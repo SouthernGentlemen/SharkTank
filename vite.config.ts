@@ -8,7 +8,6 @@ import { renderGameDocument } from "./src/client/game-document";
 // so the Worker bundler can resolve the same specifiers).
 const sub = (rel: string) => fileURLToPath(new URL(`./vendor/ModuleReact3Fiber/src/${rel}`, import.meta.url));
 const gameDocumentEntry = fileURLToPath(new URL("./index.html", import.meta.url));
-const humanDocsEntry = fileURLToPath(new URL("./src/client/human-docs.ts", import.meta.url));
 
 const gameDocumentPlugin = (): Plugin => ({
   name: "sharktank-react-game-document",
@@ -35,14 +34,9 @@ export default defineConfig({
     rollupOptions: {
       input: {
         index: gameDocumentEntry,
-        "human-docs": humanDocsEntry,
       },
       output: {
-        // Worker-rendered documents need one stable, first-party enhancement module path.
-        // The game entry and its lazy chunks remain content-hashed as before.
-        entryFileNames: (chunk) => chunk.name === "human-docs"
-          ? "assets/human-docs.js"
-          : "assets/[name]-[hash].js",
+        entryFileNames: "assets/[name]-[hash].js",
       },
     },
     // The 3D arena is intentionally lazy-loaded; its ~230 kB gzip payload includes Three.js.

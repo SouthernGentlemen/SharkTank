@@ -66,7 +66,7 @@ Browser device emulation is useful for layout debugging but does not satisfy the
 
 The automated local HTTP gate is the primary deterministic proof. For a manual browser spot-check on the exact candidate environment:
 
-- `/` renders the overview.
+- `/` redirects permanently to `/play/`, where the built game shell and assets load under the first-party-only script CSP.
 - `/evidence/`, `/status.json`, and `/spend.json` return 404; `/version.json` remains available for release identity.
 - `/admin/` and its former data and mutation routes return 404 without an authentication challenge.
 - `/api/health` returns its current JSON contract.
