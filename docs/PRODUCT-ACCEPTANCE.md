@@ -18,7 +18,7 @@ git diff --check HEAD^
 
 The focused product test composes existing deterministic contracts into one acceptance wall for the device-local player record, menu/tank/game lifecycle, death and respawn, authoritative best-score update, round result/reset, desktop and mobile input math, mouse-look mirroring, low/medium/high quality profiles, reduced-motion/high-contrast/caption/color-label presentation hooks, a maximum tracked-shark room, maximum prey bounds, and a sustained authoritative Feeding Frenzy.
 
-The canonical check starts a credential-free local Worker with a test-owned operator token. Its HTTP acceptance covers `/`, `/evidence/`, `/play/`, unauthenticated and authenticated `/admin/`, the surviving health/tank APIs, explicit 404s for retired `/api/profile` and `/api/audit`, static game assets, and an upgraded Room Durable Object WebSocket hello/welcome exchange. Provider credentials are stripped from that local process.
+The canonical check starts a credential-free local Worker with a test-owned operator token. Its HTTP acceptance covers `/`, `/play/`, unauthenticated and authenticated `/admin/`, the surviving health/tank APIs, explicit 404s for retired `/evidence/`, `/status.json`, `/spend.json`, `/api/profile` and `/api/audit`, static game assets, and an upgraded Room Durable Object WebSocket hello/welcome exchange. Provider credentials are stripped from that local process.
 
 The repository baseline and product acceptance also pin the compatibility boundaries surrounding the accepted full-3D release: package version 2.0.0 with tracked release revision 1, wire state schema 11, realtime protocol 11, Durable Object classes `Room` and `Lobby`, migration tag `v1`, bindings, squash-only GitHub settings, protected `verify`, immutable release tags, release-before-deploy sequencing, and the protected production environment.
 
@@ -67,7 +67,7 @@ Browser device emulation is useful for layout debugging but does not satisfy the
 The automated local HTTP gate is the primary deterministic proof. For a manual browser spot-check on the exact candidate environment:
 
 - `/` renders the overview.
-- `/evidence/` renders evidence and its live-refresh control.
+- `/evidence/`, `/status.json`, and `/spend.json` return 404; `/version.json` remains available for release identity.
 - `/admin/` rejects an unauthenticated request and renders the operator console only with the test environment's acceptance credential.
 - `/api/health` returns its current JSON contract.
 - `/api/tank`, `/api/profile`, `/api/audit`, and `/logs/game/room-1.txt` return 404; the browser keeps name, skin, best score and settings in one device-local record and sends no client telemetry.

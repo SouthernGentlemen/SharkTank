@@ -1,6 +1,6 @@
 # SharkTank
 
-SharkTank is a realtime full-3D multiplayer shark game at `/play/`, backed by authoritative Cloudflare Durable Objects. Production exposes one gameplay tank: `room-1`, displayed as **SharkTank**, with 8 human seats and 24 server-authoritative bots. The same Worker serves a short overview at `/`, live operations and billing evidence at `/evidence/`, and an authenticated operator console at `/admin/`.
+SharkTank is a realtime full-3D multiplayer shark game at `/play/`, backed by authoritative Cloudflare Durable Objects. Production exposes one gameplay tank: `room-1`, displayed as **SharkTank**, with 8 human seats and 24 server-authoritative bots. The same Worker serves a short overview at `/`, release identity at `/version.json`, and an authenticated operator console at `/admin/`.
 
 ## Command map
 
@@ -16,7 +16,6 @@ Use Node.js 26.10.0 from `.node-version` and npm 12.1.0 from `packageManager`. R
 | `npm run check` | Canonical credential-free acceptance gate: plan/change contracts, type checks, tests, build, repository/history/provenance/settings checks, local HTTP acceptance, dependency-policy cases, and whitespace. |
 | `npm run audit:dependencies` | Separate live network advisory gate. CI and release verification require it. |
 | `npm run check:public-ia -- http://127.0.0.1:8787` | Focused local check of the public MVP information architecture. |
-| `npm run check:evidence -- http://127.0.0.1:8787` | Focused local check of the public evidence surface. |
 | `npm run verify:github-settings` | Read-only comparison of live GitHub merge/ruleset settings with the committed authority. Requires repository-administration read access. |
 | `npm run apply:github-settings` | Explicit bounded mutation of GitHub merge/ruleset settings to the committed authority, followed by a fresh verification. |
 | `npm run deploy:wizardgangprod:dry-run` | Local deployment dry-run. It requires a semantic release tag at `HEAD` and the Cloudflare account identifier but does not deploy production. |
@@ -53,7 +52,7 @@ See [docs/ACCESSIBILITY.md](docs/ACCESSIBILITY.md), [docs/PRODUCT-ACCEPTANCE.md]
 
 Public HTTP and WebSocket input is untrusted. The Worker enforces request/message bounds, allowed rooms, origin checks, rate limits, TLS for operator traffic, strict response security headers, and server-side authority over simulation and score. Player name, skin, best score and settings stay in one device-local browser record; they are not profile or telemetry writes. The Room owns authoritative competitive state only in memory for the lifetime of the object, while the Lobby still owns the operational state scheduled for later retirement; browser preferences never become competitive authority.
 
-The public evidence surface intentionally exposes redacted live status, billing, incidents, control receipts, continuity results, and recent server-originated service logs. Operator routes under `/admin/` remain authenticated; state-changing actions also require same-origin action headers and leave control receipts.
+The retired public evidence/status/spend surfaces return 404. Operator routes under `/admin/` remain authenticated; state-changing actions also require same-origin action headers and leave control receipts.
 
 The scheduled Worker copies Lobby state to the configured R2 binding. Restore drills read the retained copy into a scratch Durable Object, compare state digests, record the result, and wipe scratch state; they never overwrite live production state.
 
@@ -71,7 +70,7 @@ The provenance CSVs under `docs/history/` remain validator inputs for imported s
 
 ## Repository map
 
-- `src/worker/` — Worker routing, memory-only Room and operational Lobby Durable Objects, operations, and public evidence.
+- `src/worker/` — Worker routing, memory-only Room and operational Lobby Durable Objects, and protected operations.
 - `src/client/` — game browser entry plus optional enhancement for Worker-rendered pages.
 - `vendor/ModuleReact3Fiber/src/engine/` — deterministic full-3D authoritative simulation.
 - `vendor/ModuleReact3Fiber/src/protocol/` — schema/protocol 11 HTTP and realtime shapes.

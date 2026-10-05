@@ -17,8 +17,9 @@ browser ── HTTPS ──> Worker router ──> Lobby Durable Object
 
 ## Product surface
 
+The retired `/evidence/`, `/status.json` and `/spend.json` surfaces return 404; `/version.json` remains the public release-identity endpoint.
+
 - `/` — server-rendered product and live-operating overview.
-- `/evidence/` — server-rendered live status, billing, incidents, control receipts, continuity evidence, recent service logs, and bounded room logs.
 - `/play/` — the interactive realtime full-3D game.
 - `/admin/` — the authenticated operator console and operator-only actions.
 
@@ -28,7 +29,7 @@ The Lobby Durable Object uses the stable name `global`. The only routable gamepl
 
 `src/worker/index.ts` owns request sequencing and controller flow. `src/worker/routes.ts` owns route predicates, `src/worker/responses.ts` owns security-aware responses, and `src/worker/presentation-data.ts` owns public shaping and redaction.
 
-`src/worker/presentation-react.tsx` renders the overview, evidence, admin, downtime and not-found documents with React 19 `renderToStaticMarkup`. These documents are complete without JavaScript.
+`src/worker/presentation-react.tsx` renders the overview, admin, downtime and not-found documents with React 19 `renderToStaticMarkup`. These documents are complete without JavaScript.
 
 `/play/` is the one explicit browser application boundary. `src/client/game-document.tsx` owns the React 19 game shell, `src/client/main.tsx` mounts the browser app, and Vite owns the client module graph and content-hashed assets. Name, skin, best score and systems settings share one device-local `localStorage` record; the legacy `snakeio.settings.v1` settings record migrates into it on first load.
 

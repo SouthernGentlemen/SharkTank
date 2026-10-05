@@ -188,7 +188,6 @@ function runNodeScript(path, baseUrl, spawnSyncFn = spawnSync) {
 
 export function runHttpAcceptanceChecks(baseUrl, { spawnSyncFn = spawnSync } = {}) {
   runNodeScript("./check-public-ia.mjs", baseUrl, spawnSyncFn);
-  runNodeScript("./check-evidence.mjs", baseUrl, spawnSyncFn);
 }
 
 async function waitForPortRelease(

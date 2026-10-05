@@ -149,15 +149,6 @@ test("provider proof still requires 100 percent traffic", () => {
   assert.match(validateProductionDeployWorkflow(changed).join("\n"), /serves 100% of traffic/);
 });
 
-test("public edge evidence cannot run before authenticated provider proof", () => {
-  const changed = replaceRequired(
-    deployWorkflow,
-    "    steps:\n",
-    "    steps:\n      - name: Premature public edge evidence\n        run: npm run check:evidence -- https://sharktank.wizardgang.ai\n",
-  );
-  assert.match(validateProductionDeployWorkflow(changed).join("\n"), /post-provider-proof fallback/);
-});
-
 test("public edge proof binds product identity, immutable revision, and the game asset", () => {
   const withoutRevision = replaceRequired(
     deployWorkflow,
