@@ -29,7 +29,7 @@ The Room Durable Object owns competitive truth: movement, collisions, prey consu
 
 Clients may smooth what the player sees without moving authority. The local shark uses local prediction followed by authoritative X/Y/Z reconciliation. Remote sharks and prey use remote interpolation between server snapshots. Neither path can author score, damage, prey, round state, or authoritative movement.
 
-Schema 11 and realtime protocol 11 are the current state/wire identities. Room snapshots and live simulation remain deterministic from seed, ordered actions, tick state, and RNG state.
+Wire state schema 11 and realtime protocol 11 are the current client/server identities. Room simulation remains deterministic from seed, ordered actions, tick state, and RNG state, but gameplay is not persisted: each Room object boot starts a fresh round after clearing legacy Durable Object storage.
 
 ## Controls and competitive loop
 
@@ -51,7 +51,7 @@ See [docs/ACCESSIBILITY.md](docs/ACCESSIBILITY.md), [docs/PRODUCT-ACCEPTANCE.md]
 
 ## Operations and security
 
-Public HTTP and WebSocket input is untrusted. The Worker enforces request/message bounds, allowed rooms, origin checks, rate limits, TLS for operator traffic, strict response security headers, and server-side authority over simulation and score. Player name, skin, best score and settings stay in one device-local browser record; they are not profile or telemetry writes. Durable Objects still own authoritative operational and Room state; browser preferences never become competitive authority.
+Public HTTP and WebSocket input is untrusted. The Worker enforces request/message bounds, allowed rooms, origin checks, rate limits, TLS for operator traffic, strict response security headers, and server-side authority over simulation and score. Player name, skin, best score and settings stay in one device-local browser record; they are not profile or telemetry writes. The Room owns authoritative competitive state only in memory for the lifetime of the object, while the Lobby still owns the operational state scheduled for later retirement; browser preferences never become competitive authority.
 
 The public evidence surface intentionally exposes redacted live status, billing, incidents, control receipts, continuity results, and recent server-originated service logs. Operator routes under `/admin/` remain authenticated; state-changing actions also require same-origin action headers and leave control receipts.
 
@@ -71,7 +71,7 @@ The provenance CSVs under `docs/history/` remain validator inputs for imported s
 
 ## Repository map
 
-- `src/worker/` — Worker routing, Durable Objects, persistence bootstrap, operations, and public evidence.
+- `src/worker/` — Worker routing, memory-only Room and operational Lobby Durable Objects, operations, and public evidence.
 - `src/client/` — game browser entry plus optional enhancement for Worker-rendered pages.
 - `vendor/ModuleReact3Fiber/src/engine/` — deterministic full-3D authoritative simulation.
 - `vendor/ModuleReact3Fiber/src/protocol/` — schema/protocol 11 HTTP and realtime shapes.

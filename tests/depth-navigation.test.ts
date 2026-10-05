@@ -166,12 +166,13 @@ describe("ST-126 depth-aware competitive cues", () => {
     expect(plan).toContain("The queue is empty. Select no implementation task.");
   });
 
-  it("does not change the server/wire identity for presentation-only navigation", () => {
+  it("keeps wire identity at 11 while the RoomState persistence schema field is retired", () => {
     const protocol = read("../vendor/ModuleReact3Fiber/src/protocol/index.ts");
     const engineTypes = read("../vendor/ModuleReact3Fiber/src/engine/types.ts");
     const pkg = JSON.parse(read("../package.json")) as { version: string };
     expect(protocol).toContain("REALTIME_PROTOCOL_VERSION = 11");
-    expect(engineTypes).toContain("schemaVersion: 11");
+    expect(protocol).toContain("schemaVersion: 11;");
+    expect(engineTypes).not.toContain("schemaVersion: 11");
     expect(pkg.version).toBe("2.0.1");
   });
 });

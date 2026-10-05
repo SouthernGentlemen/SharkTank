@@ -25,6 +25,7 @@ import type { Action, DeathAction, OceanVolume, Prey, PreyKind, RoomState, Round
 export const TICKS_PER_SECOND = 20; // responsive authority; shark snapshots contain only one body point
 // 32 sharks share a tank, so the arena grew with the population — enough water that a
 // full lobby is dense rather than a permanent scrum at the wall.
+// Wire-state schema identity remains 11 until the queued protocol cut-over; RoomState itself is no longer persisted.
 export const ROOM_SCHEMA_VERSION = 11 as const;
 const OCEAN_RADIUS = 82;
 export const DEFAULT_SEABED_Y = -12;
@@ -222,7 +223,6 @@ export function createRoom(opts: CreateRoomOptions = {}): RoomState {
   const seabedY = validVerticalBounds ? requestedFloor : DEFAULT_SEABED_Y;
   const surfaceY = validVerticalBounds ? requestedSurface : DEFAULT_SURFACE_Y;
   const state: RoomState = {
-    schemaVersion: ROOM_SCHEMA_VERSION,
     id: opts.id ?? "room-local",
     seed,
     tick: 0,

@@ -142,21 +142,6 @@ On 2026-10-02 the owner directed that this SharkTank material be deleted from th
 
 ## Open tasks
 
-### ST-144 — [REFACTOR] Run the Room from memory only
-
-**Goal:** Persisted snapshots are what bricked three tanks, and five-minute rounds gain nothing from them.
-
-**Scope**
-- Every Room boots a fresh round. Stop writing snapshots and metadata, and delete any legacy stored state once on boot.
-- Delete `src/worker/room-state-schema.ts`, `tests/room-persistence-schema.test.ts` and the engine's persisted `schemaVersion` field. The wire keeps its version until ST-239.
-- Use standard WebSockets with in-memory sessions and drop hibernation attachments; the tick loop keeps the object awake while anyone is connected.
-
-**Acceptance:** A restarted Room serves a fresh round, and nothing reads or writes Durable Object storage.
-
-**Validation:** `npm test -- tests/realtime-3d-network.test.ts tests/full-3d-authority-acceptance.test.ts tests/round-apex.test.ts`; `npm run check:local-http`.
-
----
-
 ### ST-145 — [REFACTOR] Delete the public evidence page and status feeds
 
 **Goal:** `/evidence/`, `/status.json` and `/spend.json` publish billing, incidents, receipts, continuity and logs for the retired evidence program.

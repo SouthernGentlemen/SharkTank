@@ -118,7 +118,7 @@ describe("ST-131 full-3D product acceptance", () => {
       expect(lobby).not.toContain(`id: "${retiredRoom}"`);
       expect(presentation).not.toContain(`"${retiredRoom}"`);
     }
-    expect(room).toContain('const ROOM_NAME = "SharkTank";');
+    expect(room).not.toContain('const ROOM_NAME = "SharkTank";');
     expect(room).toContain("CAPACITY = 8, BOT_COUNT = SHARK_CAPACITY - CAPACITY");
     expect(room).not.toContain('return new Response("room full", { status: 503');
     expect(room).toContain('if (this.full()) return this.close(ws, 1013, "room full");');

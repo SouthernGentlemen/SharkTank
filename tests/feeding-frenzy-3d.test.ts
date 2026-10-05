@@ -26,7 +26,6 @@ import {
   toNetState,
 } from "../vendor/ModuleReact3Fiber/src/protocol/index.js";
 import { resolveOceanEnvironmentQuality } from "../vendor/ModuleReact3Fiber/src/client/game/oceanArena.js";
-import { bootstrapRoomSnapshot } from "../src/worker/room-state-schema.js";
 
 const read = (path: string) => readFileSync(new URL(path, import.meta.url), "utf8");
 
@@ -84,12 +83,6 @@ describe("ST-123 3D server-wide Feeding Frenzy", () => {
     expect(frenzyTiming(lateJoin)).toEqual(frenzyTiming(first));
     expect(lateJoin.frenzyUntilTick).toBe(first.frenzyUntilTick);
 
-    const restored = bootstrapRoomSnapshot(
-      JSON.parse(JSON.stringify(first)),
-      createRoom({ id: "frenzy", seed: "fallback" }),
-    );
-    expect(restored.source).toBe("schema-11");
-    expect(frenzyTiming(restored.room)).toEqual(frenzyTiming(first));
   });
 
   it("places authoritative chum through a bounded 3D central volume rather than one plane", () => {
