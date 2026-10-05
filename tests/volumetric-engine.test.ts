@@ -29,8 +29,8 @@ function place(shark: Snake, x: number, y: number, z: number): void {
 describe("volumetric authoritative engine", () => {
   it("uses schema 11, X/Y/Z state, bounded volume spawns and no authoritative roll", () => {
     const state = createRoom({ seed: "volume-shape" });
-    expect(state.schemaVersion).toBe(ROOM_SCHEMA_VERSION);
-    expect(state.schemaVersion).toBe(11);
+    expect(ROOM_SCHEMA_VERSION).toBe(11);
+    expect(toNetState(state).schemaVersion).toBe(11);
     expect(state.ocean.surfaceY).toBeGreaterThan(state.ocean.seabedY);
     expect(state.food.some((food) => Math.abs(food.y) > 0.1)).toBe(true);
     expect(state.food.every((food) => isInsideOceanVolume(food, state.ocean))).toBe(true);

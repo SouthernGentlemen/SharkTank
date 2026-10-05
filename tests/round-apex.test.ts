@@ -25,7 +25,6 @@ import {
   toNetState,
   withRealtimeProtocol,
 } from "../vendor/ModuleReact3Fiber/src/protocol/index.js";
-import { bootstrapRoomSnapshot } from "../src/worker/room-state-schema.js";
 
 const read = (path: string) => readFileSync(new URL(path, import.meta.url), "utf8");
 
@@ -85,12 +84,7 @@ describe("ST-124 authoritative round and Apex loop", () => {
     const apexWire = toNetState(state);
     expect(apexWire.round).toEqual(state.round);
     expect(parseRealtimeServerMessage(withRealtimeProtocol({ t: "state" as const, state: apexWire })).ok).toBe(true);
-    const apexRestore = bootstrapRoomSnapshot(
-      JSON.parse(JSON.stringify(state)),
-      createRoom({ id: "round-loop", seed: "fallback" }),
-    );
-    expect(apexRestore.source).toBe("schema-11");
-    expect(apexRestore.room.round).toEqual(state.round);
+    expect(toNetState(state).round).toEqual(state.round);
 
     const lateApex = join(state, "late-apex");
     expect(lateApex.alive).toBe(true);
@@ -109,13 +103,8 @@ describe("ST-124 authoritative round and Apex loop", () => {
     expect(state.frenzyUntilTick).toBe(0);
     expect(state.food.some((prey) => prey.kind === "chum")).toBe(false);
 
-    const resultRestore = bootstrapRoomSnapshot(
-      JSON.parse(JSON.stringify(state)),
-      createRoom({ id: "round-loop", seed: "fallback-result" }),
-    );
-    expect(resultRestore.source).toBe("schema-11");
-    expect(resultRestore.room.round.phase).toBe("result");
-    expect(resultRestore.room.round.result?.winner?.id).toBe("alpha");
+    expect(toNetState(state).round.phase).toBe("result");
+    expect(toNetState(state).round.result?.winner?.id).toBe("alpha");
 
     const frozen = JSON.stringify({
       snakes: state.snakes,

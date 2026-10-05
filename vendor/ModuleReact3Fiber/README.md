@@ -1,11 +1,11 @@
 # ModuleReact3Fiber
 
-First-party deterministic full-3D game engine, protocol, storage seam, and React Three Fiber client vendored into SharkTank.
+First-party deterministic full-3D game engine, protocol, server-safe store utilities, and React Three Fiber client vendored into SharkTank.
 
 ## Current use
 
-- `src/engine/` contains pure deterministic full X/Y/Z simulation over serializable `RoomState`. Seeded RNG state is part of the snapshot so Room Durable Objects can replay authoritative state.
-- `src/protocol/` defines schema/protocol 11 HTTP and WebSocket shapes shared by the Worker and browser client.
+- `src/engine/` contains pure deterministic full X/Y/Z simulation over serializable `RoomState`. Seeded RNG state stays in the live state so deterministic runs can be compared without persisting gameplay.
+- `src/protocol/` defines wire state schema 11 and realtime protocol 11 HTTP/WebSocket shapes shared by the Worker and browser client.
 - `src/store/` provides the server-safe `BlobStore` abstraction and JSON helpers.
 - `src/client/` contains the browser-only React Three Fiber game client, DOM UI, controls, local prediction, remote interpolation and presentation audio.
 
