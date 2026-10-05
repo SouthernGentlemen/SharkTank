@@ -111,8 +111,8 @@ describe("React Worker presentation", () => {
     expect(html).toContain("Test alert");
     expect(html).toContain('href="#receipt-59"');
     expect(html).toContain('href="#receipt-60"');
-    expect(html).toContain('href="/logs/game/room-1.txt"');
-    for (const room of ["room-2", "room-3", "room-4"]) expect(html).not.toContain(`href="/logs/game/${room}.txt"`);
+    expect(html).not.toContain("/logs/game/");
+    expect(html).toContain("Newest service records.");
   });
   it("serves maintenance with external styles and a strict generated response", async () => {
     const response = htmlResponse(

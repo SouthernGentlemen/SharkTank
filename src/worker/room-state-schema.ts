@@ -2,8 +2,6 @@ import { PREY_KINDS, ROOM_SCHEMA_VERSION, createRoom, type RoomState } from "mod
 
 export const PREVIOUS_ROOM_SCHEMA_VERSION = 10 as const;
 export const OLDEST_SUPPORTED_ROOM_SCHEMA_VERSION = 7 as const;
-export const GAME_LOG_SCHEMA_VERSION = ROOM_SCHEMA_VERSION;
-
 export type RoomSnapshotSource =
   | "fresh"
   | "schema-7-reset"
@@ -62,9 +60,6 @@ export function bootstrapRoomSnapshot(stored: unknown, fallback: RoomState): Roo
   throw new Error(`unsupported room snapshot schema ${String(version)}`);
 }
 
-export function shouldRotateGameLogSchema(storedVersion: unknown): boolean {
-  return storedVersion !== GAME_LOG_SCHEMA_VERSION;
-}
 
 export function assertSchema11RoomState(value: unknown, expectedId?: string): asserts value is RoomState {
   const room = asRecord(value);

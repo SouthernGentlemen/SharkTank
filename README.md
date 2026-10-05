@@ -25,11 +25,11 @@ Use Node.js 26.10.0 from `.node-version` and npm 12.1.0 from `packageManager`. R
 
 `/play/` has one gameplay renderer: React Three Fiber / Three.js WebGL through `GameViewport` and `Scene`. Gameplay state is full X/Y/Z. Authoritative shark orientation is yaw + pitch; banking/roll is presentation-only. Canvas2D is not a hidden fallback.
 
-The Room Durable Object owns competitive truth: movement, collisions, prey consumption, scoring, damage, death/respawn, Feeding Frenzy, Apex, round phase/result/reset, and replayable state. The deterministic engine/protocol remain framework-agnostic and server-safe. Three.js and browser APIs stay inside the client entry.
+The Room Durable Object owns competitive truth: movement, collisions, prey consumption, scoring, damage, death/respawn, Feeding Frenzy, Apex, and round phase/result/reset. The deterministic engine/protocol remain framework-agnostic and server-safe. Three.js and browser APIs stay inside the client entry.
 
 Clients may smooth what the player sees without moving authority. The local shark uses local prediction followed by authoritative X/Y/Z reconciliation. Remote sharks and prey use remote interpolation between server snapshots. Neither path can author score, damage, prey, round state, or authoritative movement.
 
-Schema 11 and realtime protocol 11 are the current state/wire identities. Room snapshots and replay inputs remain deterministic from seed, ordered actions, tick state, and RNG state.
+Schema 11 and realtime protocol 11 are the current state/wire identities. Room snapshots and live simulation remain deterministic from seed, ordered actions, tick state, and RNG state.
 
 ## Controls and competitive loop
 
@@ -53,7 +53,7 @@ See [docs/ACCESSIBILITY.md](docs/ACCESSIBILITY.md), [docs/PRODUCT-ACCEPTANCE.md]
 
 Public HTTP and WebSocket input is untrusted. The Worker enforces request/message bounds, allowed rooms, origin checks, rate limits, TLS for operator traffic, strict response security headers, and server-side authority over simulation and score. Player name, skin, best score and settings stay in one device-local browser record; they are not profile or telemetry writes. Durable Objects still own authoritative operational and Room state; browser preferences never become competitive authority.
 
-The public evidence surface intentionally exposes redacted live status, billing, incidents, control receipts, continuity results, recent service logs, and bounded per-room text logs. Operator routes under `/admin/` require platform-secret credentials; state-changing actions also require same-origin action headers and leave control receipts.
+The public evidence surface intentionally exposes redacted live status, billing, incidents, control receipts, continuity results, and recent server-originated service logs. Operator routes under `/admin/` remain authenticated; state-changing actions also require same-origin action headers and leave control receipts.
 
 The scheduled Worker copies Lobby state to the configured R2 binding. Restore drills read the retained copy into a scratch Durable Object, compare state digests, record the result, and wipe scratch state; they never overwrite live production state.
 

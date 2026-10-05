@@ -1322,46 +1322,6 @@ export function playerCount(state: RoomState): number {
   return Object.values(state.snakes).filter((s) => !s.isBot).length;
 }
 
-// ── Deterministic replay ──────────────────────────────────────────────────────────
-/** One recorded external action + the tick it was applied at. Bot behaviour is NOT
- *  logged — it's reproduced deterministically by re-running step() with the same seed. */
-export interface GameLogEntry {
-  tick: number;
-  action: Action;
-}
-
-export interface ReplayOptions {
-  seed: string;
-  id?: string;
-  botCount: number;
-}
-
-/**
- * Rebuild the exact RoomState at `toTick` from a game's seed + external action log.
- * Because the engine is fully deterministic (seeded RNG in the snapshot, no wall-clock
- * or Math.random), replaying the same seed + the same actions at the same ticks yields
- * byte-identical state — enabling per-game fast-forward and rollback. Pass a smaller
- * `toTick` to roll back; a larger one (≤ the last logged tick) to fast-forward.
- */
-export function replay(opts: ReplayOptions, events: GameLogEntry[], toTick: number): RoomState {
-  const state = createRoom({ seed: opts.seed, id: opts.id });
-  spawnBots(state, opts.botCount);
-
-  const byTick = new Map<number, Action[]>();
-  for (const e of events) {
-    const list = byTick.get(e.tick);
-    if (list) list.push(e.action);
-    else byTick.set(e.tick, [e.action]);
-  }
-
-  for (let t = 0; t <= toTick; t += 1) {
-    const acts = byTick.get(t);
-    if (acts) for (const a of acts) applyAction(state, a);
-    if (t < toTick) step(state);
-  }
-  return state;
-}
-
 /** Deep clone a snapshot (structured, JSON-safe). Handy for React state updates. */
 export function cloneRoom(state: RoomState): RoomState {
   return JSON.parse(JSON.stringify(state)) as RoomState;

@@ -2,17 +2,14 @@ import { readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
 import {
   PREY_KINDS,
+  applyAction,
   createRoom,
-  replay,
   spawnBots,
-  type GameLogEntry,
   type RoomState,
 } from "../vendor/ModuleReact3Fiber/src/engine/index.js";
 import {
-  GAME_LOG_SCHEMA_VERSION,
   assertSchema11RoomState,
   bootstrapRoomSnapshot,
-  shouldRotateGameLogSchema,
 } from "../src/worker/room-state-schema.js";
 
 const BOT_COUNT = 24;
@@ -78,37 +75,20 @@ describe("Room persisted-state schema boundary", () => {
     assertCombatRoom(restored.room);
   });
 
-  it("accepts fresh schema-11 rooms and replays schema-11 bite actions deterministically", () => {
+  it("accepts fresh schema-11 rooms and live schema-11 bite actions", () => {
     const fresh = bootstrapRoomSnapshot(undefined, createRoom({ id: "room-do-fresh", seed: "fresh-seed" }));
     expect(fresh.source).toBe("fresh");
+    applyAction(fresh.room, { type: "join", playerId: "pilot", name: "Pilot" });
+    applyAction(fresh.room, { type: "setOrientation", playerId: "pilot", yaw: 0.75, pitch: 0.2 });
+    applyAction(fresh.room, { type: "setBoost", playerId: "pilot", on: true });
+    applyAction(fresh.room, { type: "bite", playerId: "pilot" });
     assertCombatRoom(fresh.room);
-
-    const events: GameLogEntry[] = [
-      { tick: 0, action: { type: "join", playerId: "pilot", name: "Pilot" } },
-      { tick: 0, action: { type: "setOrientation", playerId: "pilot", yaw: 0.75, pitch: 0.2 } },
-      { tick: 1, action: { type: "setBoost", playerId: "pilot", on: true } },
-      { tick: 2, action: { type: "bite", playerId: "pilot" } },
-    ];
-    const first = replay({ id: "room-do-fresh", seed: "fresh-seed", botCount: 0 }, events, 4);
-    const second = replay({ id: "room-do-fresh", seed: "fresh-seed", botCount: 0 }, events, 4);
-    expect(JSON.stringify(first)).toBe(JSON.stringify(second));
-    assertCombatRoom(first);
-  });
-
-  it("rotates every older replay generation and keeps only schema 11 current", () => {
-    expect(GAME_LOG_SCHEMA_VERSION).toBe(11);
-    expect(shouldRotateGameLogSchema(undefined)).toBe(true);
-    expect(shouldRotateGameLogSchema(7)).toBe(true);
-    expect(shouldRotateGameLogSchema(8)).toBe(true);
-    expect(shouldRotateGameLogSchema(9)).toBe(true);
-    expect(shouldRotateGameLogSchema("11")).toBe(true);
-    expect(shouldRotateGameLogSchema(10)).toBe(true);
-    expect(shouldRotateGameLogSchema(11)).toBe(false);
   });
 
   it("fails closed on incomplete, mixed or wrong-room schema-11 snapshots", () => {
-    const replayed = replay({ id: "room-do-bad", seed: "with-shark", botCount: 0 }, [{ tick: 0, action: { type: "join", playerId: "p", name: "P" } }], 0);
-    const malformed = JSON.parse(JSON.stringify(replayed)) as Record<string, any>;
+    const room = createRoom({ id: "room-do-bad", seed: "with-shark" });
+    applyAction(room, { type: "join", playerId: "p", name: "P" });
+    const malformed = JSON.parse(JSON.stringify(room)) as Record<string, any>;
     delete malformed.snakes.p.health;
     expect(() => bootstrapRoomSnapshot(malformed, createRoom({ id: "room-do-bad", seed: "fallback" }))).toThrow(/schema 11 is invalid: shark p health/);
 
@@ -120,18 +100,17 @@ describe("Room persisted-state schema boundary", () => {
     expect(() => bootstrapRoomSnapshot(wrongRoom, createRoom({ id: "room-do-bad", seed: "fallback" }))).toThrow(/id does not match Durable Object/);
   });
 
-  it("wires the Durable Object boot path to snapshot persistence, replay rotation and preserved metadata", () => {
+  it("wires the Durable Object boot path to snapshot persistence without log/replay storage", () => {
     const source = readFileSync(new URL("../src/worker/room-do.ts", import.meta.url), "utf8");
     expect(source).toContain("bootstrapRoomSnapshot(storedRoom, this.room)");
-    expect(source).toContain('this.ctx.storage.get<number>("gameLogSchemaVersion")');
-    expect(source).toContain('this.trackSql("DELETE FROM game_log")');
-    expect(source).toContain('this.ctx.storage.put("gameLogSchemaVersion", GAME_LOG_SCHEMA_VERSION)');
-    expect(source).toContain('if (snapshotBoot.persistSnapshot) { await this.ctx.storage.put("snapshot", this.room)');
-    expect(source).toContain('snapshotBoot.source.endsWith("-reset")');
+    expect(source).toContain('if (snapshotBoot.persistSnapshot) await this.ctx.storage.put("snapshot", this.room)');
     expect(source).toContain('const ROOM_NAME = "SharkTank"');
     expect(source).toMatch(/this\.roomName = ROOM_NAME/);
     expect(source).not.toMatch(/this\.roomName = meta\.roomName/);
     expect(source).toMatch(/this\.maintenance = meta\.maintenance \?\? false/);
-    expect(source).toMatch(/this\.activeMs = meta\.activeMs \?\? 0/);
+    expect(source).not.toContain("game_log");
+    expect(source).not.toContain("gameLogSchemaVersion");
+    expect(source).not.toContain("reportToLobby");
+    expect(source).not.toContain("emitEvent");
   });
 });
