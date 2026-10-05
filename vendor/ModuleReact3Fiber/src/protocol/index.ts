@@ -3,6 +3,7 @@
 // into the Room Durable Object.
 
 import { clampPitch, normalizeYaw } from "../engine/geometry3d.js";
+import { ROOM_SCHEMA_VERSION } from "../engine/room.js";
 import type { Action, DeathAction, Explosion, OceanVolume, Prey, RoomState, RoundState, ScoreEntry, Snake, Vec3 } from "../engine/types.js";
 export { isFamilyFriendlyName, sanitizeDisplayName } from "./name-policy.js";
 
@@ -252,7 +253,7 @@ function round(value: number, places = 2): number {
 /** Build the on-the-wire snapshot from authoritative RoomState. */
 export function toNetState(state: RoomState): NetState {
   return {
-    schemaVersion: state.schemaVersion,
+    schemaVersion: ROOM_SCHEMA_VERSION,
     tick: state.tick,
     arenaRadius: round(state.ocean.radius, 1),
     seabedY: round(state.ocean.seabedY, 1),

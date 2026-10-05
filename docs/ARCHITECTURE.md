@@ -7,7 +7,7 @@ browser ── HTTPS ──> Worker router ──> Lobby Durable Object
    │                    │             status, billing,
    │                    │             receipts, logs, backups
    │                    ├───────────> Room Durable Objects
-   ├── localStorage                    authoritative full X/Y/Z simulation
+   ├── localStorage                    memory-only authoritative full X/Y/Z simulation
    │   name / skin / best / settings
    └── WebSocket ───────┘
                         │
@@ -38,13 +38,13 @@ The gameplay renderer is React Three Fiber / Three.js only. `GameViewport` mount
 
 ## Competitive authority
 
-The Room Durable Object owns competitive gameplay authority. The deterministic engine advances serialized Room state from ordered actions and seeded RNG. Schema 11 stores the authoritative ocean volume, sharks, prey, effects, Feeding Frenzy state and round/Apex/result state. Realtime protocol 11 carries the matching wire shape.
+The Room Durable Object owns competitive gameplay authority. The deterministic engine advances plain in-memory Room state from ordered actions and seeded RNG. RoomState no longer carries a persisted schema field; wire state schema 11 still carries the authoritative ocean volume, sharks, prey, effects, Feeding Frenzy state and round/Apex/result state, and realtime protocol 11 remains the transport identity.
 
 Authoritative shark movement uses X/Y/Z with yaw + pitch. Score-relevant prey/fish are authoritative X/Y/Z actors. Directional bite + burst is the combat model; ordinary body overlap separates/deflects and is non-lethal. Score, damage, prey consumption, death/respawn, cooldown ownership and round transitions are server-owned.
 
-Feeding Frenzy is an authoritative 3D convergence event. Apex is the final authoritative round phase. Each Room owns the five-minute round, result window and next-round reset. Late join/reconnect receives the current authoritative phase rather than reconstructing it from a browser timer.
+Feeding Frenzy is an authoritative 3D convergence event. Apex is the final authoritative round phase. Each Room owns the five-minute round, result window and next-round reset. Late joins on the live object receive the current authoritative phase rather than reconstructing it from a browser timer. If the Room object restarts, it deliberately begins a fresh round.
 
-The deterministic engine remains framework-agnostic and server-safe. Stored snapshots use explicit schema identity; incompatible older transient Room state is reset through the schema bootstrap rather than interpreted as schema 11. Room inputs are not retained as a replay log.
+The deterministic engine remains framework-agnostic and server-safe. Room inputs are not retained as a replay log, and gameplay state is not restored from storage.
 
 ## Client prediction and interpolation
 
@@ -88,7 +88,7 @@ Repeated prey/environment work is bounded or batched where practical. Render-fra
 
 Lobby state no longer stores player profiles or public client-action events. It still holds the operations state scheduled for retirement in later queue tasks: status, billing, receipts, server-originated service logs and backup evidence. Scheduled copies are written through the R2 binding. Restore drills reconstruct retained Lobby state into scratch Durable Object state without overwriting live production data.
 
-Room Durable Objects persist schema-11 gameplay snapshots through the current schema seam. Stable Room/Lobby Durable Object identities and migration tag `v1` are not ordinary refactor targets.
+Room Durable Objects run gameplay and sessions entirely in memory. On object boot the Room clears legacy Durable Object storage, starts a fresh round, and uses standard WebSockets with in-memory sessions; no Room snapshot or metadata is read or written, no hibernation attachment is restored, and the tick loop keeps the object active while sockets are connected. Stable Room/Lobby Durable Object identities and migration tag `v1` are not ordinary refactor targets.
 
 Ordinary controlled changes do not create tags, GitHub Releases or production deployments. Release identity is package version + immutable annotated tag + GitHub Release + exact accepted commit. Production deployment remains gated by the current Release workflow, protected `production` environment and Cloudflare credentials.
 

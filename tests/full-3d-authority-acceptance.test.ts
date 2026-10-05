@@ -35,7 +35,6 @@ import {
   touchNeedsLandscape,
 } from "../vendor/ModuleReact3Fiber/src/client/game/mobileControls.js";
 import { LocalPredictor } from "../vendor/ModuleReact3Fiber/src/client/game/prediction.js";
-import { bootstrapRoomSnapshot } from "../src/worker/room-state-schema.js";
 
 const read = (path: string) => readFileSync(new URL(path, import.meta.url), "utf8");
 const exists = (path: string) => existsSync(new URL(path, import.meta.url));
@@ -51,14 +50,6 @@ function place(shark: Snake, x: number, y: number, z: number, yaw = 0, pitch = 0
   shark.segments = [{ ...point }];
   shark.yaw = shark.targetYaw = yaw;
   shark.pitch = shark.targetPitch = pitch;
-}
-
-function restoredRoom(state: RoomState): RoomState {
-  const stored = JSON.parse(JSON.stringify(state)) as unknown;
-  const boot = bootstrapRoomSnapshot(stored, createRoom({ id: state.id, seed: "fallback-only" }));
-  expect(boot.source).toBe("schema-11");
-  expect(boot.persistSnapshot).toBe(false);
-  return boot.room;
 }
 
 function welcomeState(state: RoomState, youId: string): NetState {
@@ -100,8 +91,8 @@ describe("ST-129 full-3D authority acceptance wall", () => {
     expect(sawApex).toBe(true);
     expect(sawResult).toBe(true);
     expect(state.round).toMatchObject({ number: 2, phase: "active", startTick: firstRoundResetTick });
-    expect(state.schemaVersion).toBe(ROOM_SCHEMA_VERSION);
-    expect(state.schemaVersion).toBe(11);
+    expect(ROOM_SCHEMA_VERSION).toBe(11);
+    expect(toNetState(state).schemaVersion).toBe(11);
     expect(Object.values(state.snakes).every((shark) =>
       shark.path.every((point) => Number.isFinite(point.x) && Number.isFinite(point.y) && Number.isFinite(point.z))
       && Number.isFinite(shark.yaw)
@@ -282,12 +273,11 @@ describe("ST-129 full-3D authority acceptance wall", () => {
     expect(snapped!.pitch).toBe(corrected.pitch);
   });
 
-  it("restores and welcomes authoritative active, death, respawn, Frenzy, Apex, result and late-join state", () => {
+  it("welcomes authoritative active, death, respawn, Frenzy, Apex, result and late-join state from live memory", () => {
     const state = createRoom({ id: "reconnect-room", seed: "reconnect-room" });
     const pilot = join(state, "pilot");
 
-    let restored = restoredRoom(state);
-    expect(welcomeState(restored, pilot.id)).toMatchObject({
+    expect(welcomeState(state, pilot.id)).toMatchObject({
       schemaVersion: 11,
       tick: state.tick,
       round: { phase: "active" },
@@ -297,33 +287,28 @@ describe("ST-129 full-3D authority acceptance wall", () => {
     place(pilot, state.ocean.radius - 0.1, 0, 0, 0, 0);
     step(state);
     expect(pilot.alive).toBe(false);
-    restored = restoredRoom(state);
-    expect(welcomeState(restored, pilot.id).snakes.find((item) => item.id === pilot.id)?.alive).toBe(false);
+    expect(welcomeState(state, pilot.id).snakes.find((item) => item.id === pilot.id)?.alive).toBe(false);
 
     const respawnTick = pilot.respawnTick;
     while (state.tick < respawnTick) step(state);
     applyAction(state, { type: "respawn", playerId: pilot.id });
-    restored = restoredRoom(state);
-    expect(welcomeState(restored, pilot.id).snakes.find((item) => item.id === pilot.id)?.alive).toBe(true);
+    expect(welcomeState(state, pilot.id).snakes.find((item) => item.id === pilot.id)?.alive).toBe(true);
 
     while (state.tick < FRENZY_RULES.periodTicks) step(state);
     expect(isFrenzy(state)).toBe(true);
-    restored = restoredRoom(state);
-    const frenzyWelcome = welcomeState(restored, pilot.id);
+    const frenzyWelcome = welcomeState(state, pilot.id);
     expect(frenzyWelcome.frenzyUntilTick).toBe(state.frenzyUntilTick);
     expect(frenzyWelcome.frenzyUntilTick).toBeGreaterThan(frenzyWelcome.tick);
 
     while (state.tick < state.round.apexStartTick) step(state);
     expect(state.round.phase).toBe("apex");
-    restored = restoredRoom(state);
-    expect(welcomeState(restored, pilot.id).round).toEqual(toNetState(state).round);
+    expect(welcomeState(state, pilot.id).round).toEqual(toNetState(state).round);
 
     while (state.tick < state.round.endTick) step(state);
     expect(state.round.phase).toBe("result");
     applyAction(state, { type: "join", playerId: "late", name: "Late" });
     expect(state.snakes.late.alive).toBe(false);
-    restored = restoredRoom(state);
-    const resultWelcome = welcomeState(restored, "late");
+    const resultWelcome = welcomeState(state, "late");
     expect(resultWelcome.round.phase).toBe("result");
     expect(resultWelcome.snakes.find((item) => item.id === "late")?.alive).toBe(false);
 
@@ -331,7 +316,7 @@ describe("ST-129 full-3D authority acceptance wall", () => {
     while (state.tick < resetTick) step(state);
     expect(state.round).toMatchObject({ number: 2, phase: "active" });
     expect(state.snakes.late.alive).toBe(true);
-    expect(welcomeState(restoredRoom(state), "late").round.phase).toBe("active");
+    expect(welcomeState(state, "late").round.phase).toBe("active");
   });
 
   it("resets reconnect interpolation and transient audio boundaries instead of mixing old and recovered timelines", () => {
@@ -356,10 +341,16 @@ describe("ST-129 full-3D authority acceptance wall", () => {
     expect(isFreshAudioEvent(100, 105, 4)).toBe(false);
     expect(isFreshAudioEvent(110, 105, 4)).toBe(false);
 
-    expect(roomSource).toContain("this.ctx.getWebSockets()");
-    expect(roomSource).toContain("ws.deserializeAttachment()");
-    expect(roomSource).toContain("this.saveAttachment(session)");
-    expect(roomSource).toContain("this.persist()");
+    expect(roomSource).toContain("this.ctx.storage.deleteAll()");
+    expect(roomSource).toContain("server.accept()");
+    expect(roomSource).toContain('server.addEventListener("message"');
+    expect(roomSource).not.toContain("this.ctx.getWebSockets()");
+    expect(roomSource).not.toContain("serializeAttachment");
+    expect(roomSource).not.toContain("deserializeAttachment");
+    expect(roomSource).not.toContain("this.persist()");
+    expect(roomSource).not.toContain("storage.get");
+    expect(roomSource).not.toContain("storage.put");
+    expect(exists("../src/worker/room-state-schema.ts")).toBe(false);
   });
 
   it("keeps simultaneous twin sticks plus ability input independent across cancellation and mirrored layouts", () => {
