@@ -142,20 +142,6 @@ On 2026-10-02 the owner directed that this SharkTank material be deleted from th
 
 ## Open tasks
 
-### ST-148 — [REFACTOR] Remove billing metering, the spend limit, backups and their bindings
-
-**Goal:** The Lobby still meters usage, retains spend-threshold calculations, and copies its state to R2 on a daily cron.
-
-**Scope**
-- Remove the Lobby's billing window, usage counters and remaining spend-threshold code, plus the backup, export and restore-drill code and the Worker's `scheduled()` handler.
-- From `wrangler.jsonc`, remove the R2 binding, the cron trigger, the version-metadata binding, and the `AUDIT_GENERATION`, `GAME_LOG_GENERATION`, `BILLING_HARD_LIMIT_USD`, `R2_BUCKET_NAME` and `R2_PREFIX` vars. Update the repository-baseline checks.
-
-**Acceptance:** No binding or code path writes to R2 or runs on a schedule.
-
-**Validation:** `npm run check:repository-baseline`; `node --test scripts/deploy-prod-cases.mjs`; `npm run typecheck`.
-
----
-
 ### ST-149 — [OPS] Delete the Lobby Durable Object
 
 **Goal:** Nothing uses the Lobby any more.

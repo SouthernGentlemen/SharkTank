@@ -35,66 +35,12 @@ const CONTROL_HISTORY_HASH_VERSION = 1,
   CONTROL_HISTORY_GENESIS = "0".repeat(64),
   CONTROL_HISTORY_VERIFY_WINDOW = 2_000,
   CONTROL_HISTORY_REVERIFY_MS = 10 * 60 * 1000;
-interface Env {
-  AUDIT_GENERATION?: string;
-  BILLING_HARD_LIMIT_USD?: string;
-  CF_VERSION_METADATA?: WorkerVersionMetadata;
-  R2_ASSETS?: R2Bucket;
-  R2_BUCKET_NAME?: string;
-  R2_PREFIX?: string;
-  ROOM: DurableObjectNamespace;
-}
 interface Report {
   players: number;
   bots: number;
   topScore: number;
   topName: string;
   at: number;
-  activeDurationMs: number;
-  wsMessages: number;
-  connections: number;
-  storageWrites: number;
-  storageRowsRead: number;
-  storageRowsWritten: number;
-  storageBytes: number;
-}
-/** One point on the spend trend: cumulative metered spend and volume at a moment. */
-interface SpendSample {
-  ts: number;
-  usd: number;
-  requests: number;
-  rowsWritten: number;
-}
-const SPEND_SAMPLE_INTERVAL_MS = 60 * 60 * 1000;
-const SPEND_SAMPLE_CAP = 336; // 14 days of hourly points
-/**
- * Cumulative totals as they stood at the first billing computation of the current UTC day.
- * Every free-tier allowance that matters here is a *daily* allowance, so "how much of
- * today's limit have we used" needs a day boundary to subtract from — an all-time total
- * and a lifetime average cannot answer it. One key, rewritten once a day.
- */
-interface DayBaseline {
-  day: string;
-  startedAt: number;
-  requests: number;
-  gbSeconds: number;
-  rowsRead: number;
-  rowsWritten: number;
-  r2ClassA: number;
-  r2ClassB: number;
-  usd: number;
-}
-interface Usage {
-  startedAt: number;
-  requests: number;
-  reports: number;
-  events: number;
-  roomsSeen: string[];
-  storageWrites: number;
-  storageRowsRead: number;
-  storageRowsWritten: number;
-  r2ClassA: number;
-  r2ClassB: number;
 }
 export interface AuditEvent {
   ts: number;
@@ -197,139 +143,18 @@ export interface MaintenanceIncident {
   impactEndedAt?: number | null;
   summary: string;
 }
-interface R2Snapshot {
-  checkedAt: number;
-  objectCount: number;
-  storageBytes: number;
-  bucket: string;
-  truncated: boolean;
-}
-interface BillingRoomBaseline {
-  activeDurationMs: number;
-  wsMessages: number;
-  connections: number;
-  storageWrites: number;
-  storageRowsRead: number;
-  storageRowsWritten: number;
-}
-interface BillingWindow {
-  versionId: string;
-  startedAt: number;
-  tankRequests: number;
-  storageWrites: number;
-  storageRowsRead: number;
-  storageRowsWritten: number;
-  r2ClassA: number;
-  r2ClassB: number;
-  rooms: Record<string, BillingRoomBaseline>;
-}
-
-/**
- * A.8.13 asks for backups that are taken, retained, and demonstrably restorable.
- * Everything this object holds sits in two places at once: Durable Object KV keys, and
- * two SQLite tables — the 90-day action log and the tamper-evident receipt chain. An
- * export covering only one of them would restore to a service that looked intact and had
- * quietly lost its evidence, so both are read in a single pass and digested together.
- *
- * The digest is taken over a canonical form (KV keys sorted, rows in primary-key order)
- * so that exporting the same state twice produces the same hash. That is what makes a
- * restore drill meaningful: restore into a scratch instance, export it, and compare the
- * two digests. Equal digests mean the copy is the original, not merely similar to it.
- */
-const BACKUP_FORMAT = "wizardgang-state-export";
-const BACKUP_VERSION = 1;
-/** Ceiling on export paging, so a runaway key space cannot make an export unbounded. */
-const BACKUP_MAX_PAGES = 200;
-interface StateExport {
-  format: string;
-  version: number;
-  takenAt: number;
-  generation: string;
-  kv: Record<string, unknown>;
-  audit: Array<Record<string, unknown>>;
-  controlHistory: Array<Record<string, unknown>>;
-  counts: { kv: number; profiles: number; audit: number; controlHistory: number };
-  /** Present on a completed export; absent from the body the digest is computed over. */
-  digest?: string;
-  truncated?: boolean;
-}
-/** What the public status panel is allowed to say about backups. No content, only shape. */
-export interface BackupState {
-  lastBackupAt: number;
-  lastBackupKey: string;
-  lastBackupBytes: number;
-  lastBackupDigest: string;
-  lastBackupCounts: { kv: number; profiles: number; audit: number; controlHistory: number } | null;
-  lastBackupError: string;
-  retainedCopies: number;
-  lastDrillAt: number;
-  lastDrillOk: boolean;
-  lastDrillDetail: string;
-}
-const EMPTY_BACKUP_STATE: BackupState = {
-  lastBackupAt: 0, lastBackupKey: "", lastBackupBytes: 0, lastBackupDigest: "",
-  lastBackupCounts: null, lastBackupError: "", retainedCopies: 0,
-  lastDrillAt: 0, lastDrillOk: false, lastDrillDetail: "",
-};
-
 export class Lobby implements DurableObject {
   private readonly reports = new Map<string, Report>();
   private readonly rates = new Map<string, RateBucket>();
-  /** Identifies this resident instance, so ops can see whether in-memory state survives. */
-  private readonly bootId = crypto.randomUUID().slice(0, 8);
-  private readonly bootedAt = Date.now();
-  private usage: Usage = {
-    startedAt: Date.now(),
-    requests: 0,
-    reports: 0,
-    events: 0,
-    roomsSeen: [],
-    storageWrites: 0,
-    storageRowsRead: 0,
-    storageRowsWritten: 0,
-    r2ClassA: 0,
-    r2ClassB: 0,
-  };
   private maintenanceIncidents: MaintenanceIncident[] = [];
-  private r2Snapshot: R2Snapshot = {
-    checkedAt: 0,
-    objectCount: 0,
-    storageBytes: 0,
-    bucket: "wizardgang-demo-assets",
-    truncated: false,
-  };
-  private billingWindow: BillingWindow = {
-    versionId: "",
-    startedAt: Date.now(),
-    tankRequests: 0,
-    storageWrites: 0,
-    storageRowsRead: 0,
-    storageRowsWritten: 0,
-    r2ClassA: 0,
-    r2ClassB: 0,
-    rooms: {},
-  };
-  /**
-   * Hourly samples of cumulative all-time metered spend, for the /inquiry trend chart.
-   * Cost was only ever reported as a single instantaneous number, so there was no way
-   * to see whether spend was flat, creeping, or accelerating toward the hard stop.
-   * Sampled lazily whenever billing is computed; ~14 days retained.
-   */
-  private spendHistory: SpendSample[] = [];
-  /** Where today started. Captured on the first billing computation of each UTC day. */
-  private dayBaseline: DayBaseline | null = null;
   private historyQueue: Promise<void> = Promise.resolve();
   /** Loaded lazily on first use, then kept in step with every append. */
   private historyAnchor: ControlHistoryAnchor | null = null;
   private historyAnchorLoaded = false;
   /** Last verification pass. Cleared implicitly whenever its cache keys stop matching. */
   private historyVerification: ControlHistoryVerification | null = null;
-  /** Mirrors the `backupState` key. Loaded on first use, written on every backup event. */
-  private backupState: BackupState | null = null;
-
   constructor(
     private readonly ctx: DurableObjectState,
-    private readonly env: Env,
   ) {
     const auditTable = this.ctx.storage.sql.exec(
       "CREATE TABLE IF NOT EXISTS audit (id INTEGER PRIMARY KEY AUTOINCREMENT, ts INTEGER NOT NULL, type TEXT NOT NULL, room TEXT, subject TEXT, detail TEXT)",
@@ -347,37 +172,13 @@ export class Lobby implements DurableObject {
       "CREATE INDEX IF NOT EXISTS control_history_ts ON control_history(ts)",
     );
     historyIndex.toArray();
-    const schemaRowsRead =
-        auditTable.rowsRead +
-        auditIndex.rowsRead +
-        historyTable.rowsRead +
-        historyIndex.rowsRead,
-      schemaRowsWritten =
-        auditTable.rowsWritten +
-        auditIndex.rowsWritten +
-        historyTable.rowsWritten +
-        historyIndex.rowsWritten;
     void this.ctx.blockConcurrencyWhile(async () => {
-      let bootstrapReads = 0;
-      this.usage = (await this.ctx.storage.get<Usage>("usage")) ?? this.usage;
-      this.usage.roomsSeen = this.usage.roomsSeen.filter((id) => ROOM_IDS.has(id));
-      this.spendHistory = (await this.ctx.storage.get<SpendSample[]>("spendHistory")) ?? [];
-      bootstrapReads += 1;
-      this.dayBaseline = (await this.ctx.storage.get<DayBaseline>("dayBaseline")) ?? null;
-      bootstrapReads += 1;
-      this.usage.storageWrites ??= 0;
-      this.usage.storageRowsRead ??= 0;
-      this.usage.storageRowsWritten ??= this.usage.storageWrites;
-      this.usage.r2ClassA ??= 0;
-      this.usage.r2ClassB ??= 0;
       this.maintenanceIncidents =
         (await this.ctx.storage.get<MaintenanceIncident[]>(
           "maintenanceIncidents",
         )) ?? [];
-      bootstrapReads += 1;
       const securityIncidentSemantics =
         await this.ctx.storage.get<string>("securityIncidentSemantics");
-      bootstrapReads += 1;
       if (securityIncidentSemantics !== "impact-v1") {
         const reopened: Array<{ id: string; impactEndedAt: number }> = [];
         for (const incident of this.maintenanceIncidents) {
@@ -393,7 +194,6 @@ export class Lobby implements DurableObject {
           incident.resolvedAt = null;
           reopened.push({ id: incident.id, impactEndedAt });
         }
-        this.countWrites(reopened.length ? 2 : 1);
         await this.ctx.storage.put({
           securityIncidentSemantics: "impact-v1",
           ...(reopened.length
@@ -413,7 +213,6 @@ export class Lobby implements DurableObject {
           });
       }
       const lobbyCopy = await this.ctx.storage.get<string>("lobbyCopy");
-      bootstrapReads += 1;
       if (lobbyCopy !== "v2") {
         let changed = false;
         for (const incident of this.maintenanceIncidents) {
@@ -424,7 +223,6 @@ export class Lobby implements DurableObject {
           incident.summary = summary;
           changed = true;
         }
-        this.countWrites(changed ? 2 : 1);
         await this.ctx.storage.put({
           lobbyCopy: "v2",
           ...(changed ? { maintenanceIncidents: this.maintenanceIncidents } : {}),
@@ -435,183 +233,34 @@ export class Lobby implements DurableObject {
       const beforePrune = this.maintenanceIncidents.length;
       this.pruneIncidents();
       if (this.maintenanceIncidents.length !== beforePrune) {
-        this.countWrites(1);
         await this.ctx.storage.put(
           "maintenanceIncidents",
           this.maintenanceIncidents,
         );
       }
-      this.r2Snapshot =
-        (await this.ctx.storage.get<R2Snapshot>("r2Snapshot")) ??
-        this.r2Snapshot;
-      bootstrapReads += 1;
       const reports =
         (await this.ctx.storage.get<Record<string, Report>>("reports")) ?? {};
-      bootstrapReads += 1;
       for (const [id, report] of Object.entries(reports).filter(([id]) => ROOM_IDS.has(id)))
-        this.reports.set(id, {
-          ...report,
-          bots: report.bots ?? 24,
-          activeDurationMs: report.activeDurationMs ?? 0,
-          wsMessages: report.wsMessages ?? 0,
-          connections: report.connections ?? 0,
-          storageWrites: report.storageWrites ?? 0,
-          storageRowsRead: report.storageRowsRead ?? 0,
-          storageRowsWritten:
-            report.storageRowsWritten ?? report.storageWrites ?? 0,
-          storageBytes: report.storageBytes ?? 0,
-        });
-      const generation = this.env.AUDIT_GENERATION;
-      const savedGeneration =
-        await this.ctx.storage.get<string>("auditGeneration");
-      bootstrapReads += 1;
-      this.usage.storageRowsRead += schemaRowsRead + bootstrapReads;
-      this.usage.storageRowsWritten += schemaRowsWritten;
-      if (generation && savedGeneration !== generation) {
-        this.trackSql("DELETE FROM audit");
-        await this.ctx.storage.delete("audit"); // remove the legacy array-backed audit log too
-        this.countWrites(3);
-        await this.ctx.storage.put({
-          auditGeneration: generation,
-          usage: this.usage,
-        });
-      }
-      const versionId =
-        this.env.CF_VERSION_METADATA?.id ?? generation ?? "local";
-      const savedBilling =
-        await this.ctx.storage.get<BillingWindow>("billingWindow");
-      this.usage.storageRowsRead += 1;
-      if (!savedBilling || savedBilling.versionId !== versionId) {
-        this.billingWindow = this.newBillingWindow(versionId);
-        this.countWrites(2);
-        await this.ctx.storage.put({
-          billingWindow: this.billingWindow,
-          usage: this.usage,
-        });
-      } else
-        this.billingWindow = {
-          ...savedBilling,
-          tankRequests:
-            savedBilling.tankRequests ??
-            (savedBilling as { lobbyRequests?: number }).lobbyRequests ??
-            0,
-          storageRowsRead: savedBilling.storageRowsRead ?? 0,
-          storageRowsWritten:
-            savedBilling.storageRowsWritten ?? savedBilling.storageWrites ?? 0,
-          r2ClassA: savedBilling.r2ClassA ?? 0,
-          r2ClassB: savedBilling.r2ClassB ?? 0,
-        };
+        this.reports.set(id, report);
     });
   }
 
   async fetch(request: Request): Promise<Response> {
-    this.usage.requests += 1;
-    const versionId =
-      this.env.CF_VERSION_METADATA?.id ?? this.env.AUDIT_GENERATION ?? "local";
-    if (this.billingWindow.versionId !== versionId) {
-      this.billingWindow = this.newBillingWindow(versionId);
-      this.countWrites(2);
-      await this.ctx.storage.put({
-        billingWindow: this.billingWindow,
-        usage: this.usage,
-      });
-    }
     const url = new URL(request.url),
       path = url.pathname;
-    if (path.endsWith("/billing/reset")) {
-      if (request.method !== "POST")
-        return json({ ok: false, error: "method not allowed" }, 405);
-      this.billingWindow = this.newBillingWindow(
-        this.env.CF_VERSION_METADATA?.id ??
-          this.env.AUDIT_GENERATION ??
-          "local",
-      );
-      this.countWrites(2);
-      await this.ctx.storage.put({
-        billingWindow: this.billingWindow,
-        usage: this.usage,
-      });
-      const now = Date.now();
-      this.record({
-        ts: now,
-        type: "billing-reset",
-        subject: "ops",
-        detail: "Billing measurement window reset; uptime preserved",
-      });
-      const history = await this.appendControlHistory({
-        ts: now,
-        code: "BILLING-WINDOW-RESET",
-        actor: "ops",
-        title: "Billing counter reset",
-        summary:
-          "The tracked spend window was reset without changing uptime, incidents, or control history.",
-        reference: `billing-window-${now}`,
-        detail: `version=${this.billingWindow.versionId}`,
-      });
-      return json({ ok: true, billingWindow: await this.billing(), history });
-    }
     if (path.endsWith("/report") && request.method === "POST") {
       const b = await safeJson<TankRoom & { topName?: string }>(request);
       if (!b || !ROOM_IDS.has(b.id))
         return json({ ok: false, error: "invalid room" }, 400);
-      const metrics = b as TankRoom & {
-        topName?: string;
-        activeDurationMs?: number;
-        wsMessages?: number;
-        connections?: number;
-        storageWrites?: number;
-        storageRowsRead?: number;
-        storageRowsWritten?: number;
-        storageBytes?: number;
-      };
       this.reports.set(b.id, {
         players: clampInt(b.players, 0, CAPACITY),
         bots: clampInt(b.bots ?? 24, 0, 32),
         topScore: clampInt(b.topScore, 0, 1e9),
         topName: sanitizeDisplayName(b.topName),
         at: Date.now(),
-        activeDurationMs: clampInt(
-          metrics.activeDurationMs ?? 0,
-          0,
-          Number.MAX_SAFE_INTEGER,
-        ),
-        wsMessages: clampInt(
-          metrics.wsMessages ?? 0,
-          0,
-          Number.MAX_SAFE_INTEGER,
-        ),
-        connections: clampInt(
-          metrics.connections ?? 0,
-          0,
-          Number.MAX_SAFE_INTEGER,
-        ),
-        storageWrites: clampInt(
-          metrics.storageWrites ?? 0,
-          0,
-          Number.MAX_SAFE_INTEGER,
-        ),
-        storageRowsRead: clampInt(
-          metrics.storageRowsRead ?? 0,
-          0,
-          Number.MAX_SAFE_INTEGER,
-        ),
-        storageRowsWritten: clampInt(
-          metrics.storageRowsWritten ?? metrics.storageWrites ?? 0,
-          0,
-          Number.MAX_SAFE_INTEGER,
-        ),
-        storageBytes: clampInt(
-          metrics.storageBytes ?? 0,
-          0,
-          Number.MAX_SAFE_INTEGER,
-        ),
       });
-      this.usage.reports += 1;
-      if (!this.usage.roomsSeen.includes(b.id)) this.usage.roomsSeen.push(b.id);
-      this.countWrites(2);
       this.ctx.waitUntil(
         this.ctx.storage.put({
-          usage: this.usage,
           reports: Object.fromEntries(this.reports),
         }),
       );
@@ -641,8 +290,6 @@ export class Lobby implements DurableObject {
         limit,
       );
       const events = cursor.toArray().reverse();
-      this.usage.storageRowsRead += cursor.rowsRead;
-      this.usage.storageRowsWritten += cursor.rowsWritten;
       return json({ ok: true, events, retentionDays: 90 });
     }
     if (path.endsWith("/incidents"))
@@ -651,37 +298,8 @@ export class Lobby implements DurableObject {
         incidents: this.maintenanceIncidents,
         ...(await this.controlHistory(100)),
       });
-    // Full state export. The Worker gates this behind operations authentication; it is
-    // every retained operating key and receipt in one body and must never answer a public request.
-    if (path.endsWith("/backup") && request.method === "GET")
-      return json({ ok: true, export: await this.exportState() });
-    // Record the outcome of a copy the Worker has just written to object storage.
-    if (path.endsWith("/backup/record") && request.method === "POST") {
-      const body = await safeJson<Partial<BackupState> & { ok?: boolean }>(request);
-      if (!body) return json({ ok: false, error: "body must be JSON" }, 400);
-      return json({ ok: true, backup: await this.recordBackup(body) });
-    }
-    // Record the outcome of a restore drill the Worker has just run.
-    if (path.endsWith("/backup/drill-result") && request.method === "POST") {
-      const body = await safeJson<{ ok?: boolean; detail?: string }>(request);
-      if (!body) return json({ ok: false, error: "body must be JSON" }, 400);
-      return json({ ok: true, backup: await this.recordDrill(Boolean(body.ok), clean(body.detail, 240) ?? "") });
-    }
-    // Wipe. Used to leave nothing behind in the scratch instance a restore drill restores
-    // into: the scratch instance must not retain an orphaned copy of operating data.
-    if (path.endsWith("/wipe") && request.method === "POST") {
-      const cleared = await this.wipeState();
-      return json({ ok: true, cleared });
-    }
-    // Restore. Destructive and operator-only: it replaces every key and both tables.
-    if (path.endsWith("/restore") && request.method === "POST") {
-      let payload: unknown;
-      try { payload = await request.json(); } catch { return json({ ok: false, error: "body must be JSON" }, 400); }
-      const result = await this.importState(payload);
-      return json(result, result.ok ? 200 : 400);
-    }
     if (path.endsWith("/status"))
-      return json({ ok: true, ...(await this.status()) });
+      return json({ ok: true, maintenanceIncidents: this.maintenanceIncidents, ...(await this.controlHistory(50)), rooms: this.list() });
     return json({ ok: true, rooms: this.list() });
   }
 
@@ -755,24 +373,19 @@ export class Lobby implements DurableObject {
       Date.now() - AUDIT_RETENTION_MS,
       Date.now() + 60_000,
     );
-    this.trackSql(
+    this.ctx.storage.sql.exec(
       "INSERT INTO audit(ts,type,room,subject,detail) VALUES(?,?,?,?,?)",
       ts,
       ev.type.slice(0, 32),
       clean(ev.room, 32),
       ev.subject ? sanitizeDisplayName(ev.subject) : null,
       clean(ev.detail, 160),
-    );
-    this.trackSql(
+    ).toArray();
+    this.ctx.storage.sql.exec(
       "DELETE FROM audit WHERE ts < ? OR id NOT IN (SELECT id FROM audit ORDER BY id DESC LIMIT ?)",
       Date.now() - AUDIT_RETENTION_MS,
       AUDIT_MAX_ROWS,
-    );
-    this.usage.events += 1;
-    this.countWrites(1);
-    if (ev.room && ROOM_IDS.has(ev.room) && !this.usage.roomsSeen.includes(ev.room))
-      this.usage.roomsSeen.push(ev.room);
-    this.ctx.waitUntil(this.ctx.storage.put("usage", this.usage));
+    ).toArray();
   }
   private list(): TankRoom[] {
     const now = Date.now();
@@ -789,476 +402,6 @@ export class Lobby implements DurableObject {
         topName: fresh ? r.topName : "—",
       };
     });
-  }
-  private async status() {
-    const rooms = this.list(),
-      billingWindow = await this.billing();
-    return {
-      maintenanceIncidents: this.maintenanceIncidents,
-      usage: {
-        startedAt: this.usage.startedAt,
-        uptimeMs: Date.now() - this.usage.startedAt,
-        tankRequests: this.usage.requests,
-        presenceReports: this.usage.reports,
-        auditEvents: this.usage.events,
-        durableObjects: {
-          tank: 1,
-          rooms: this.usage.roomsSeen.length,
-          total: 1 + this.usage.roomsSeen.length,
-        },
-        storage: "Durable Object SQLite audit + game logs",
-      },
-      // Operations-only. In-memory throttles are only worth anything if this object stays
-      // resident: a bootId that changes between requests means every rate bucket is being
-      // discarded with it. Not public — /audit/ is authenticated.
-      instance: {
-        bootId: this.bootId,
-        bootedAt: this.bootedAt,
-        residentMs: Date.now() - this.bootedAt,
-        rateBuckets: this.rates.size,
-      },
-      billingWindow,
-      // Shape and timing of the last state copy. Public: it is the only way a reader can
-      // check that A.8.13 is operated rather than merely written down.
-      backup: await this.loadBackupState(),
-      ...(await this.controlHistory(50)),
-      rooms,
-    };
-  }
-  private async billing() {
-    await this.refreshR2();
-    let activeMs = 0,
-      messages = 0,
-      connections = 0,
-      roomWrites = 0,
-      roomRowsRead = 0,
-      roomRowsWritten = 0,
-      storageBytes = this.ctx.storage.sql.databaseSize;
-    let allActiveMs = 0,
-      allMessages = 0,
-      allConnections = 0,
-      allRoomWrites = 0,
-      allRoomRowsRead = 0,
-      allRoomRowsWritten = 0;
-    for (const [id, report] of this.reports) {
-      const base = this.billingWindow.rooms[id] ?? {
-        activeDurationMs: 0,
-        wsMessages: 0,
-        connections: 0,
-        storageWrites: 0,
-        storageRowsRead: 0,
-        storageRowsWritten: 0,
-      };
-      activeMs += Math.max(0, report.activeDurationMs - base.activeDurationMs);
-      messages += Math.max(0, report.wsMessages - base.wsMessages);
-      connections += Math.max(0, report.connections - base.connections);
-      roomWrites += Math.max(0, report.storageWrites - base.storageWrites);
-      roomRowsRead += Math.max(
-        0,
-        report.storageRowsRead - base.storageRowsRead,
-      );
-      roomRowsWritten += Math.max(
-        0,
-        report.storageRowsWritten - base.storageRowsWritten,
-      );
-      storageBytes += report.storageBytes;
-      allActiveMs += report.activeDurationMs;
-      allMessages += report.wsMessages;
-      allConnections += report.connections;
-      allRoomWrites += report.storageWrites;
-      allRoomRowsRead += report.storageRowsRead;
-      allRoomRowsWritten += report.storageRowsWritten;
-    }
-    const tankRequests = Math.max(
-      0,
-      this.usage.requests - this.billingWindow.tankRequests,
-    );
-    const storageWrites =
-      Math.max(0, this.usage.storageWrites - this.billingWindow.storageWrites) +
-      roomWrites;
-    const storageRowsRead =
-      Math.max(
-        0,
-        this.usage.storageRowsRead - this.billingWindow.storageRowsRead,
-      ) + roomRowsRead;
-    const storageRowsWritten =
-      Math.max(
-        0,
-        this.usage.storageRowsWritten - this.billingWindow.storageRowsWritten,
-      ) + roomRowsWritten;
-    const r2ClassA = Math.max(
-        0,
-        this.usage.r2ClassA - this.billingWindow.r2ClassA,
-      ),
-      r2ClassB = Math.max(0, this.usage.r2ClassB - this.billingWindow.r2ClassB);
-    const requests = tankRequests + connections + messages / 20;
-    const gbSeconds = (activeMs / 1000) * 0.128;
-    const observedMs = Math.max(1, Date.now() - this.billingWindow.startedAt),
-      projectionSampleMs = Math.max(60_000, observedMs),
-      monthFactor = (30 * 24 * 60 * 60 * 1000) / projectionSampleMs;
-    const doRequestUsd = (requests / 1_000_000) * 0.15,
-      doDurationUsd = (gbSeconds / 1_000_000) * 12.5,
-      doReadUsd = (storageRowsRead / 1_000_000) * 0.001,
-      doWriteUsd = storageRowsWritten / 1_000_000;
-    const doStorageMonthlyUsd = (storageBytes / 1_000_000_000) * 0.2;
-    const r2OperationUsd =
-      (r2ClassA / 1_000_000) * 4.5 + (r2ClassB / 1_000_000) * 0.36;
-    const r2StorageMonthlyUsd =
-      (this.r2Snapshot.storageBytes / 1_000_000_000) * 0.015;
-    const meteredWindowUsd =
-      doRequestUsd + doDurationUsd + doReadUsd + doWriteUsd + r2OperationUsd;
-    const storageWindowUsd =
-      (doStorageMonthlyUsd + r2StorageMonthlyUsd) / monthFactor;
-    const estimatedVariableUsd = meteredWindowUsd + storageWindowUsd;
-    const projectedMonthlyVariableUsd =
-      meteredWindowUsd * monthFactor +
-      doStorageMonthlyUsd +
-      r2StorageMonthlyUsd;
-    const freeTier = {
-      workers: { requestsPerDay: 100_000 },
-      durableObjects: {
-        requestsPerDay: 100_000,
-        gbSecondsPerDay: 13_000,
-        rowsReadPerDay: 5_000_000,
-        rowsWrittenPerDay: 100_000,
-        storageBytes: 5_000_000_000,
-      },
-      d1: { configured: false },
-      r2: {
-        storageBytesPerMonth: 10_000_000_000,
-        classAOperationsPerMonth: 1_000_000,
-        classBOperationsPerMonth: 10_000_000,
-      },
-      sources: {
-        workers: "https://developers.cloudflare.com/workers/platform/pricing/",
-        durableObjects:
-          "https://developers.cloudflare.com/durable-objects/platform/pricing/",
-        r2: "https://developers.cloudflare.com/r2/pricing/",
-      },
-    };
-    const projectedRequests = requests * monthFactor,
-      projectedGbSeconds = gbSeconds * monthFactor,
-      projectedRowsRead = storageRowsRead * monthFactor,
-      projectedRowsWritten = storageRowsWritten * monthFactor,
-      projectedR2ClassA = r2ClassA * monthFactor,
-      projectedR2ClassB = r2ClassB * monthFactor;
-    const freeTierProjectedMonthlyUsd =
-      (Math.max(
-        0,
-        projectedRequests - freeTier.durableObjects.requestsPerDay * 30,
-      ) /
-        1_000_000) *
-        0.15 +
-      (Math.max(
-        0,
-        projectedGbSeconds - freeTier.durableObjects.gbSecondsPerDay * 30,
-      ) /
-        1_000_000) *
-        12.5 +
-      (Math.max(
-        0,
-        projectedRowsRead - freeTier.durableObjects.rowsReadPerDay * 30,
-      ) /
-        1_000_000) *
-        0.001 +
-      Math.max(
-        0,
-        projectedRowsWritten - freeTier.durableObjects.rowsWrittenPerDay * 30,
-      ) /
-        1_000_000 +
-      (Math.max(0, storageBytes - freeTier.durableObjects.storageBytes) /
-        1_000_000_000) *
-        0.2 +
-      (Math.max(0, projectedR2ClassA - freeTier.r2.classAOperationsPerMonth) /
-        1_000_000) *
-        4.5 +
-      (Math.max(0, projectedR2ClassB - freeTier.r2.classBOperationsPerMonth) /
-        1_000_000) *
-        0.36 +
-      (Math.max(
-        0,
-        this.r2Snapshot.storageBytes - freeTier.r2.storageBytesPerMonth,
-      ) /
-        1_000_000_000) *
-        0.015;
-    const allRequests = this.usage.requests + allConnections + allMessages / 20,
-      allGbSeconds = (allActiveMs / 1000) * 0.128,
-      allRowsRead = this.usage.storageRowsRead + allRoomRowsRead,
-      allRowsWritten = this.usage.storageRowsWritten + allRoomRowsWritten,
-      allR2ClassA = this.usage.r2ClassA,
-      allR2ClassB = this.usage.r2ClassB;
-    const allObservedMs = Math.max(1, Date.now() - this.usage.startedAt),
-      allMonthFactor = (30 * 24 * 60 * 60 * 1000) / allObservedMs;
-    const allMeteredUsd =
-      (allRequests / 1_000_000) * 0.15 +
-      (allGbSeconds / 1_000_000) * 12.5 +
-      (allRowsRead / 1_000_000) * 0.001 +
-      allRowsWritten / 1_000_000 +
-      (allR2ClassA / 1_000_000) * 4.5 +
-      (allR2ClassB / 1_000_000) * 0.36;
-    const allTime = {
-      startedAt: this.usage.startedAt,
-      observedDays: allObservedMs / 86_400_000,
-      requests: Math.round(allRequests),
-      gbSeconds: Number(allGbSeconds.toFixed(2)),
-      storageWrites: this.usage.storageWrites + allRoomWrites,
-      storageRowsRead: allRowsRead,
-      storageRowsWritten: allRowsWritten,
-      currentStorageBytes: storageBytes,
-      r2ClassA: allR2ClassA,
-      r2ClassB: allR2ClassB,
-      counters: {
-        tankRequests: this.usage.requests,
-        websocketConnections: allConnections,
-        websocketMessages: allMessages,
-        activeDurationMs: allActiveMs,
-      },
-      services: {
-        durableObjects: { requests: Math.round(allRequests), gbSeconds: Number(allGbSeconds.toFixed(2)), rowsRead: allRowsRead, rowsWritten: allRowsWritten, storageBytes },
-        d1: { configured: false, rowsRead: 0, rowsWritten: 0, storageBytes: 0 },
-        r2: { configured: Boolean(this.env.R2_ASSETS), bucket: this.r2Snapshot.bucket, classAOperations: allR2ClassA, classBOperations: allR2ClassB, objects: this.r2Snapshot.objectCount, storageBytes: this.r2Snapshot.storageBytes },
-      },
-      estimatedVariableUsd: Number(
-        (
-          allMeteredUsd +
-          (doStorageMonthlyUsd + r2StorageMonthlyUsd) / allMonthFactor
-        ).toFixed(8),
-      ),
-      averageDaily: {
-        requests: Number(
-          (allRequests / Math.max(1, allObservedMs / 86_400_000)).toFixed(2),
-        ),
-        gbSeconds: Number(
-          (allGbSeconds / Math.max(1, allObservedMs / 86_400_000)).toFixed(2),
-        ),
-        rowsRead: Number(
-          (allRowsRead / Math.max(1, allObservedMs / 86_400_000)).toFixed(2),
-        ),
-        rowsWritten: Number(
-          (allRowsWritten / Math.max(1, allObservedMs / 86_400_000)).toFixed(2),
-        ),
-      },
-    };
-    // Average spend per day, on the same all-time basis as the counters above it. This is
-    // the figure "is today unusual?" is measured against.
-    (allTime.averageDaily as Record<string, number>).estimatedUsd = Number(
-      (
-        allTime.estimatedVariableUsd /
-        Math.max(1, allObservedMs / 86_400_000)
-      ).toFixed(8),
-    );
-    const today = this.today({
-      requests: allRequests,
-      gbSeconds: allGbSeconds,
-      rowsRead: allRowsRead,
-      rowsWritten: allRowsWritten,
-      r2ClassA: allR2ClassA,
-      r2ClassB: allR2ClassB,
-      usd: allTime.estimatedVariableUsd,
-    });
-    const estimated = Number(estimatedVariableUsd.toFixed(8)),
-      hardLimitUsd = this.hardLimitUsd();
-    this.sampleSpend(allTime.estimatedVariableUsd, allTime.requests, allRowsWritten);
-    return {
-      scope: "reset-window",
-      spendHistory: this.spendHistory,
-      spendSampleIntervalMs: SPEND_SAMPLE_INTERVAL_MS,
-      startedAt: this.billingWindow.startedAt,
-      versionId: this.billingWindow.versionId,
-      observedHours: observedMs / 3_600_000,
-      requests: Math.round(requests),
-      gbSeconds: Math.round(gbSeconds),
-      storageWrites,
-      storageRowsRead,
-      storageRowsWritten,
-      currentStorageBytes: storageBytes,
-      estimatedVariableUsd: estimated,
-      projectedMonthlyVariableUsd: Number(
-        projectedMonthlyVariableUsd.toFixed(4),
-      ),
-      freeTierProjectedMonthlyUsd: Number(
-        freeTierProjectedMonthlyUsd.toFixed(4),
-      ),
-      freeTier,
-      allTime,
-      today,
-      hardLimitUsd,
-      hardLimitRemainingUsd: Number(
-        Math.max(0, hardLimitUsd - estimated).toFixed(8),
-      ),
-      hardLimitExceeded: estimated >= hardLimitUsd,
-      projectionSampleSeconds: Math.round(projectionSampleMs / 1000),
-      requestRatePerMinute: Number(
-        ((requests / projectionSampleMs) * 60_000).toFixed(2),
-      ),
-      counters: {
-        tankRequests,
-        websocketConnections: connections,
-        websocketMessages: messages,
-        activeDurationMs: activeMs,
-      },
-      services: {
-        workers: {
-          configured: true,
-          requests: null,
-          cpuMs: null,
-          estimatedUsd: null,
-          note: "Exact Worker request and CPU billing is available only from Cloudflare account analytics; static asset requests are free.",
-        },
-        durableObjects: {
-          configured: true,
-          requests: Math.round(requests),
-          gbSeconds: Number(gbSeconds.toFixed(2)),
-          rowsRead: storageRowsRead,
-          rowsWritten: storageRowsWritten,
-          storageBytes,
-          estimatedUsd: Number(
-            (
-              doRequestUsd +
-              doDurationUsd +
-              doReadUsd +
-              doWriteUsd +
-              doStorageMonthlyUsd / monthFactor
-            ).toFixed(8),
-          ),
-        },
-        d1: {
-          configured: false,
-          rowsRead: 0,
-          rowsWritten: 0,
-          storageBytes: 0,
-          estimatedUsd: 0,
-          note: "No D1 database is bound to this deployment.",
-        },
-        r2: {
-          configured: Boolean(this.env.R2_ASSETS),
-          bucket: this.r2Snapshot.bucket,
-          classAOperations: r2ClassA,
-          classBOperations: r2ClassB,
-          objects: this.r2Snapshot.objectCount,
-          storageBytes: this.r2Snapshot.storageBytes,
-          snapshotAt: this.r2Snapshot.checkedAt,
-          estimatedUsd: Number(
-            (r2OperationUsd + r2StorageMonthlyUsd / monthFactor).toFixed(8),
-          ),
-          monthlyStorageRunRateUsd: Number(r2StorageMonthlyUsd.toFixed(8)),
-          note: "Standard storage; current bucket bytes plus operations performed by this deployment.",
-        },
-      },
-      rates: {
-        requestUsdPerMillion: 0.15,
-        durationUsdPerMillionGbSeconds: 12.5,
-        doReadUsdPerMillion: 0.001,
-        doWriteUsdPerMillion: 1,
-        doStorageUsdPerGbMonth: 0.2,
-        r2ClassAUsdPerMillion: 4.5,
-        r2ClassBUsdPerMillion: 0.36,
-        r2StorageUsdPerGbMonth: 0.015,
-        websocketMessagesPerRequest: 20,
-        memoryGb: 0.128,
-      },
-      disclaimer:
-        "Resettable app-metered list-price usage. Free-tier anchors use current published Cloudflare limits; daily and monthly allowances reset independently. Account-wide included quotas, rounding, Workers CPU/request analytics, and operations outside this deployment require Cloudflare billing analytics; the Cloudflare invoice remains authoritative.",
-    };
-  }
-  /**
-   * Append a spend sample at most once per interval. Deliberately a lazy write on read:
-   * a Durable Object alarm purely to sample a number that is already being computed
-   * would cost more than the datapoint is worth, and the page that shows the trend is
-   * the same request that computes it.
-   */
-  /**
-   * Today's consumption, as cumulative-now minus the baseline captured when the UTC day
-   * turned over. Rolls the baseline forward on the first call of a new day, and re-captures
-   * it if the cumulative counters ever move backwards (a storage generation reset), which
-   * would otherwise report a negative day clamped to zero until midnight.
-   */
-  private today(current: Omit<DayBaseline, "day" | "startedAt">) {
-    const now = Date.now(),
-      day = new Date(now).toISOString().slice(0, 10),
-      midnight = Date.parse(`${day}T00:00:00.000Z`);
-    let baseline = this.dayBaseline;
-    // The backwards test is deliberately slack. A deploy can lose up to one snapshot
-    // interval of room activity, which dips the derived duration by a fraction of a
-    // percent — that must not be read as a counter reset and wipe the day. Only a real
-    // reset (a storage generation change) moves a cumulative counter by tenths.
-    const wentBackwards = (value: number, base: number) => value < base * 0.9;
-    if (
-      !baseline ||
-      baseline.day !== day ||
-      wentBackwards(current.usd, baseline.usd) ||
-      wentBackwards(current.requests, baseline.requests)
-    ) {
-      baseline = { day, startedAt: now, ...current };
-      this.dayBaseline = baseline;
-      this.countWrites(1);
-      this.ctx.waitUntil(this.ctx.storage.put("dayBaseline", baseline));
-    }
-    const since = baseline.startedAt,
-      delta = (value: number, base: number) => Math.max(0, value - base);
-    return {
-      day,
-      since,
-      // A baseline captured after midnight — first boot of the day, or the day this
-      // measurement shipped — covers only part of the day. The page says so rather than
-      // presenting a partial figure as a full one.
-      partial: since > midnight + 60_000,
-      elapsedHours: Number(((now - midnight) / 3_600_000).toFixed(2)),
-      measuredHours: Number(((now - since) / 3_600_000).toFixed(2)),
-      requests: Math.round(delta(current.requests, baseline.requests)),
-      gbSeconds: Number(delta(current.gbSeconds, baseline.gbSeconds).toFixed(2)),
-      rowsRead: delta(current.rowsRead, baseline.rowsRead),
-      rowsWritten: delta(current.rowsWritten, baseline.rowsWritten),
-      r2ClassA: delta(current.r2ClassA, baseline.r2ClassA),
-      r2ClassB: delta(current.r2ClassB, baseline.r2ClassB),
-      estimatedUsd: Number(delta(current.usd, baseline.usd).toFixed(8)),
-    };
-  }
-
-  private sampleSpend(usd: number, requests: number, rowsWritten: number): void {
-    const now = Date.now(), last = this.spendHistory[this.spendHistory.length - 1];
-    if (last && now - last.ts < SPEND_SAMPLE_INTERVAL_MS) return;
-    this.spendHistory.push({ ts: now, usd, requests, rowsWritten });
-    if (this.spendHistory.length > SPEND_SAMPLE_CAP) this.spendHistory.splice(0, this.spendHistory.length - SPEND_SAMPLE_CAP);
-    this.ctx.waitUntil(this.ctx.storage.put("spendHistory", this.spendHistory));
-  }
-
-  private hardLimitUsd(): number {
-    const configured = Number(this.env.BILLING_HARD_LIMIT_USD ?? 5);
-    return Number.isFinite(configured) && configured > 0 ? configured : 5;
-  }
-  private newBillingWindow(versionId: string): BillingWindow {
-    const rooms: Record<string, BillingRoomBaseline> = {};
-    for (const [id, report] of this.reports)
-      rooms[id] = {
-        activeDurationMs: report.activeDurationMs,
-        wsMessages: report.wsMessages,
-        connections: report.connections,
-        storageWrites: report.storageWrites,
-        storageRowsRead: report.storageRowsRead,
-        storageRowsWritten: report.storageRowsWritten,
-      };
-    return {
-      versionId,
-      startedAt: Date.now(),
-      tankRequests: this.usage.requests,
-      storageWrites: this.usage.storageWrites,
-      storageRowsRead: this.usage.storageRowsRead,
-      storageRowsWritten: this.usage.storageRowsWritten,
-      r2ClassA: this.usage.r2ClassA,
-      r2ClassB: this.usage.r2ClassB,
-      rooms,
-    };
-  }
-  private countWrites(count: number): void {
-    this.usage.storageWrites += count;
-    this.usage.storageRowsWritten += count;
-  }
-  private trackSql(query: string, ...bindings: unknown[]): void {
-    const cursor = this.ctx.storage.sql.exec(query, ...bindings);
-    cursor.toArray();
-    this.usage.storageRowsRead += cursor.rowsRead;
-    this.usage.storageRowsWritten += cursor.rowsWritten;
   }
   private appendControlHistory(
     input: ControlHistoryInput,
@@ -1277,8 +420,6 @@ export class Lobby implements DurableObject {
       "SELECT hash FROM control_history ORDER BY sequence DESC LIMIT 1",
     );
     const previousRows = previousCursor.toArray();
-    this.usage.storageRowsRead += previousCursor.rowsRead;
-    this.usage.storageRowsWritten += previousCursor.rowsWritten;
     const previousHash = previousRows[0]?.hash ?? CONTROL_HISTORY_GENESIS,
       normalized: ControlHistoryHashable = {
         ts: clampInt(input.ts, 0, Number.MAX_SAFE_INTEGER),
@@ -1304,14 +445,10 @@ export class Lobby implements DurableObject {
       hash,
     );
     insert.toArray();
-    this.usage.storageRowsRead += insert.rowsRead;
-    this.usage.storageRowsWritten += insert.rowsWritten;
     const sequenceCursor = this.ctx.storage.sql.exec<{ sequence: number }>(
       "SELECT sequence FROM control_history ORDER BY sequence DESC LIMIT 1",
     );
     const sequence = sequenceCursor.toArray()[0]?.sequence ?? 0;
-    this.usage.storageRowsRead += sequenceCursor.rowsRead;
-    this.usage.storageRowsWritten += sequenceCursor.rowsWritten;
     // Move the out-of-table head marker in the same breath as the row that created it.
     // A chain whose anchor is only ever written on read would treat a truncation that
     // happens between two reads as the new legitimate head.
@@ -1321,13 +458,8 @@ export class Lobby implements DurableObject {
           ? previousAnchor.entryCount + 1
           : this.countControlHistoryRows();
     this.historyAnchor = { sequence, hash, entryCount, updatedAt: Date.now() };
-    // Anchor and usage go in one put: two keys, one write, and the anchor cannot be
-    // silently skipped by a failure that still recorded the row's cost.
-    this.usage.storageWrites += 2;
-    this.usage.storageRowsWritten += 1;
     await this.ctx.storage.put({
       controlHistoryAnchor: this.historyAnchor,
-      usage: this.usage,
     });
     // The chain grew, so the cached verification no longer describes it.
     this.historyVerification = null;
@@ -1386,9 +518,6 @@ export class Lobby implements DurableObject {
       "SELECT COUNT(*) AS count FROM control_history",
     );
     const entryCount = countCursor.toArray()[0]?.count ?? rows.length;
-    this.usage.storageRowsRead += historyCursor.rowsRead + countCursor.rowsRead;
-    this.usage.storageRowsWritten +=
-      historyCursor.rowsWritten + countCursor.rowsWritten;
     const history = rows.map((row) => ({
       sequence: row.sequence,
       ts: row.ts,
@@ -1428,8 +557,6 @@ export class Lobby implements DurableObject {
       hash: string;
     }>("SELECT sequence,hash FROM control_history ORDER BY sequence DESC LIMIT 1");
     const headRow = headCursor.toArray()[0] ?? null;
-    this.usage.storageRowsRead += headCursor.rowsRead;
-    this.usage.storageRowsWritten += headCursor.rowsWritten;
     const headSequence = headRow?.sequence ?? null,
       headHash = headRow?.hash ?? null;
     const cached = this.historyVerification;
@@ -1528,8 +655,6 @@ export class Lobby implements DurableObject {
       CONTROL_HISTORY_VERIFY_WINDOW,
     );
     const walk = walkCursor.toArray().reverse();
-    this.usage.storageRowsRead += walkCursor.rowsRead;
-    this.usage.storageRowsWritten += walkCursor.rowsWritten;
     const coverage: "full" | "recent" =
       walk.length >= entryCount ? "full" : "recent";
     // A full walk must start at the genesis hash. A bounded one starts from the oldest
@@ -1608,7 +733,6 @@ export class Lobby implements DurableObject {
       (await this.ctx.storage.get<ControlHistoryAnchor>(
         "controlHistoryAnchor",
       )) ?? null;
-    this.usage.storageRowsRead += 1;
     this.historyAnchorLoaded = true;
     return this.historyAnchor;
   }
@@ -1619,7 +743,6 @@ export class Lobby implements DurableObject {
   ): Promise<void> {
     this.historyAnchor = { sequence, hash, entryCount, updatedAt: Date.now() };
     this.historyAnchorLoaded = true;
-    this.countWrites(1);
     await this.ctx.storage.put("controlHistoryAnchor", this.historyAnchor);
   }
   private countControlHistoryRows(): number {
@@ -1627,289 +750,15 @@ export class Lobby implements DurableObject {
       "SELECT COUNT(*) AS count FROM control_history",
     );
     const count = cursor.toArray()[0]?.count ?? 0;
-    this.usage.storageRowsRead += cursor.rowsRead;
-    this.usage.storageRowsWritten += cursor.rowsWritten;
     return count;
   }
-  private async refreshR2(): Promise<void> {
-    if (!this.env.R2_ASSETS || Date.now() - this.r2Snapshot.checkedAt < 300_000)
-      return;
-    let cursor: string | undefined,
-      objectCount = 0,
-      storageBytes = 0,
-      operations = 0,
-      truncated = false;
-    do {
-      const page = await this.env.R2_ASSETS.list({ prefix: this.env.R2_PREFIX ?? "", limit: 1000, cursor });
-      operations += 1;
-      objectCount += page.objects.length;
-      storageBytes += page.objects.reduce(
-        (sum, object) => sum + object.size,
-        0,
-      );
-      truncated = page.truncated;
-      cursor = page.truncated ? page.cursor : undefined;
-    } while (cursor && operations < 100);
-    this.usage.r2ClassA += operations;
-    this.r2Snapshot = {
-      checkedAt: Date.now(),
-      objectCount,
-      storageBytes,
-      bucket: this.env.R2_BUCKET_NAME ?? "wizardgang-demo-assets",
-      truncated,
-    };
-    this.countWrites(2);
-    await this.ctx.storage.put({
-      r2Snapshot: this.r2Snapshot,
-      usage: this.usage,
-    });
-  }
 
-  /* ── State export and restore (A.8.13) ────────────────────────────────────── */
-
-  /**
-   * Read every key and both tables into one self-describing object. Keys are sorted and
-   * rows come back in primary-key order, so two exports of unchanged state are
-   * byte-identical and therefore hash-identical.
-   */
-  private async exportState(): Promise<StateExport> {
-    const kv: Record<string, unknown> = {};
-    let startAfter: string | undefined,
-      pages = 0,
-      truncated = false;
-    for (;;) {
-      const batch = await this.ctx.storage.list<unknown>({ limit: 1000, ...(startAfter ? { startAfter } : {}) });
-      if (batch.size === 0) break;
-      for (const [key, value] of batch) { kv[key] = value; startAfter = key; }
-      this.usage.storageRowsRead += batch.size;
-      pages += 1;
-      if (batch.size < 1000) break;
-      if (pages >= BACKUP_MAX_PAGES) { truncated = true; break; }
-    }
-    const auditCursor = this.ctx.storage.sql.exec<Record<string, string | number | null>>(
-      "SELECT id,ts,type,room,subject,detail FROM audit ORDER BY id ASC",
-    );
-    const audit = auditCursor.toArray();
-    this.usage.storageRowsRead += auditCursor.rowsRead;
-    const historyCursor = this.ctx.storage.sql.exec<Record<string, string | number | null>>(
-      "SELECT sequence,ts,code,actor,title,summary,reference,detail,previous_hash,hash FROM control_history ORDER BY sequence ASC",
-    );
-    const controlHistory = historyCursor.toArray();
-    this.usage.storageRowsRead += historyCursor.rowsRead;
-    const sortedKv: Record<string, unknown> = {};
-    for (const key of Object.keys(kv).sort()) sortedKv[key] = kv[key];
-    const body: StateExport = {
-      format: BACKUP_FORMAT,
-      version: BACKUP_VERSION,
-      takenAt: Date.now(),
-      generation: this.env.AUDIT_GENERATION ?? "local",
-      kv: sortedKv,
-      audit,
-      controlHistory,
-      counts: {
-        kv: Object.keys(sortedKv).length,
-        profiles: 0,
-        audit: audit.length,
-        controlHistory: controlHistory.length,
-      },
-      ...(truncated ? { truncated: true } : {}),
-    };
-    return { ...body, digest: await backupDigest(body) };
-  }
-
-  /**
-   * Replace every key and both tables with the contents of an export. Refuses anything
-   * whose digest does not match its body, because restoring a mutated copy would put
-   * unverifiable rows into a chain the site advertises as tamper-evident.
-   */
-  private async importState(payload: unknown): Promise<{ ok: boolean; error?: string; restored?: StateExport["counts"]; digest?: string }> {
-    const candidate = payload as { export?: StateExport } | StateExport | null;
-    const data = (candidate && typeof candidate === "object" && "export" in candidate ? candidate.export : candidate) as StateExport | null;
-    if (!data || typeof data !== "object") return { ok: false, error: "no export in body" };
-    if (data.format !== BACKUP_FORMAT) return { ok: false, error: "unrecognised export format" };
-    if (data.version !== BACKUP_VERSION) return { ok: false, error: `unsupported export version ${String(data.version)}` };
-    if (!data.kv || typeof data.kv !== "object" || !Array.isArray(data.audit) || !Array.isArray(data.controlHistory))
-      return { ok: false, error: "export is missing one of kv, audit or controlHistory" };
-    const { digest, ...body } = data;
-    const recomputed = await backupDigest(body as StateExport);
-    if (digest && digest !== recomputed) return { ok: false, error: "export digest does not match its contents" };
-
-    // Clear first, in one pass each, so a key present in the live object but absent from
-    // the export does not survive the restore and make the copy look incomplete.
-    let startAfter: string | undefined, pages = 0;
-    const doomed: string[] = [];
-    for (;;) {
-      const batch = await this.ctx.storage.list<unknown>({ limit: 1000, ...(startAfter ? { startAfter } : {}) });
-      if (batch.size === 0) break;
-      for (const key of batch.keys()) { doomed.push(key); startAfter = key; }
-      pages += 1;
-      if (batch.size < 1000 || pages >= BACKUP_MAX_PAGES) break;
-    }
-    for (let i = 0; i < doomed.length; i += 128) await this.ctx.storage.delete(doomed.slice(i, i + 128));
-    this.trackSql("DELETE FROM audit");
-    this.trackSql("DELETE FROM control_history");
-
-    const entries = Object.entries(data.kv);
-    for (let i = 0; i < entries.length; i += 128)
-      await this.ctx.storage.put(Object.fromEntries(entries.slice(i, i + 128)));
-    for (const row of data.audit)
-      this.ctx.storage.sql.exec(
-        "INSERT INTO audit(id,ts,type,room,subject,detail) VALUES(?,?,?,?,?,?)",
-        row.id ?? null, row.ts ?? 0, row.type ?? "", row.room ?? null, row.subject ?? null, row.detail ?? null,
-      ).toArray();
-    for (const row of data.controlHistory)
-      this.ctx.storage.sql.exec(
-        "INSERT INTO control_history(sequence,ts,code,actor,title,summary,reference,detail,previous_hash,hash) VALUES(?,?,?,?,?,?,?,?,?,?)",
-        row.sequence ?? null, row.ts ?? 0, row.code ?? "", row.actor ?? "", row.title ?? "",
-        row.summary ?? "", row.reference ?? null, row.detail ?? null, row.previous_hash ?? "", row.hash ?? "",
-      ).toArray();
-
-    await this.reloadFromStorage();
-    return { ok: true, restored: data.counts, digest: recomputed };
-  }
-
-  /**
-   * Re-read the in-memory caches after a restore. Without this the object would answer
-   * from the state it held before the restore and report the copy as having failed.
-   */
-  private async reloadFromStorage(): Promise<void> {
-    this.usage = (await this.ctx.storage.get<Usage>("usage")) ?? this.usage;
-    this.usage.roomsSeen = this.usage.roomsSeen.filter((id) => ROOM_IDS.has(id));
-    this.spendHistory = (await this.ctx.storage.get<SpendSample[]>("spendHistory")) ?? [];
-    this.dayBaseline = (await this.ctx.storage.get<DayBaseline>("dayBaseline")) ?? null;
-    this.maintenanceIncidents = (await this.ctx.storage.get<MaintenanceIncident[]>("maintenanceIncidents")) ?? [];
-    this.r2Snapshot = (await this.ctx.storage.get<R2Snapshot>("r2Snapshot")) ?? this.r2Snapshot;
-    this.reports.clear();
-    const reports = (await this.ctx.storage.get<Record<string, Report>>("reports")) ?? {};
-    for (const [id, report] of Object.entries(reports).filter(([id]) => ROOM_IDS.has(id))) this.reports.set(id, report);
-    const billingWindow = await this.ctx.storage.get<BillingWindow>("billingWindow");
-    if (billingWindow) this.billingWindow = billingWindow;
-    this.backupState = (await this.ctx.storage.get<BackupState>("backupState")) ?? null;
-    // The anchor and the cached verification both describe the chain that was here a
-    // moment ago. Drop them so the next read re-derives them from the restored rows.
-    this.historyAnchor = null;
-    this.historyAnchorLoaded = false;
-    this.historyVerification = null;
-  }
-
-  /**
-   * Delete every key and both tables. Only ever called on the scratch instance used by a
-   * restore drill; the drill's own `finally` calls it whether the drill passed or failed,
-   * so a failed drill does not leave scratch operating data behind.
-   */
-  private async wipeState(): Promise<number> {
-    let startAfter: string | undefined, pages = 0;
-    const doomed: string[] = [];
-    for (;;) {
-      const batch = await this.ctx.storage.list<unknown>({ limit: 1000, ...(startAfter ? { startAfter } : {}) });
-      if (batch.size === 0) break;
-      for (const key of batch.keys()) { doomed.push(key); startAfter = key; }
-      pages += 1;
-      if (batch.size < 1000 || pages >= BACKUP_MAX_PAGES) break;
-    }
-    for (let i = 0; i < doomed.length; i += 128) await this.ctx.storage.delete(doomed.slice(i, i + 128));
-    this.trackSql("DELETE FROM audit");
-    this.trackSql("DELETE FROM control_history");
-    await this.reloadFromStorage();
-    return doomed.length;
-  }
-
-  private async loadBackupState(): Promise<BackupState> {
-    if (!this.backupState) {
-      this.backupState = (await this.ctx.storage.get<BackupState>("backupState")) ?? { ...EMPTY_BACKUP_STATE };
-      this.usage.storageRowsRead += 1;
-    }
-    return this.backupState;
-  }
-
-  /** Record a copy the Worker has written, and receipt it into the chain. */
-  private async recordBackup(input: Partial<BackupState> & { ok?: boolean }): Promise<BackupState> {
-    const current = await this.loadBackupState(),
-      failed = input.ok === false,
-      error = clean(input.lastBackupError, 200) ?? "";
-    const next: BackupState = failed
-      ? { ...current, lastBackupError: error || "backup failed" }
-      : {
-          ...current,
-          lastBackupAt: clampInt(Number(input.lastBackupAt ?? Date.now()), 0, Number.MAX_SAFE_INTEGER),
-          lastBackupKey: clean(input.lastBackupKey, 200) ?? current.lastBackupKey,
-          lastBackupBytes: clampInt(Number(input.lastBackupBytes ?? 0), 0, Number.MAX_SAFE_INTEGER),
-          lastBackupDigest: clean(input.lastBackupDigest, 64) ?? "",
-          lastBackupCounts: input.lastBackupCounts ?? current.lastBackupCounts,
-          retainedCopies: clampInt(Number(input.retainedCopies ?? current.retainedCopies), 0, 100_000),
-          lastBackupError: "",
-        };
-    this.backupState = next;
-    this.countWrites(2);
-    await this.ctx.storage.put({ backupState: next, usage: this.usage });
-    await this.appendControlHistory({
-      ts: Date.now(),
-      code: failed ? "BACKUP-FAILED" : "BACKUP-TAKEN",
-      actor: "system",
-      title: failed ? "Scheduled state copy failed" : "State copied to object storage",
-      summary: failed
-        ? `A scheduled copy of service state did not complete: ${error || "no detail recorded"}.`
-        : `Service state copied to object storage: ${next.lastBackupCounts?.kv ?? 0} keys, ${next.lastBackupCounts?.controlHistory ?? 0} receipts, ${next.lastBackupBytes} bytes.`,
-      reference: failed ? null : next.lastBackupKey,
-      detail: failed ? null : `digest=${next.lastBackupDigest}; retained=${next.retainedCopies}`,
-    });
-    return next;
-  }
-
-  /** Record a restore drill result, and receipt it. A drill nobody can see proves nothing. */
-  private async recordDrill(ok: boolean, detail: string): Promise<BackupState> {
-    const current = await this.loadBackupState(),
-      next: BackupState = { ...current, lastDrillAt: Date.now(), lastDrillOk: ok, lastDrillDetail: detail };
-    this.backupState = next;
-    this.countWrites(2);
-    await this.ctx.storage.put({ backupState: next, usage: this.usage });
-    await this.appendControlHistory({
-      ts: next.lastDrillAt,
-      code: ok ? "RESTORE-DRILL-PASSED" : "RESTORE-DRILL-FAILED",
-      actor: "operator",
-      title: ok ? "Restore drill passed" : "Restore drill failed",
-      summary: ok
-        ? "The most recent copy in object storage was read back, restored into a scratch instance, and its export digest matched the copy's."
-        : "A restore drill did not read back and reproduce the most recent stored copy. The backup path is not proven until this passes.",
-      reference: "/status/#backup",
-      detail: detail || null,
-    });
-    return next;
-  }
 }
 /**
  * The one and only receipt hash. Both the append path and the verifier call this, because
  * two implementations that drift by a single field or key order would make verification
  * fail on honest data and be indistinguishable from a real tamper alarm.
  */
-/**
- * Digest of the *state* an export carries, not of the export envelope. Three fields are
- * deliberately outside it: `digest` itself, because a hash cannot cover the place it is
- * about to be written to; `takenAt`, because it is the moment of capture rather than
- * anything about the data; and `generation`, which names the deployment that took the
- * copy. Including `takenAt` would make two exports of identical state hash differently,
- * which would defeat the one comparison this digest exists to support — restore a copy
- * into a scratch instance, export it, and check the two digests are equal.
- *
- * Object keys are emitted in sorted order at every depth, so the order storage happened
- * to hand keys back cannot change the hash.
- */
-async function backupDigest(body: unknown): Promise<string> {
-  const source = (body ?? {}) as Record<string, unknown>;
-  const state = { format: source.format, version: source.version, kv: source.kv, audit: source.audit, controlHistory: source.controlHistory, counts: source.counts };
-  const canonical = (value: unknown): unknown => {
-    if (Array.isArray(value)) return value.map(canonical);
-    if (value && typeof value === "object") {
-      const source = value as Record<string, unknown>, out: Record<string, unknown> = {};
-      for (const key of Object.keys(source).sort()) if (key !== "digest") out[key] = canonical(source[key]);
-      return out;
-    }
-    return value;
-  };
-  const bytes = new TextEncoder().encode(JSON.stringify(canonical(state)));
-  const digest = await crypto.subtle.digest("SHA-256", bytes);
-  return Array.from(new Uint8Array(digest), (byte) => byte.toString(16).padStart(2, "0")).join("");
-}
 async function hashControlEntry(
   entry: ControlHistoryHashable,
 ): Promise<string> {
