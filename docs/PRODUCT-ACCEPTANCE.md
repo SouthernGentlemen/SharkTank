@@ -69,8 +69,8 @@ The automated local HTTP gate is the primary deterministic proof. For a manual b
 - `/` renders the overview.
 - `/evidence/` renders evidence and its live-refresh control.
 - `/admin/` rejects an unauthenticated request and renders the operator console only with the test environment's acceptance credential.
-- `/api/health` and `/api/tank` return their current JSON contracts.
-- `/api/profile` and `/api/audit` return 404; the browser keeps name, skin, best score and settings in one device-local record and sends no client telemetry.
+- `/api/health` returns its current JSON contract.
+- `/api/tank`, `/api/profile`, `/api/audit`, and `/logs/game/room-1.txt` return 404; the browser keeps name, skin, best score and settings in one device-local record and sends no client telemetry.
 - `/room/<room-id>/ws` upgrades only as a WebSocket, accepts protocol 11 hello/input, and returns authoritative protocol 11 state.
 
 Never use production credentials to satisfy ST-131.

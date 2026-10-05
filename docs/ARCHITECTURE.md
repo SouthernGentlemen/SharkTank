@@ -44,7 +44,7 @@ Authoritative shark movement uses X/Y/Z with yaw + pitch. Score-relevant prey/fi
 
 Feeding Frenzy is an authoritative 3D convergence event. Apex is the final authoritative round phase. Each Room owns the five-minute round, result window and next-round reset. Late join/reconnect receives the current authoritative phase rather than reconstructing it from a browser timer.
 
-Deterministic replay remains framework-agnostic and server-safe. Stored snapshots and replay state use explicit schema identity; incompatible older transient Room state is reset or rotated through the schema bootstrap rather than interpreted as schema 11.
+The deterministic engine remains framework-agnostic and server-safe. Stored snapshots use explicit schema identity; incompatible older transient Room state is reset through the schema bootstrap rather than interpreted as schema 11. Room inputs are not retained as a replay log.
 
 ## Client prediction and interpolation
 
@@ -88,7 +88,7 @@ Repeated prey/environment work is bounded or batched where practical. Render-fra
 
 Lobby state no longer stores player profiles or public client-action events. It still holds the operations state scheduled for retirement in later queue tasks: status, billing, receipts, server-originated service logs and backup evidence. Scheduled copies are written through the R2 binding. Restore drills reconstruct retained Lobby state into scratch Durable Object state without overwriting live production data.
 
-Room Durable Objects persist schema-11 gameplay snapshots and rotate incompatible replay/log state through the current schema seam. Stable Room/Lobby Durable Object identities and migration tag `v1` are not ordinary refactor targets.
+Room Durable Objects persist schema-11 gameplay snapshots through the current schema seam. Stable Room/Lobby Durable Object identities and migration tag `v1` are not ordinary refactor targets.
 
 Ordinary controlled changes do not create tags, GitHub Releases or production deployments. Release identity is package version + immutable annotated tag + GitHub Release + exact accepted commit. Production deployment remains gated by the current Release workflow, protected `production` environment and Cloudflare credentials.
 

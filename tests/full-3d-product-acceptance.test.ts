@@ -282,8 +282,8 @@ describe("ST-131 full-3D product acceptance", () => {
     expect(publicIa).toContain('const adminDenied = await request("/admin/");');
     expect(publicIa).toContain("authenticated /admin/ expected 200");
     expect(publicIa).toContain("await verifyRoomWebSocket()");
-    for (const path of ["/api/health", "/api/tank"]) expect(publicIa).toContain(path);
-    expect(publicIa).toContain('for (const retiredClientPath of ["/api/profile", "/api/audit"])');
+    expect(publicIa).toContain('const health = await request("/api/health")');
+    expect(publicIa).toContain('for (const retiredClientPath of ["/api/tank", "/api/profile", "/api/audit"])');
 
     expect(wrangler).toContain('"name": "ROOM"');
     expect(wrangler).toContain('"class_name": "Room"');
