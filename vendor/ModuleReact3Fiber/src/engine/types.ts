@@ -1,5 +1,5 @@
-// Serializable authoritative gameplay state. Everything here is plain JSON so it can
-// live in a Durable Object, be snapshotted, and be replayed deterministically.
+// Serializable authoritative gameplay state. Everything here is plain JSON so deterministic
+// simulations can be compared and sent across the wire without provider-specific types.
 // Engine/protocol code stays framework-agnostic: no DOM, Three.js, or browser vectors.
 
 export interface Vec3 {
@@ -102,7 +102,6 @@ export interface RoundState {
 }
 
 export interface RoomState {
-  schemaVersion: 11;
   id: string;
   seed: string;
   tick: number;

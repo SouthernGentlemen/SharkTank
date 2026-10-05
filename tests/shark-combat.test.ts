@@ -1,5 +1,5 @@
 import { performance } from "node:perf_hooks";
-import { readFileSync } from "node:fs";
+import { existsSync, readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
 import {
   COMBAT,
@@ -269,7 +269,7 @@ describe("ST-122 directional shark combat", () => {
     expect(JSON.stringify(first)).toBe(JSON.stringify(second));
   });
 
-  it("removes ranged projectile compatibility from engine, protocol, client and persistence", () => {
+  it("removes ranged projectile compatibility from engine, protocol, client and retired persistence", () => {
     const paths = [
       "../vendor/ModuleReact3Fiber/src/engine/types.ts",
       "../vendor/ModuleReact3Fiber/src/engine/room.ts",
@@ -283,9 +283,7 @@ describe("ST-122 directional shark combat", () => {
       const source = readFileSync(new URL(path, import.meta.url), "utf8").toLowerCase();
       expect(source).not.toContain("rocket");
     }
-    const persistence = readFileSync(new URL("../src/worker/room-state-schema.ts", import.meta.url), "utf8");
-    expect(persistence).toContain('if ("rockets" in room) invalid("retired projectile field")');
-    expect((persistence.match(/rockets/g) ?? []).length).toBe(1);
+    expect(existsSync(new URL("../src/worker/room-state-schema.ts", import.meta.url))).toBe(false);
   });
 
   it("keeps a 32-shark / 360-prey combat simulation inside the 20 Hz tick budget", () => {
