@@ -13,10 +13,8 @@ import {
   applyAction,
   createRoom,
   isFrenzy,
-  replay,
   spawnBots,
   step,
-  type GameLogEntry,
   type Prey,
   type Snake,
 } from "../vendor/ModuleReact3Fiber/src/engine/index.js";
@@ -151,25 +149,6 @@ describe("ST-124 authoritative round and Apex loop", () => {
     expect(state.food).toHaveLength(PREY_BUDGET.ambient);
   });
 
-  it("replays the complete server-owned round boundary byte-for-byte", () => {
-    const events: GameLogEntry[] = [
-      { tick: 0, action: { type: "join", playerId: "pilot", name: "Pilot" } },
-      { tick: 20, action: { type: "setOrientation", playerId: "pilot", yaw: 0.75, pitch: 0.2 } },
-      { tick: 40, action: { type: "setBoost", playerId: "pilot", on: true } },
-    ];
-    const endOfReset = ROUND_RULES.activeTicks + ROUND_RULES.resultTicks;
-    const first = replay({ id: "replay-round", seed: "st-124-replay", botCount: 0 }, events, endOfReset);
-    const second = replay({ id: "replay-round", seed: "st-124-replay", botCount: 0 }, events, endOfReset);
-
-    expect(JSON.stringify(first)).toBe(JSON.stringify(second));
-    expect(first.round).toMatchObject({
-      number: 2,
-      phase: "active",
-      startTick: endOfReset,
-    });
-    expect(first.round.result).toBeNull();
-    expect(first.snakes.pilot.score).toBe(0);
-  });
 
   it("uses stable score/id ranking, bounded Apex advantage and an authoritative elimination bounty", () => {
     const state = createRoom({ seed: "st-124-apex" });

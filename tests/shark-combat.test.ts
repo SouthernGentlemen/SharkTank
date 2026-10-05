@@ -7,9 +7,7 @@ import {
   TICKS_PER_SECOND,
   applyAction,
   createRoom,
-  replay,
   step,
-  type GameLogEntry,
   type Prey,
   type Snake,
 } from "../vendor/ModuleReact3Fiber/src/engine/index.js";
@@ -247,16 +245,27 @@ describe("ST-122 directional shark combat", () => {
     expect(source).not.toContain("botKill");
   });
 
-  it("replays the same seed and bite action stream byte-identically", () => {
-    const events: GameLogEntry[] = [
-      { tick: 0, action: { type: "join", playerId: "a", name: "A" } },
-      { tick: 0, action: { type: "join", playerId: "b", name: "B" } },
-      { tick: 1, action: { type: "setOrientation", playerId: "a", yaw: 0.4, pitch: 0.2 } },
-      { tick: 2, action: { type: "setBoost", playerId: "a", on: true } },
-      { tick: 3, action: { type: "bite", playerId: "a" } },
+  it("applies the same seeded bite action stream byte-identically", () => {
+    const first = createRoom({ seed: "combat-determinism", id: "same" });
+    const second = createRoom({ seed: "combat-determinism", id: "same" });
+    const events = [
+      { tick: 0, action: { type: "join", playerId: "a", name: "A" } as const },
+      { tick: 0, action: { type: "join", playerId: "b", name: "B" } as const },
+      { tick: 1, action: { type: "setOrientation", playerId: "a", yaw: 0.4, pitch: 0.2 } as const },
+      { tick: 2, action: { type: "setBoost", playerId: "a", on: true } as const },
+      { tick: 3, action: { type: "bite", playerId: "a" } as const },
     ];
-    const first = replay({ seed: "combat-replay", id: "same", botCount: 3 }, events, 20);
-    const second = replay({ seed: "combat-replay", id: "same", botCount: 3 }, events, 20);
+    for (let tick = 0; tick <= 20; tick += 1) {
+      for (const event of events) {
+        if (event.tick !== tick) continue;
+        applyAction(first, event.action);
+        applyAction(second, event.action);
+      }
+      if (tick < 20) {
+        step(first);
+        step(second);
+      }
+    }
     expect(JSON.stringify(first)).toBe(JSON.stringify(second));
   });
 

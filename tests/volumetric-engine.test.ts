@@ -8,11 +8,9 @@ import {
   isInsideOceanVolume,
   MAX_PITCH,
   normalizeYaw,
-  replay,
   spawnBots,
   step,
   type Action,
-  type GameLogEntry,
   type Snake,
 } from "../vendor/ModuleReact3Fiber/src/engine/index.js";
 import { toNetState } from "../vendor/ModuleReact3Fiber/src/protocol/index.js";
@@ -143,12 +141,12 @@ describe("volumetric authoritative engine", () => {
     expect({ yaw: shark.targetYaw, pitch: shark.targetPitch }).toEqual(before);
   });
 
-  it("serializes complete 3D state and remains seeded/replay deterministic", () => {
+  it("serializes complete 3D state and remains seeded deterministic", () => {
     const left = createRoom({ id: "same", seed: "volumetric-replay" });
     const right = createRoom({ id: "same", seed: "volumetric-replay" });
     spawnBots(left, 3);
     spawnBots(right, 3);
-    const actions: GameLogEntry[] = [
+    const actions: Array<{ tick: number; action: Action }> = [
       { tick: 0, action: { type: "join", playerId: "p", name: "Pilot" } },
       { tick: 1, action: { type: "setOrientation", playerId: "p", yaw: 0.75, pitch: 0.3 } },
       { tick: 2, action: { type: "setBoost", playerId: "p", on: true } },
@@ -162,10 +160,6 @@ describe("volumetric authoritative engine", () => {
       step(right);
     }
     expect(JSON.stringify(left)).toBe(JSON.stringify(right));
-
-    const replayedA = replay({ seed: "volumetric-replay", id: "same", botCount: 3 }, actions, 7);
-    const replayedB = replay({ seed: "volumetric-replay", id: "same", botCount: 3 }, actions, 7);
-    expect(JSON.stringify(replayedA)).toBe(JSON.stringify(replayedB));
 
     const net = toNetState(left);
     expect(net.schemaVersion).toBe(11);

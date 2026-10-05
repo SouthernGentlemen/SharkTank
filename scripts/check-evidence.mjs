@@ -45,6 +45,7 @@ const retiredHtml = [
   "/policies/ai-policy", "/policies/ai-policy/",
   "/policies.json",
   "/audit/manifest.json",
+  "/logs/game/room-1.txt",
 ];
 
 async function main() {
@@ -96,7 +97,7 @@ async function main() {
     fail("unauthenticated /admin/ lost its Basic authentication challenge");
   }
 
-  for (const path of ["/api/lobby", "/api/leaderboard", "/api/security-report"]) {
+  for (const path of ["/api/tank", "/api/lobby", "/api/leaderboard", "/api/security-report"]) {
     const response = await request(path);
     if (response.status !== 404) fail(`${path} expected 404, got ${response.status}`);
     if (!(response.headers.get("content-type") || "").startsWith("application/json")) fail(`${path} must use the normal JSON/API 404`);

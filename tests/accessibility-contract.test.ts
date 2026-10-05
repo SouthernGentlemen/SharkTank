@@ -279,8 +279,8 @@ describe("canonical public information architecture", () => {
     expect(worker).toContain('if (path === "/admin/status.json")');
     expect(worker).toContain('if (path === "/admin/log.json")');
     expect(worker).toContain('if (path === "/admin/log.jsonl")');
-    expect(worker).toContain("path.match(/^\\/admin\\/game\\/");
-    expect(worker).toContain("path.match(/^\\/admin\\/replay\\/");
+    expect(worker).not.toContain("path.match(/^\\/admin\\/game\\/");
+    expect(worker).not.toContain("path.match(/^\\/admin\\/replay\\/");
     expect(protocol).not.toContain('leaderboard: "/api/leaderboard"');
     expect(protocol).not.toContain("LeaderboardResponse");
     expect(lobby).not.toContain("mergeGlobal");

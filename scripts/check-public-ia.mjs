@@ -30,10 +30,13 @@ const retiredOperatorAliases = [
   "/admin/security-report",
   "/admin/security-resolve",
   "/admin/test-alert",
+  "/admin/game/room-1", "/admin/game/room-1.json", "/admin/game/room-1.jsonl",
+  "/admin/replay/room-1", "/admin/replay/room-1.json",
 ];
 const isRetiredTarget = (path) =>
   retiredHumanPaths.includes(path) ||
   retiredGamePaths.includes(path) ||
+  path === "/api/tank" ||
   path === "/api/lobby" ||
   path === "/api/leaderboard" ||
   path === "/api/security-report" ||
@@ -45,7 +48,8 @@ const isRetiredTarget = (path) =>
   path === "/audit.jsonl" ||
   path === "/audit/status.json" ||
   path.startsWith("/audit/game/") ||
-  path.startsWith("/audit/replay/");
+  path.startsWith("/audit/replay/") ||
+  path.startsWith("/logs/game/");
 
 const failures = [];
 const fail = (message) => failures.push(message);
@@ -220,10 +224,7 @@ async function main() {
   if (!evidence.includes('id="status-autoupdate"') || !evidence.includes("Pause auto-update")) fail("/evidence/ lost the accessible live-refresh control");
   const serviceRows = (evidence.match(/data-log-row="1"/g) || []).length;
   if (serviceRows > 100) fail(`/evidence/ renders ${serviceRows} service rows; expected at most 100`);
-  if (!evidence.includes('href="/logs/game/room-1.txt"')) fail("/evidence/ lost the 24-hour TXT download for room-1");
-  for (const room of ["room-2", "room-3", "room-4"]) {
-    if (evidence.includes(`href="/logs/game/${room}.txt"`)) fail(`/evidence/ still exposes retired tank log ${room}`);
-  }
+  if (evidence.includes("/logs/game/")) fail("/evidence/ still links to retired Room captures");
   const health = await request("/api/health");
   if (health.status !== 200) fail(`/api/health expected 200, got ${health.status}`);
   if (!(health.headers.get("content-type") || "").startsWith("application/json")) fail("/api/health must remain JSON");
@@ -232,16 +233,7 @@ async function main() {
   const healthBody = await health.json().catch(() => null);
   if (!healthBody?.ok || healthBody.module !== "module-react3fiber") fail("/api/health response shape changed");
 
-  const tank = await request("/api/tank");
-  if (tank.status !== 200) fail(`/api/tank expected 200, got ${tank.status}`);
-  const tankBody = await tank.json().catch(() => null);
-  if (!tankBody?.ok || !Array.isArray(tankBody?.rooms)) fail("/api/tank response shape changed");
-  const onlyRoom = tankBody?.rooms?.[0];
-  if (tankBody?.rooms?.length !== 1 || onlyRoom?.id !== "room-1" || onlyRoom?.name !== "SharkTank" || onlyRoom?.capacity !== 8 || onlyRoom?.bots !== 24) {
-    fail(`/api/tank expected only room-1 as SharkTank with 8 human seats and 24 bots, got ${JSON.stringify(tankBody?.rooms)}`);
-  }
-
-  for (const retiredClientPath of ["/api/profile", "/api/audit"]) {
+  for (const retiredClientPath of ["/api/tank", "/api/profile", "/api/audit"]) {
     const retiredClient = await request(retiredClientPath);
     if (retiredClient.status !== 404) fail(`${retiredClientPath} expected retired 404, got ${retiredClient.status}`);
   }
@@ -259,8 +251,10 @@ async function main() {
   for (const retiredRoom of ["room-2", "room-3", "room-4"]) {
     const retiredSocket = await request(`/room/${retiredRoom}/ws`);
     if (retiredSocket.status !== 404) fail(`retired WebSocket route ${retiredRoom} expected 404, got ${retiredSocket.status}`);
-    const retiredLog = await request(`/logs/game/${retiredRoom}.txt`);
-    if (retiredLog.status !== 404) fail(`retired game log ${retiredRoom} expected 404, got ${retiredLog.status}`);
+  }
+  for (const room of ["room-1", "room-2", "room-3", "room-4"]) {
+    const retiredLog = await request(`/logs/game/${room}.txt`);
+    if (retiredLog.status !== 404) fail(`retired game log ${room} expected 404, got ${retiredLog.status}`);
   }
   await verifyRoomWebSocket();
 
@@ -455,7 +449,7 @@ async function main() {
   if (robots.status !== 200) fail(`robots.txt expected 200, got ${robots.status}`);
   const robotsBody = await robots.text();
   const disallowed = [...robotsBody.matchAll(/^Disallow: (.+)$/gm)].map((match) => match[1]);
-  const expectedDisallowed = ["/admin/", "/logs/game/", "/*.json$", "/*.jsonl$"];
+  const expectedDisallowed = ["/admin/", "/*.json$", "/*.jsonl$"];
   if (JSON.stringify(disallowed) !== JSON.stringify(expectedDisallowed)) fail(`robots.txt references an unexpected route set: ${JSON.stringify(disallowed)}`);
 
   const sitemap = await (await request("/sitemap.xml")).text();
@@ -467,7 +461,7 @@ async function main() {
     console.error(`\n${failures.length} public IA check(s) failed.`);
     process.exit(1);
   }
-  console.log(`Verified ${canonical.length} canonical pages, strict no-unsafe-inline CSP/generated-HTML contracts, explicit /play/ Static Assets routing with hashed/lazy Vite assets, application/index/asset misses that cannot fall back to the game document, admin/404 HTML, health/tank APIs, retired client-telemetry 404s and retired-endpoint 404s, a live Room Durable Object WebSocket welcome plus 426 non-upgrade behavior, primary navigation, unique IDs, internal anchors, assets, ${Object.keys(slashRedirects).length} canonical slash redirects, retired compatibility/API/operator aliases, surviving robots.txt entries, and canonical sitemap.`);
+  console.log(`Verified ${canonical.length} canonical pages, strict no-unsafe-inline CSP/generated-HTML contracts, explicit /play/ Static Assets routing with hashed/lazy Vite assets, application/index/asset misses that cannot fall back to the game document, admin/404 HTML, health API, retired tank/client-telemetry 404s and retired-endpoint 404s, a live Room Durable Object WebSocket welcome plus 426 non-upgrade behavior, primary navigation, unique IDs, internal anchors, assets, ${Object.keys(slashRedirects).length} canonical slash redirects, retired compatibility/API/operator aliases, surviving robots.txt entries, and canonical sitemap.`);
 }
 
 main().catch((error) => { console.error(error); process.exit(1); });
