@@ -1,15 +1,17 @@
 // Main menu. The landing screen: primary Play action plus Customize and Settings.
 // Focus lands on the heading region on mount (handled by App); the Play button is the
-// first tab stop. Shows the player's personal best from their profile.
+// first tab stop. Shows the device-local player name, skin and personal best.
 
 export function MainMenu({
   playerName,
+  skin,
   best,
   onPlay,
   onCustomize,
   onSettings,
 }: {
   playerName: string;
+  skin: string;
   best: number;
   onPlay: () => void;
   onCustomize: () => void;
@@ -34,8 +36,7 @@ export function MainMenu({
             <button className="btn btn--block" onClick={onSettings}>Settings</button>
           </div>
           <p className="menu-player-summary">
-            {playerName || "Player"}
-            {best > 0 && <> · best {best}</>}
+            {playerName || "Player"} · skin {skin} · best {best}
           </p>
         </div>
 

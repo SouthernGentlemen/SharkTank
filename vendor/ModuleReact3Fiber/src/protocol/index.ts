@@ -1,12 +1,12 @@
 // Wire protocol between the client and the server. Kept JSON-only so the same shapes
-// travel over HTTP (tank/profile) and over the WebSocket (realtime play)
+// travel over HTTP (health/tank) and over the WebSocket (realtime play)
 // into the Room Durable Object.
 
 import { clampPitch, normalizeYaw } from "../engine/geometry3d.js";
 import type { Action, DeathAction, Explosion, OceanVolume, Prey, RoomState, RoundState, ScoreEntry, Snake, Vec3 } from "../engine/types.js";
 export { isFamilyFriendlyName, sanitizeDisplayName } from "./name-policy.js";
 
-// ── HTTP: health / tank / profile ─────────────────────────────────────────────
+// ── HTTP: health / tank ──────────────────────────────────────────────────────
 export interface HealthResponse {
   ok: true;
   module: "module-react3fiber";
@@ -27,21 +27,6 @@ export interface TankRoom {
 export interface TankResponse {
   ok: true;
   rooms: TankRoom[];
-}
-
-/** Persisted per-player cosmetics + settings profile. */
-export interface Profile {
-  name: string;
-  skin: string;
-  /** Best score ever, for the local player's own record. */
-  best: number;
-  /** Opaque settings blob owned by the client (systems menu). */
-  settings?: Record<string, unknown>;
-}
-
-export interface ProfileResponse {
-  ok: true;
-  profile: Profile;
 }
 
 export interface ErrorResponse {
@@ -332,7 +317,6 @@ export function toNetState(state: RoomState): NetState {
 export const API = {
   health: "/api/health",
   tank: "/api/tank",
-  profile: "/api/profile",
 } as const;
 
 /** WebSocket path for a given room id, e.g. `/room/room-1/ws`. */
