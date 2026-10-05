@@ -142,21 +142,6 @@ On 2026-10-02 the owner directed that this SharkTank material be deleted from th
 
 ## Open tasks
 
-### ST-149 — [OPS] Delete the Lobby Durable Object
-
-**Goal:** Nothing uses the Lobby any more.
-
-**Scope**
-- Remove the `Lobby` class, its bindings and its remaining code.
-- Add no deletion migration. `wizardgangprod` is never deployed again: ST-224 deploys `sharktank` with a fresh migration history, and the stored profiles, receipts, logs and backup records are deleted with `wizardgangprod` at R3. The owner confirmed the deletion on 2026-10-02.
-- Update the repository-baseline checks and the README and ARCHITECTURE boundaries: `Room` becomes the only class.
-
-**Acceptance:** The Worker exports only `Room`; config and baseline checks agree.
-
-**Validation:** `npm run check:repository-baseline`; `npm run typecheck`; `npm run check:local-http`.
-
----
-
 ### ST-222 — [OPS] Decide how `Room` crosses to the sharktank Worker
 
 **Goal:** Phase 4 of the Cloudflare consolidation renames `wizardgangprod` to `sharktank`, and the owner moved that rename (2026-10-05) to right after the lean refactor. Production still runs `v2.0.1` at this point, so the cut-over deploy is also the first deploy of the memory-only `Room` (ST-144) and of a Worker without `Lobby` (ST-149).

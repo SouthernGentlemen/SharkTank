@@ -50,9 +50,9 @@ See [docs/ACCESSIBILITY.md](docs/ACCESSIBILITY.md), [docs/PRODUCT-ACCEPTANCE.md]
 
 ## Operations and security
 
-Public HTTP and WebSocket input is untrusted. Unknown paths return plain-text 404s. The Worker enforces request/message bounds, allowed rooms, origin checks, rate limits, HTTPS redirects, strict response security headers, and server-side authority over simulation and score. Player name, skin, best score and settings stay in one device-local browser record; they are not profile or telemetry writes. The Room owns authoritative competitive state only in memory for the lifetime of the object, while the Lobby still owns the operational state scheduled for later retirement; browser preferences never become competitive authority.
+Public HTTP and WebSocket input is untrusted. Unknown paths return plain-text 404s. The Worker enforces request/message bounds, allowed rooms, origin checks, rate limits, HTTPS redirects, strict response security headers, and server-side authority over simulation and score. Player name, skin, best score and settings stay in one device-local browser record; they are not profile or telemetry writes. Room is the only Durable Object and owns authoritative competitive state only in memory for the lifetime of the object; browser preferences never become competitive authority.
 
-The retired public evidence/status/spend surfaces and all `/admin/*` routes return 404. The maintenance gate and operator credentials are gone; billing, backup and scheduled copy internals are removed; the remaining Lobby is queued for retirement.
+The retired public evidence/status/spend surfaces and all `/admin/*` routes return 404. The maintenance gate and operator credentials are gone; billing, backup and scheduled copy internals are removed.
 
 The Worker has no scheduled handler or R2 binding.
 
@@ -70,7 +70,7 @@ The provenance CSVs under `docs/history/` remain validator inputs for imported s
 
 ## Repository map
 
-- `src/worker/` — Worker routing, memory-only Room and operational Lobby Durable Objects, and protected operations.
+- `src/worker/` — Worker routing and the memory-only Room Durable Object.
 - `src/client/` — Vite-built game document and browser entry.
 - `vendor/ModuleReact3Fiber/src/engine/` — deterministic full-3D authoritative simulation.
 - `vendor/ModuleReact3Fiber/src/protocol/` — schema/protocol 11 HTTP and realtime shapes.

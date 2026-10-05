@@ -7,7 +7,6 @@
 import { API } from "module-react3fiber/protocol";
 
 export { Room } from "./room-do.js";
-export { Lobby } from "./lobby-do.js";
 import type { Env } from "./env.js";
 import { assetCsp, SECURITY_HEADERS, json, movedTo } from "./responses.js";
 import { isGameShellPath, isStaticAssetPath, parseRoomPath } from "./routes.js";

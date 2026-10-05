@@ -202,6 +202,6 @@ describe("ST-120 authoritative fish and prey schools", () => {
     expect(packageJson.version).toBe("2.0.1");
     expect(wrangler).toContain('"tag": "v1"');
     expect(wrangler).toContain('"class_name": "Room"');
-    expect(wrangler).toContain('"class_name": "Lobby"');
+    expect(wrangler).not.toContain('"class_name": "Lobby"');
   });
 });

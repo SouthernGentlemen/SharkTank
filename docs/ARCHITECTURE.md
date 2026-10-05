@@ -1,17 +1,14 @@
 # Architecture
 
-SharkTank is one Cloudflare Worker deployment with one React Three Fiber browser game, two Durable Object classes and static assets.
+SharkTank is one Cloudflare Worker deployment with one React Three Fiber browser game, one Durable Object class and static assets.
 
 ```text
-browser ── HTTPS ──> Worker router ──> Lobby Durable Object
-   │                    │             status,
-   │                    │             receipts, logs
-   │                    ├───────────> Room Durable Objects
-   ├── localStorage                    memory-only authoritative full X/Y/Z simulation
+browser ── HTTPS ──> Worker router ──> Room Durable Object
+   │                    │               memory-only authoritative simulation
+   │                    └─────────────> Static Assets
+   ├── localStorage
    │   name / skin / best / settings
-   └── WebSocket ───────┘
-                        │
-                        └───────────> Static Assets
+   └── WebSocket ──────────────────────> Room Durable Object
 ```
 
 ## Product surface
@@ -22,7 +19,7 @@ The retired `/evidence/`, `/status.json` and `/spend.json` surfaces return 404; 
 - `/play/` — the interactive realtime full-3D game.
 - `/admin/*` and unknown paths — plain-text 404.
 
-The Lobby Durable Object uses the stable name `global`. The only routable gameplay Room is stable id `room-1`, displayed as **SharkTank**; `room-2` through `room-4` are retired at the Worker boundary. Durable Object class names, migration tag `v1`, environment identity and storage bindings are stateful compatibility boundaries.
+The only routable gameplay Room is stable id `room-1`, displayed as **SharkTank**; `room-2` through `room-4` are retired at the Worker boundary. The Worker exports only `Room`. Migration tag `v1` remains in the current config; the planned `sharktank` Worker cut-over gets fresh migration history. No `Lobby` deletion migration is applied to `wizardgangprod`.
 
 ## Worker, engine and renderer boundaries
 
@@ -84,14 +81,14 @@ Repeated prey/environment work is bounded or batched where practical. Render-fra
 
 ## Operations, persistence and release
 
-Lobby state no longer stores player profiles or public client-action events. It still holds status, receipts and server-originated service logs until its queued retirement. Billing, backup, restore and scheduled R2 copies are removed.
+The Worker has no operational Durable Object. Billing, backup, restore and scheduled R2 copies are removed.
 
-Room Durable Objects run gameplay and sessions entirely in memory. On object boot the Room clears legacy Durable Object storage, starts a fresh round, and uses standard WebSockets with in-memory sessions; no Room snapshot or metadata is read or written, no hibernation attachment is restored, and the tick loop keeps the object active while sockets are connected. Stable Room/Lobby Durable Object identities and migration tag `v1` are not ordinary refactor targets.
+Room Durable Objects run gameplay and sessions entirely in memory. On object boot the Room clears legacy Durable Object storage, starts a fresh round, and uses standard WebSockets with in-memory sessions; no Room snapshot or metadata is read or written, no hibernation attachment is restored, and the tick loop keeps the object active while sockets are connected. The `wizardgangprod` Worker is not deployed again; the later `sharktank` cut-over creates fresh class identity and migration history.
 
 Ordinary controlled changes do not create tags, GitHub Releases or production deployments. Release identity is package version + immutable annotated tag + GitHub Release + exact accepted commit. Production deployment remains gated by the current Release workflow, protected `production` environment and Cloudflare credentials.
 
 ## WG-ARCH-001 project-specific boundaries
 
-SharkTank uses Node.js 26.10.0 and npm 12.1.0. It uses Durable Objects for coordinated game and temporary operational state.
+SharkTank uses Node.js 26.10.0 and npm 12.1.0. It uses Room Durable Objects for coordinated game state.
 
 Repository delivery is squash-only so each controlled ST change lands as one non-merge commit on `main`. Protected `verify` is required on the exact current PR head, completed branches delete automatically, and release tags are immutable.

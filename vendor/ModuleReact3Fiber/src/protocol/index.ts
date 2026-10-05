@@ -14,17 +14,6 @@ export interface HealthResponse {
   time: string;
 }
 
-/** Internal tank summary retained for Lobby status/evidence projections. */
-export interface TankRoom {
-  id: string;
-  name: string;
-  players: number;
-  bots: number;
-  capacity: number;
-  topScore: number;
-  topName: string;
-}
-
 export interface ErrorResponse {
   ok: false;
   error: string;
