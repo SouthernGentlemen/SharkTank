@@ -276,9 +276,10 @@ describe("ST-131 full-3D product acceptance", () => {
     };
 
     expect(localAcceptance).toContain('runNodeScript("./check-public-ia.mjs"');
-    expect(localAcceptance).toContain('runNodeScript("./check-evidence.mjs"');
+    expect(localAcceptance).not.toContain('runNodeScript("./check-evidence.mjs"');
     expect(localAcceptance).toContain('"CLOUDFLARE_API_TOKEN"');
-    expect(publicIa).toContain('const canonical = ["/", "/evidence/", "/play/"];');
+    expect(publicIa).toContain('const canonical = ["/", "/play/"];');
+    expect(publicIa).toContain('"/evidence", "/evidence/", "/status.json", "/spend.json"');
     expect(publicIa).toContain('const adminDenied = await request("/admin/");');
     expect(publicIa).toContain("authenticated /admin/ expected 200");
     expect(publicIa).toContain("await verifyRoomWebSocket()");

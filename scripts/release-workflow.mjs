@@ -114,7 +114,6 @@ export function validateProductionDeployWorkflow(workflow) {
   if (!deploy.includes("VERSION: ${{ steps.deploy.outputs.version }}")) failures.push("provider proof must bind the uploaded Version ID");
   if (!deploy.includes('grep -q "$VERSION"')) failures.push("provider proof must require the uploaded Version ID");
   if (!deploy.includes("grep -q '(100%)'")) failures.push("deploy must prove the uploaded version serves 100% of traffic");
-  if (!deploy.includes("npm run check:evidence -- https://sharktank.wizardgang.ai")) failures.push("deploy must retain public evidence validation when reachable");
   if (!deploy.includes("live_revision=$(jq -r .revision < /tmp/version.json)")) failures.push("deploy must verify the immutable public release revision when reachable");
   if (!deploy.includes("https://sharktank.wizardgang.ai/play/")) failures.push("deploy must verify the public full-3D game route when reachable");
   if (!deploy.includes("public /play/ did not reference a built JavaScript asset")) failures.push("deploy must verify a built public game asset when reachable");
@@ -122,12 +121,8 @@ export function validateProductionDeployWorkflow(workflow) {
 
   const productionIndex = deploy.indexOf('node "$RUNNER_TEMP/sharktank-release-tools/scripts/deploy-prod.mjs"');
   const providerIndex = deploy.indexOf("npx wrangler deployments list --env wizardgangprod");
-  const publicEdgeIndex = deploy.indexOf("npm run check:evidence -- https://sharktank.wizardgang.ai");
   if (productionIndex >= 0 && providerIndex >= 0 && providerIndex <= productionIndex) {
     failures.push("authenticated provider proof must follow the production mutation");
-  }
-  if (providerIndex >= 0 && publicEdgeIndex >= 0 && publicEdgeIndex <= providerIndex) {
-    failures.push("public edge evidence must remain a post-provider-proof fallback");
   }
 
   return failures;

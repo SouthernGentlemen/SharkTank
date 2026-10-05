@@ -50,33 +50,23 @@ const fxLayer = read("../vendor/ModuleReact3Fiber/src/client/game/FxLayer.tsx");
 const worldEnvironment = read("../vendor/ModuleReact3Fiber/src/client/game/WorldEnvironment.tsx");
 
 describe("public accessibility contract", () => {
-  it("keeps a keyboard bypass, visible focus, contrast, motion, and hash focus handling on evidence pages", () => {
+  it("keeps a keyboard bypass, visible focus, contrast, motion, and hash focus handling on Worker pages", () => {
     expect(reactPresentation).toContain('className="skip-link" href="#main"');
     expect(reactPresentation).toContain('<main id="main" tabIndex={-1}>');
     expect(presentation).toContain(":focus-visible{outline:3px solid var(--focus)");
     expect(presentation).toContain("@media(prefers-reduced-motion:reduce)");
     expect(presentation).toContain("@media(prefers-contrast:more)");
     expect(humanDocs).toContain("target.focus({ preventScroll: true })");
-    expect(presentation).toContain('id="status-autoupdate"');
-    expect(presentation).toContain("Pause auto-update");
-    expect(presentation).toContain("Resume auto-update");
   });
 
-  it("keeps evidence rendering to one status read, one 100-row service-log read, and zero Room reads", () => {
-    const route = worker.match(/if \(path === "\/evidence\/"\) \{[\s\S]*?\n      \}\n\n      if \(path === "\/spend\.json"\)/)?.[0] ?? "";
-    const start = worker.indexOf("async function publicLogData(env: Env) {");
-    const end = worker.indexOf("/* ── State backup", start);
-    const logReader = start >= 0 && end > start ? worker.slice(start, end) : "";
-    expect(route.match(/lobbyStub\(env\)\.fetch\("https:\/\/lobby\/status"\)/g)).toHaveLength(1);
-    expect(route).toContain("publicLogData(env)");
-    expect(route).not.toContain("incidentData");
-    expect(logReader.match(/lobbyStub\(env\)\.fetch/g)).toHaveLength(1);
-    expect(logReader).toContain("https://lobby/audit?limit=${LOG_FETCH_SERVICE}");
-    expect(logReader).not.toContain("roomFetch");
-    expect(presentation).toContain("const LOG_FETCH_SERVICE = 100;");
-    expect(worker).not.toContain("portalAvailability");
+  it("retires the public evidence routes without removing protected operator status", () => {
+    expect(worker).not.toContain('if (path === "/evidence")');
+    expect(worker).not.toContain('if (path === "/evidence/")');
+    expect(worker).not.toContain('if (path === "/status.json")');
+    expect(worker).not.toContain('if (path === "/spend.json")');
+    expect(reactPresentation).not.toContain("renderEvidenceDocument");
+    expect(worker).toContain('if (path === "/admin/status.json")');
   });
-
 
 
   it("keeps the game operable by keyboard with managed focus and reduced motion", () => {
@@ -239,13 +229,12 @@ describe("full-3D accessibility re-proof", () => {
 });
 
 describe("canonical public information architecture", () => {
-  it("keeps exactly three primary navigation destinations", () => {
+  it("keeps exactly two primary navigation destinations", () => {
     const nav = reactPresentation.match(/const PRIMARY_NAV = \[[\s\S]*?\n\] as const;/)?.[0] ?? "";
     expect(nav).toContain('["/", "Overview"]');
-    expect(nav).toContain('["/evidence/", "Evidence"]');
     expect(nav).toContain('["/play/", "Play"]');
     expect(nav).not.toContain("/controls/");
-    expect(nav.match(/^  \[/gm)).toHaveLength(3);
+    expect(nav.match(/^  \[/gm)).toHaveLength(2);
   });
 
   it("keeps only the canonical slash redirects and retires compatibility aliases", () => {
@@ -253,7 +242,7 @@ describe("canonical public information architecture", () => {
     expect(routes).toContain('return path === "/admin" || path.startsWith("/admin/");');
 
     expect(worker).toContain('if (path === "/play") return movedTo(url, "/play/");');
-    expect(worker).toContain('if (path === "/evidence") return movedTo(url, "/evidence/");');
+    expect(worker).not.toContain('if (path === "/evidence") return movedTo(url, "/evidence/");');
     expect(worker).toContain('if (path === "/favicon.ico") return new Response(null, { status: 404');
     expect(worker).toContain("if (path.startsWith(\"/api/\")) return json({ ok: false, error: \"unknown endpoint\" }, 404);");
 

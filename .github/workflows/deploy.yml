@@ -92,10 +92,10 @@ jobs:
             || { echo "::error::$VERSION is not serving 100% of traffic"; exit 1; }
           echo "Production is serving $VERSION at 100%"
 
-      # Best effort, for the same reason. Both of these read the public site, so both are
+      # Best effort, for the same reason. These checks read the public site, so they are
       # unreachable from CI until a WAF skip rule exists. When the edge does answer, a
       # wrong release still fails the run.
-      - name: Public evidence and identity checks
+      - name: Public identity checks
         env:
           SHARKTANK_RELEASE: ${{ inputs.tag }}
         run: |
@@ -121,9 +121,8 @@ jobs:
               || { echo "::error::public full-3D asset $asset returned HTTP $asset_code"; exit 1; }
             echo "Public /play/ serves the exact deployed build asset $asset"
 
-            npm run check:evidence -- https://sharktank.wizardgang.ai
           elif grep -qi '^cf-mitigated: *challenge' /tmp/headers.txt; then
-            echo "::warning::sharktank.wizardgang.ai issued a Cloudflare managed challenge to this runner (HTTP $code), so the public identity, /play/ asset, and evidence walk could not run. The deployment was already proven above. Add a WAF skip rule to restore these checks."
+            echo "::warning::sharktank.wizardgang.ai issued a Cloudflare managed challenge to this runner (HTTP $code), so the public identity and /play/ asset checks could not run. The deployment was already proven above. Add a WAF skip rule to restore these checks."
           else
             echo "::warning::could not read /version.json (HTTP $code); the deployment was proven above"
           fi

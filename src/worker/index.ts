@@ -11,11 +11,10 @@ export { Lobby } from "./lobby-do.js";
 import type { Env, MaintenanceState } from "./env.js";
 import { assetCsp, SECURITY_HEADERS, html, json, mintNonce, movedTo, ndjson, opsDenied, tlsRequired } from "./responses.js";
 import { CANONICAL_HUMAN_ROUTES, isGameShellPath, isOpsPath, isStaticAssetPath, parseRoomPath } from "./routes.js";
-import { numberValue, publicBillingWindow, publicStatusProjection, recordValue } from "./presentation-data.js";
+import { numberValue, publicBillingWindow, recordValue } from "./presentation-data.js";
 import {
   AUDIT_ROOMS,
   INCIDENTS,
-  LOG_FETCH_SERVICE,
   PAGE_CSS_PATH,
   incidentSummary,
   pageCssResponse,
@@ -23,12 +22,10 @@ import {
   type ControlHistoryEntry,
   type IncidentRecord,
   type PublicEvidenceStatus,
-  type PublicLogEvent,
 } from "./presentation.js";
 import {
   renderAdminDocument,
   renderDowntimeDocument,
-  renderEvidenceDocument,
   renderNotFoundDocument,
   renderOverviewDocument,
 } from "./presentation-react.js";
@@ -135,17 +132,13 @@ async function maintenanceState(env: Env, fresh = false): Promise<MaintenanceSta
  * with it — exempting all of `/api/*` meant the ceiling stopped the game while leaving the
  * two unauthenticated write paths taking Durable Object writes at full rate.
  *
- * Reads stay up: the evidence pages, surviving JSON/text evidence and `GET /api/*` are how anyone
- * finds out *why* the service stopped, and a transparency estate that goes dark at exactly
- * the moment it has something to explain is worth nothing.
+ * Reads stay up for the surviving overview, health check and protected administration.
  */
 function maintenanceBypass(path: string, _method: string): boolean {
   // The stylesheet and enhancement script used by the surviving Worker-rendered pages.
   if (path.startsWith("/styles/") || path === "/assets/human-docs.js") return true;
   return path === "/" || path === "/robots.txt" || path === "/sitemap.xml" ||
     path === API.health ||
-    path === "/status.json" || path === "/spend.json" ||
-    path === "/evidence" || path === "/evidence/" ||
     path === "/admin" || path.startsWith("/admin/");
 }
 
@@ -164,14 +157,6 @@ function roomFetch(env: Env, roomId: string, pathAndQuery: string, init?: Reques
  * evidence pages read as "nothing has ever happened" the moment a day passed. Anchored
  * to the first hour of the build so the window only ever grows.
  */
-/** The evidence page reads only the newest server-originated service slice. */
-async function publicLogData(env: Env) {
-  const serviceResponse = await lobbyStub(env).fetch(`https://lobby/audit?limit=${LOG_FETCH_SERVICE}`);
-  const serviceData = (await serviceResponse.json()) as { events?: PublicLogEvent[] };
-  return { serviceEvents: serviceData.events ?? [] };
-}
-
-
 /* ── State backup ────────────────────────────────────────────────────
    The tank Durable Object holds the receipt chain, the 90-day action log, player
    profiles and spend history, and until now none of it was copied anywhere. A copy
@@ -409,21 +394,6 @@ export default {
         if (!res.ok) return json({ ok: false, error: "unable to reset billing counter" }, 502);
         return new Response(res.body, { status: res.status, headers: { "content-type": "application/json; charset=utf-8", "cache-control": "no-store" } });
       }
-      if (path === "/evidence") return movedTo(url, "/evidence/");
-      if (path === "/evidence/") {
-        const [statusRes, logs] = await Promise.all([
-          lobbyStub(env).fetch("https://lobby/status"),
-          publicLogData(env),
-        ]);
-        const data = (await statusRes.json()) as PublicEvidenceStatus;
-        return html(renderEvidenceDocument(data, logs));
-      }
-
-      if (path === "/spend.json") {
-        const res = await lobbyStub(env).fetch("https://lobby/status");
-        const data = (await res.json()) as { billingWindow?: Record<string, unknown> };
-        return json({ ok: true, billingWindow: publicBillingWindow(data.billingWindow ?? {}) });
-      }
       // ── MVP overview ─────────────────────────────────────────────────────────
       // One Lobby status read supplies incident-derived availability, billing,
       // receipt-chain integrity and the current release identity.
@@ -458,17 +428,8 @@ export default {
         const incidents = [...INCIDENTS, ...(data.maintenanceIncidents ?? [])];
         return json({ ...data, availability: incidentSummary(incidents), incidents });
       }
-      if (path === "/status.json") {
-        const res = await lobbyStub(env).fetch("https://lobby/status");
-        const data = (await res.json()) as Record<string, unknown> & { maintenanceIncidents?: IncidentRecord[]; billingWindow?: unknown; usage?: Record<string, unknown> };
-        const incidents = [...INCIDENTS, ...(data.maintenanceIncidents ?? [])];
-        const { publicData, publicUsage } = publicStatusProjection(data);
-        const tankAvailability = incidentSummary(incidents);
-        return json({ ...publicData, usage: publicUsage, availability: tankAvailability, tankAvailability, incidents });
-      }
       // Full state export. Behind operations authentication because it is every profile
-      // and every receipt in one body; the public evidence for backups is the shape and
-      // timing panel on /status/, not the contents.
+      // and every receipt in one body; public backup/status feeds are retired.
       if (path === "/admin/backup.json") {
         const data = await fetchStateExport(env);
         return data ? json({ ok: true, export: data }) : json({ ok: false, error: "export refused" }, 502);

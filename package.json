@@ -4,7 +4,7 @@
   "releaseRevision": 0,
   "private": true,
   "license": "MIT",
-  "description": "Realtime multiplayer SharkTank with production controls and operational evidence.",
+  "description": "Realtime multiplayer SharkTank with protected release and production controls.",
   "type": "module",
   "engines": {
     "node": "26.x",
@@ -30,7 +30,6 @@
     "audit:dependencies": "node scripts/dependency-advisories.mjs",
     "deploy:wizardgangprod": "node scripts/deploy-prod.mjs",
     "deploy:wizardgangprod:dry-run": "node scripts/deploy-prod.mjs --dry-run",
-    "check:evidence": "node scripts/check-evidence.mjs",
     "check:public-ia": "node scripts/check-public-ia.mjs",
     "dev": "node scripts/local.mjs",
     "start": "npm run dev:worker",

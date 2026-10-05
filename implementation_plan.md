@@ -142,20 +142,6 @@ On 2026-10-02 the owner directed that this SharkTank material be deleted from th
 
 ## Open tasks
 
-### ST-145 — [REFACTOR] Delete the public evidence page and status feeds
-
-**Goal:** `/evidence/`, `/status.json` and `/spend.json` publish billing, incidents, receipts, continuity and logs for the retired evidence program.
-
-**Scope**
-- Remove the three routes and the evidence document, `scripts/check-evidence.mjs`, the deploy workflow's evidence step and its release-workflow guard, and the game document's "View live evidence" link.
-- `/version.json` stays for release identity.
-
-**Acceptance:** All three routes return 404. Release-workflow cases and local acceptance are updated.
-
-**Validation:** `node --test scripts/release-workflow-cases.mjs`; `npm run check:local-http`; `npm test -- tests/game-document.test.tsx`.
-
----
-
 ### ST-146 — [REFACTOR] Remove the operator console and maintenance gate
 
 **Goal:** The admin console, maintenance switch and operator credentials exist only for the retired operations program.

@@ -1,12 +1,12 @@
 #!/usr/bin/env node
 
 const base = (process.argv[2] || "http://127.0.0.1:8787").replace(/\/$/, "");
-const canonical = ["/", "/evidence/", "/play/"];
+const canonical = ["/", "/play/"];
 const slashRedirects = {
   "/play": "/play/",
-  "/evidence": "/evidence/",
 };
 const retiredHumanPaths = [
+  "/evidence", "/evidence/", "/status.json", "/spend.json",
   "/trust", "/trust/",
   "/status", "/status/",
   "/incidents", "/incidents/",
@@ -177,7 +177,7 @@ async function main() {
       if (!html.includes('<main id="boot">')) fail("/play/ lost the pre-mount loading document");
       if (!html.includes("<h1>Wizard Gang Shark Tank</h1>")) fail("/play/ lost the game identity before mount");
       if (!html.includes("The game is loading.")) fail("/play/ lost its loading context");
-      if (!html.includes('href="/evidence/"')) fail("/play/ lost its route to live evidence");
+      if (html.includes('href="/evidence/"')) fail("/play/ still links to retired live evidence");
 
       const scriptPaths = [...html.matchAll(/<script\b[^>]*\bsrc="([^"]+\.js)"[^>]*>/g)].map((match) => match[1]);
       const gameEntry = scriptPaths.find((assetPath) => /^\/assets\/index-[A-Za-z0-9_-]+\.js$/.test(assetPath));
@@ -209,22 +209,6 @@ async function main() {
     }
   }
 
-  const evidence = pages.get("/evidence/") || "";
-  const evidenceOrder = ["availability", "spend", "incidents", "receipts", "continuity", "logs"];
-  const evidencePositions = evidenceOrder.map((id) => evidence.indexOf(`id="${id}"`));
-  if (evidencePositions.some((position) => position < 0) || evidencePositions.some((position, index) => index > 0 && position <= evidencePositions[index - 1])) {
-    fail(`/evidence/ section order is not ${evidenceOrder.join(" → ")}`);
-  }
-  const jump = evidence.match(/<nav class="evidence-jump"[^>]*>([\s\S]*?)<\/nav>/)?.[1] || "";
-  const jumpTargets = [...jump.matchAll(/href="#([^"]+)"/g)].map((match) => match[1]);
-  if (JSON.stringify(jumpTargets) !== JSON.stringify(evidenceOrder)) fail(`/evidence/ jump links are out of order: ${JSON.stringify(jumpTargets)}`);
-  for (const retired of ["Server availability", 'id="status-portal-availability"', 'id="degradation"', 'id="machine-data"', 'class="capture-table"']) {
-    if (evidence.includes(retired)) fail(`/evidence/ still renders retired content: ${retired}`);
-  }
-  if (!evidence.includes('id="status-autoupdate"') || !evidence.includes("Pause auto-update")) fail("/evidence/ lost the accessible live-refresh control");
-  const serviceRows = (evidence.match(/data-log-row="1"/g) || []).length;
-  if (serviceRows > 100) fail(`/evidence/ renders ${serviceRows} service rows; expected at most 100`);
-  if (evidence.includes("/logs/game/")) fail("/evidence/ still links to retired Room captures");
   const health = await request("/api/health");
   if (health.status !== 200) fail(`/api/health expected 200, got ${health.status}`);
   if (!(health.headers.get("content-type") || "").startsWith("application/json")) fail("/api/health must remain JSON");
@@ -237,14 +221,6 @@ async function main() {
     const retiredClient = await request(retiredClientPath);
     if (retiredClient.status !== 404) fail(`${retiredClientPath} expected retired 404, got ${retiredClient.status}`);
   }
-
-  const publicStatus = await request("/status.json");
-  if (publicStatus.status !== 200) fail(`/status.json expected 200, got ${publicStatus.status}`);
-  const publicStatusBody = await publicStatus.json().catch(() => null);
-  if (!publicStatusBody?.ok) fail("/status.json response shape changed");
-  if (publicStatusBody && Object.prototype.hasOwnProperty.call(publicStatusBody, "instance")) fail("/status.json still publishes instance");
-  if (publicStatusBody && Object.prototype.hasOwnProperty.call(publicStatusBody, "global")) fail("/status.json still publishes global");
-  if (publicStatusBody && Object.prototype.hasOwnProperty.call(publicStatusBody, "portalAvailability")) fail("/status.json still publishes retired portalAvailability");
 
   const roomWithoutUpgrade = await request("/room/room-1/ws");
   if (roomWithoutUpgrade.status !== 426) fail(`non-upgraded room route expected 426, got ${roomWithoutUpgrade.status}`);
@@ -398,7 +374,7 @@ async function main() {
     const home = pages.get("/") || "";
   const headerNav = home.match(/<header[\s\S]*?<nav aria-label="Primary">([\s\S]*?)<\/nav>/)?.[1] || "";
   const primaryLinks = [...headerNav.matchAll(/<a href="([^"]+)">([^<]+)<\/a>/g)].map((match) => [match[1], match[2]]);
-  if (JSON.stringify(primaryLinks) !== JSON.stringify([["/", "Overview"], ["/evidence/", "Evidence"], ["/play/", "Play"]])) fail(`primary navigation is not the three-route contract: ${JSON.stringify(primaryLinks)}`);
+  if (JSON.stringify(primaryLinks) !== JSON.stringify([["/", "Overview"], ["/play/", "Play"]])) fail(`primary navigation is not the two-route contract: ${JSON.stringify(primaryLinks)}`);
 
   const checkedInternalLinks = new Map();
   for (const [sourcePath, html] of pages) {
