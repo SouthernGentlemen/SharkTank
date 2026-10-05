@@ -1,19 +1,19 @@
 // Wire protocol between the client and the server. Kept JSON-only so the same shapes
-// travel over HTTP (health/tank) and over the WebSocket (realtime play)
+// travel over HTTP health checks and the WebSocket (realtime play)
 // into the Room Durable Object.
 
 import { clampPitch, normalizeYaw } from "../engine/geometry3d.js";
 import type { Action, DeathAction, Explosion, OceanVolume, Prey, RoomState, RoundState, ScoreEntry, Snake, Vec3 } from "../engine/types.js";
 export { isFamilyFriendlyName, sanitizeDisplayName } from "./name-policy.js";
 
-// ── HTTP: health / tank ──────────────────────────────────────────────────────
+// ── HTTP: health ─────────────────────────────────────────────────────────────
 export interface HealthResponse {
   ok: true;
   module: "module-react3fiber";
   time: string;
 }
 
-/** One joinable room as shown in the Shark Tank list, with live counts + top score. */
+/** Internal tank summary retained for Lobby status/evidence projections. */
 export interface TankRoom {
   id: string;
   name: string;
@@ -22,11 +22,6 @@ export interface TankRoom {
   capacity: number;
   topScore: number;
   topName: string;
-}
-
-export interface TankResponse {
-  ok: true;
-  rooms: TankRoom[];
 }
 
 export interface ErrorResponse {
@@ -316,7 +311,6 @@ export function toNetState(state: RoomState): NetState {
 // ── Endpoint map ───────────────────────────────────────────────────────────────
 export const API = {
   health: "/api/health",
-  tank: "/api/tank",
 } as const;
 
 /** WebSocket path for a given room id, e.g. `/room/room-1/ws`. */

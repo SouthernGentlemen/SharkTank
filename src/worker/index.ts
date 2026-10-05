@@ -1,6 +1,5 @@
-// Local host Worker: serves the built R3F client (via ASSETS), a small JSON API
-// (health / tank) backed by the Lobby DO, and
-// upgrades /room/:id/ws WebSockets into the Room Durable Object.
+// Local host Worker: serves the built R3F client (via ASSETS), the health API,
+// and upgrades /room/:id/ws WebSockets into the Room Durable Object.
 //
 // Imports ONLY the server-safe entry points of module-react3fiber (never the client),
 // so no browser libs leak into the Worker/DO bundle.
@@ -15,17 +14,13 @@ import { CANONICAL_HUMAN_ROUTES, isGameShellPath, isOpsPath, isStaticAssetPath, 
 import { numberValue, publicBillingWindow, publicStatusProjection, recordValue } from "./presentation-data.js";
 import {
   AUDIT_ROOMS,
-  CAPTURE_WINDOW_MS,
   INCIDENTS,
-  LOG_FETCH_CAPTURES,
   LOG_FETCH_SERVICE,
   PAGE_CSS_PATH,
-  gameLogText,
   incidentSummary,
   pageCssResponse,
   tankCopy,
   type ControlHistoryEntry,
-  type GameLogWireEvent,
   type IncidentRecord,
   type PublicEvidenceStatus,
   type PublicLogEvent,
@@ -148,15 +143,14 @@ function maintenanceBypass(path: string, _method: string): boolean {
   // The stylesheet and enhancement script used by the surviving Worker-rendered pages.
   if (path.startsWith("/styles/") || path === "/assets/human-docs.js") return true;
   return path === "/" || path === "/robots.txt" || path === "/sitemap.xml" ||
-    path === API.health || path === API.tank ||
+    path === API.health ||
     path === "/status.json" || path === "/spend.json" ||
     path === "/evidence" || path === "/evidence/" ||
-    path.startsWith("/logs/game/") ||
     path === "/admin" || path.startsWith("/admin/");
 }
 
 
-/** Fetch a path on the Room DO instance for `roomId` (game log / replay). */
+/** Fetch a control path on the Room DO instance for `roomId`. */
 function roomFetch(env: Env, roomId: string, pathAndQuery: string, init?: RequestInit): Promise<Response> {
   const stub = env.ROOM.get(env.ROOM.idFromName(roomId));
   const u = new URL("https://room" + pathAndQuery);
@@ -170,19 +164,11 @@ function roomFetch(env: Env, roomId: string, pathAndQuery: string, init?: Reques
  * evidence pages read as "nothing has ever happened" the moment a day passed. Anchored
  * to the first hour of the build so the window only ever grows.
  */
-/** The evidence page reads only the newest service slice; tank captures stay on per-tank TXT routes. */
+/** The evidence page reads only the newest server-originated service slice. */
 async function publicLogData(env: Env) {
   const serviceResponse = await lobbyStub(env).fetch(`https://lobby/audit?limit=${LOG_FETCH_SERVICE}`);
   const serviceData = (await serviceResponse.json()) as { events?: PublicLogEvent[] };
-  const serviceEvents = serviceData.events ?? [];
-  return {
-    serviceEvents,
-    tanks: [],
-    caps: {
-      serviceTruncated: serviceEvents.length >= LOG_FETCH_SERVICE,
-      captureTruncated: false,
-    },
-  };
+  return { serviceEvents: serviceData.events ?? [] };
 }
 
 
@@ -363,7 +349,7 @@ export default {
 
       if (path === "/play") return movedTo(url, "/play/");
       if (path === "/favicon.ico") return new Response(null, { status: 404, headers: { "cache-control": "public, max-age=3600", ...SECURITY_HEADERS } });
-      if (path === "/robots.txt") return new Response("User-agent: *\nAllow: /\nDisallow: /admin/\nDisallow: /logs/game/\nDisallow: /*.json$\nDisallow: /*.jsonl$\nSitemap: https://sharktank.wizardgang.ai/sitemap.xml\n", { headers: { "content-type": "text/plain; charset=utf-8", "cache-control": "public, max-age=3600", ...SECURITY_HEADERS } });
+      if (path === "/robots.txt") return new Response("User-agent: *\nAllow: /\nDisallow: /admin/\nDisallow: /*.json$\nDisallow: /*.jsonl$\nSitemap: https://sharktank.wizardgang.ai/sitemap.xml\n", { headers: { "content-type": "text/plain; charset=utf-8", "cache-control": "public, max-age=3600", ...SECURITY_HEADERS } });
       if (path === "/sitemap.xml") {
         const routes = CANONICAL_HUMAN_ROUTES;
         const body = `<?xml version="1.0" encoding="UTF-8"?><urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">${routes.map((route) => `<url><loc>https://sharktank.wizardgang.ai${route}</loc></url>`).join("")}</urlset>`;
@@ -394,11 +380,6 @@ export default {
 
       if (path === "/version.json") {
         return json({ product: "SharkTank", release: env.SHARKTANK_RELEASE ?? "unknown", revision: env.SHARKTANK_RELEASE_REVISION ?? "unknown", environment: env.ENVIRONMENT ?? "unknown" });
-      }
-
-      if (path === API.tank) {
-        const stub = env.LOBBY.get(env.LOBBY.idFromName("global"));
-        return stub.fetch("https://lobby/list");
       }
 
       if (path.startsWith("/api/")) return json({ ok: false, error: "unknown endpoint" }, 404);
@@ -442,15 +423,6 @@ export default {
         const res = await lobbyStub(env).fetch("https://lobby/status");
         const data = (await res.json()) as { billingWindow?: Record<string, unknown> };
         return json({ ok: true, billingWindow: publicBillingWindow(data.billingWindow ?? {}) });
-      }
-      const publicGameLog = path.match(/^\/logs\/game\/([^/]+)\.txt$/);
-      if (publicGameLog) {
-        const roomId = decodeURIComponent(publicGameLog[1]);
-        if (!AUDIT_ROOMS.includes(roomId)) return json({ ok: false, error: "unknown room" }, 404);
-        const res = await roomFetch(env, roomId, `/log?limit=${LOG_FETCH_CAPTURES}`);
-        const data = (await res.json()) as { events?: GameLogWireEvent[] };
-        const cutoff = Date.now() - CAPTURE_WINDOW_MS;
-        return gameLogText(roomId, (data.events ?? []).filter((event) => event.ts >= cutoff));
       }
       // ── MVP overview ─────────────────────────────────────────────────────────
       // One Lobby status read supplies incident-derived availability, billing,
@@ -521,23 +493,6 @@ export default {
         const res = await lobbyStub(env).fetch("https://lobby/audit" + url.search);
         const data = (await res.json()) as { events: unknown[] };
         return ndjson(data.events);
-      }
-
-      // Per-game deterministic log (3-day retention): seed + action stream.
-      const gameLog = path.match(/^\/admin\/game\/([^/]+?)(\.jsonl|\.json)?$/);
-      if (gameLog) {
-        const roomId = decodeURIComponent(gameLog[1]);
-        const res = await roomFetch(env, roomId, "/log");
-        const data = (await res.json()) as { events: unknown[] };
-        if (gameLog[2] === ".jsonl") return ndjson(data.events);
-        return json(data);
-      }
-
-      // Deterministic replay of a game's state at ?tick=T (rollback / fast-forward).
-      const replayMatch = path.match(/^\/admin\/replay\/([^/]+?)(\.json)?$/);
-      if (replayMatch) {
-        const roomId = decodeURIComponent(replayMatch[1]);
-        return roomFetch(env, roomId, "/replay?tick=" + encodeURIComponent(url.searchParams.get("tick") ?? ""));
       }
 
       // Authenticated control room (HTML). Everything above this line under /admin/ is its

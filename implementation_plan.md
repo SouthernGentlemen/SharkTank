@@ -142,21 +142,6 @@ On 2026-10-02 the owner directed that this SharkTank material be deleted from th
 
 ## Open tasks
 
-### ST-143 — [REFACTOR] Remove Room logging, reporting and replay endpoints
-
-**Goal:** Player inputs are written to SQL, every join, leave and death is reported to the Lobby, and usage is metered. None of it serves the game.
-
-**Scope**
-- Room: remove the SQL game log, `/log`, `/replay`, `emitEvent`, `reportToLobby` and the usage counters.
-- Worker: remove `/logs/game/*.txt`, `/admin/game/*`, `/admin/replay/*` and `/api/tank`.
-- Engine: `replay()` and `GameLogEntry` are now used only by tests; move a minimal replay helper into the determinism test.
-
-**Acceptance:** The game runs unchanged; the retired routes return 404 in local acceptance.
-
-**Validation:** `npm test -- tests/determinism.test.ts tests/round-apex.test.ts`; `npm run check:local-http`.
-
----
-
 ### ST-144 — [REFACTOR] Run the Room from memory only
 
 **Goal:** Persisted snapshots are what bricked three tanks, and five-minute rounds gain nothing from them.
