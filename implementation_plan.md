@@ -142,19 +142,6 @@ On 2026-10-02 the owner directed that this SharkTank material be deleted from th
 
 ## Open tasks
 
-### ST-222 — [OPS] Decide how `Room` crosses to the sharktank Worker
-
-**Goal:** Phase 4 of the Cloudflare consolidation renames `wizardgangprod` to `sharktank`, and the owner moved that rename (2026-10-05) to right after the lean refactor. Production still runs `v2.0.1` at this point, so the cut-over deploy is also the first deploy of the memory-only `Room` (ST-144) and of a Worker without `Lobby` (ST-149).
-
-**Scope**
-- Read production `Room` and `Lobby` storage on `wizardgangprod` (read only) and record what is stored.
-- The default is a fresh `Room` class under `sharktank`, with no transfer: the new `Room` keeps nothing in storage, and `Lobby` does not exist on the new Worker. Whatever `wizardgangprod` still stores is deleted with that Worker at R3, as the owner confirmed for the Lobby on 2026-10-02. If the read finds data the owner might want kept, stop and ask before ST-223.
-- Record the read, the decision and the exact migration block ST-223 commits on the PR.
-
-**Acceptance:** The PR states fresh class (or the owner's alternative) with evidence, and the exact migration block ST-223 commits.
-
----
-
 ### ST-223 — [OPS] Adopt the shared wg-edge shell and the baseline deploy workflow as the sharktank Worker
 
 **Goal:** SharkTank runs on baseline's shared Worker shell, conforming config and single deploy path. Baseline's `config/cloudflare.json` and `config/secrets.json` are the authority.

@@ -31,6 +31,16 @@ export const IMMUTABLE_HISTORY_BODY_EXCEPTIONS = Object.freeze(new Map([
   })],
 ]));
 
+// ST-225 reassigned the then-open ST-150..ST-220 queue entries to ST-226..ST-296
+// when the owner moved the Worker cut-over ahead of them. Only that published,
+// plan-only maintenance commit authorizes this one historical sequence gap.
+const REASSIGNED_QUEUE_MAINTENANCE = Object.freeze({
+  sha: "e684fc3dc1f8049556474407420ed0b9ba6b9c43",
+  subject: "[ST-225] [DOCS] Move the sharktank cut-over after the lean refactor",
+  first: 150,
+  last: 220,
+});
+
 const controlledTypeSet = new Set(CONTROLLED_TYPES);
 const titlePattern = /^\[(ST-(\d{3}))\] \[([A-Z][A-Z0-9-]*)\] ([^\r\n]+)$/;
 const branchPattern = /^st-(\d{3})-[a-z0-9]+(?:-[a-z0-9]+)*$/;
@@ -98,6 +108,7 @@ export function validateHistoryRecords(records) {
   let expectedNumber = 1;
   let controlledCount = 0;
   const earlyMaintenance = new Set();
+  let queueReassignmentSeen = false;
 
   for (const record of records) {
     if (isVerifiedDependabotCommit(record)) continue;
@@ -110,8 +121,14 @@ export function validateHistoryRecords(records) {
       continue;
     }
 
-    while (earlyMaintenance.has(expectedNumber)) expectedNumber += 1;
     const maintenance = /^Portfolio-Plan-Maintenance: true$/m.test(record.body);
+    if (record.sha === REASSIGNED_QUEUE_MAINTENANCE.sha
+      && record.subject === REASSIGNED_QUEUE_MAINTENANCE.subject
+      && maintenance) queueReassignmentSeen = true;
+    while (earlyMaintenance.has(expectedNumber)
+      || (queueReassignmentSeen
+        && expectedNumber >= REASSIGNED_QUEUE_MAINTENANCE.first
+        && expectedNumber <= REASSIGNED_QUEUE_MAINTENANCE.last)) expectedNumber += 1;
     if (maintenance && parsed.number > expectedNumber) {
       earlyMaintenance.add(parsed.number);
     } else {

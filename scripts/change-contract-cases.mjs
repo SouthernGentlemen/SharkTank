@@ -192,6 +192,38 @@ test("skipped controlled ID fails", () => {
   assert.match(result.failures.join("\n"), /expected ST-002, found ST-003/);
 });
 
+function reassignedQueueHistory(maintenanceSha = "e684fc3dc1f8049556474407420ed0b9ba6b9c43") {
+  return [
+    ...Array.from({ length: 138 }, (_, index) => controlledRecord(index + 1)),
+    maintenanceRecord(221),
+    ...Array.from({ length: 3 }, (_, index) => controlledRecord(index + 139)),
+    {
+      ...maintenanceRecord(225, "DOCS"),
+      sha: maintenanceSha,
+      subject: "[ST-225] [DOCS] Move the sharktank cut-over after the lean refactor",
+    },
+    ...Array.from({ length: 8 }, (_, index) => controlledRecord(index + 142)),
+    controlledRecord(222, "OPS"),
+  ];
+}
+
+test("exact ST-225 plan maintenance accepts the reassigned queue IDs", () => {
+  const result = validateHistoryRecords(reassignedQueueHistory());
+  assert.deepEqual(result.failures, []);
+  assert.equal(result.lastId, "ST-222");
+});
+
+test("a different ST-225 commit cannot authorize the queue gap", () => {
+  const result = validateHistoryRecords(reassignedQueueHistory("f".repeat(40)));
+  assert.match(result.failures.join("\n"), /expected ST-150, found ST-222/);
+});
+
+test("the reassigned queue still rejects a later skipped or duplicate ID", () => {
+  const history = reassignedQueueHistory();
+  assert.match(validateHistoryRecords([...history, controlledRecord(224)]).failures.join("\n"), /expected ST-223, found ST-224/);
+  assert.match(validateHistoryRecords([...history, controlledRecord(222)]).failures.join("\n"), /expected ST-223, found ST-222/);
+});
+
 test("out-of-order controlled IDs fail", () => {
   const result = validateHistoryRecords([controlledRecord(2), controlledRecord(1)]);
   assert.match(result.failures.join("\n"), /expected ST-001, found ST-002/);
