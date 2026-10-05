@@ -241,10 +241,10 @@ async function main() {
     fail(`/api/tank expected only room-1 as SharkTank with 8 human seats and 24 bots, got ${JSON.stringify(tankBody?.rooms)}`);
   }
 
-  const profile = await request("/api/profile");
-  if (profile.status !== 200) fail(`/api/profile expected 200, got ${profile.status}`);
-  const profileBody = await profile.json().catch(() => null);
-  if (!profileBody?.ok || !profileBody?.profile) fail("/api/profile response shape changed");
+  for (const retiredClientPath of ["/api/profile", "/api/audit"]) {
+    const retiredClient = await request(retiredClientPath);
+    if (retiredClient.status !== 404) fail(`${retiredClientPath} expected retired 404, got ${retiredClient.status}`);
+  }
 
   const publicStatus = await request("/status.json");
   if (publicStatus.status !== 200) fail(`/status.json expected 200, got ${publicStatus.status}`);
@@ -467,7 +467,7 @@ async function main() {
     console.error(`\n${failures.length} public IA check(s) failed.`);
     process.exit(1);
   }
-  console.log(`Verified ${canonical.length} canonical pages, strict no-unsafe-inline CSP/generated-HTML contracts, explicit /play/ Static Assets routing with hashed/lazy Vite assets, application/index/asset misses that cannot fall back to the game document, admin/404 HTML, health/tank/profile APIs and retired-endpoint 404s, a live Room Durable Object WebSocket welcome plus 426 non-upgrade behavior, primary navigation, unique IDs, internal anchors, assets, ${Object.keys(slashRedirects).length} canonical slash redirects, retired compatibility/API/operator aliases, surviving robots.txt entries, and canonical sitemap.`);
+  console.log(`Verified ${canonical.length} canonical pages, strict no-unsafe-inline CSP/generated-HTML contracts, explicit /play/ Static Assets routing with hashed/lazy Vite assets, application/index/asset misses that cannot fall back to the game document, admin/404 HTML, health/tank APIs, retired client-telemetry 404s and retired-endpoint 404s, a live Room Durable Object WebSocket welcome plus 426 non-upgrade behavior, primary navigation, unique IDs, internal anchors, assets, ${Object.keys(slashRedirects).length} canonical slash redirects, retired compatibility/API/operator aliases, surviving robots.txt entries, and canonical sitemap.`);
 }
 
 main().catch((error) => { console.error(error); process.exit(1); });

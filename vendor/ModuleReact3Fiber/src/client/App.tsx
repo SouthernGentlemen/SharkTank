@@ -1,6 +1,6 @@
 // App shell + screen state machine: Menu → Game, with Customize and Settings
 // reachable from the menu. Wraps everything in the Settings + Announcer providers,
-// renders the skip link and the #main landmark, loads/saves the player profile, and
+// renders the skip link and the #main landmark, keeps player data device-local, and
 // manages focus on screen transitions (moving focus to the new screen's region).
 
 import { lazy, Suspense, useCallback, useEffect, useRef, useState } from "react";
@@ -10,9 +10,6 @@ import { AnnouncerProvider, useAnnouncer } from "./a11y/announcer.js";
 import { MainMenu } from "./ui/MainMenu.js";
 import { Customize } from "./ui/Customize.js";
 import { Settings } from "./ui/Settings.js";
-import { logUserAction } from "./net/audit.js";
-import { API, type ProfileResponse } from "../protocol/index.js";
-import { DEFAULT_SKIN } from "../engine/index.js";
 
 type Screen = "menu" | "customize" | "settings" | "game";
 const GameScreen = lazy(() => import("./ui/GameScreen.js").then((module) => ({ default: module.GameScreen })));
@@ -23,53 +20,22 @@ export interface AppProps {
   baseUrl?: string;
 }
 
-export function App({ baseUrl = "" }: AppProps) {
+export function App(_props: AppProps = {}) {
   return (
     <SettingsProvider>
       <AnnouncerProvider>
-        <Shell baseUrl={baseUrl} />
+        <Shell />
       </AnnouncerProvider>
     </SettingsProvider>
   );
 }
 
-function Shell({ baseUrl }: { baseUrl: string }) {
-  const { settings } = useSettings();
+function Shell() {
+  const { player, updatePlayer, recordBest } = useSettings();
+  const { name, skin, best } = player;
   const { announce } = useAnnouncer();
   const [screen, setScreen] = useState<Screen>("menu");
-  const [name, setName] = useState("Player");
-  const [skin, setSkin] = useState(DEFAULT_SKIN);
-  const [best, setBest] = useState(0);
   const regionRef = useRef<HTMLDivElement>(null);
-
-  // Load the persisted profile once.
-  useEffect(() => {
-    (async () => {
-      try {
-        const res = await fetch(baseUrl + API.profile);
-        const data = (await res.json()) as ProfileResponse;
-        if (data.ok) {
-          setName(data.profile.name);
-          setSkin(data.profile.skin);
-          setBest(data.profile.best);
-        }
-      } catch {
-        /* offline / first run — defaults are fine */
-      }
-    })();
-  }, [baseUrl]);
-
-  // Persist profile (name/skin/settings) when they change, debounced.
-  useEffect(() => {
-    const id = setTimeout(() => {
-      void fetch(baseUrl + API.profile, {
-        method: "POST",
-        headers: { "content-type": "application/json" },
-        body: JSON.stringify({ name, skin, settings: settings as unknown as Record<string, unknown> }),
-      }).catch(() => {});
-    }, 600);
-    return () => clearTimeout(id);
-  }, [name, skin, settings, baseUrl]);
 
   // Move focus to the new screen region and announce it (skip menu — it autofocuses Play).
   useEffect(() => {
@@ -83,10 +49,7 @@ function Shell({ baseUrl }: { baseUrl: string }) {
     announce(titles[screen]);
   }, [screen, announce]);
 
-  const play = useCallback(() => {
-    logUserAction({ type: "play", subject: name || "Player", room: SHARKTANK_ROOM.id, detail: SHARKTANK_ROOM.name }, baseUrl);
-    setScreen("game");
-  }, [name, baseUrl]);
+  const play = useCallback(() => setScreen("game"), []);
 
   return (
     <>
@@ -98,6 +61,7 @@ function Shell({ baseUrl }: { baseUrl: string }) {
           {screen === "menu" && (
             <MainMenu
               playerName={name}
+              skin={skin}
               best={best}
               onPlay={play}
               onCustomize={() => setScreen("customize")}
@@ -109,9 +73,7 @@ function Shell({ baseUrl }: { baseUrl: string }) {
               name={name}
               skin={skin}
               onConfirm={(n, sk) => {
-                setName(n);
-                setSkin(sk);
-                logUserAction({ type: "customize", subject: n, detail: `skin ${sk}` }, baseUrl);
+                updatePlayer({ name: n, skin: sk });
                 setScreen("menu");
               }}
               onExit={() => setScreen("menu")}
@@ -124,7 +86,7 @@ function Shell({ baseUrl }: { baseUrl: string }) {
           <GameScreen
             room={SHARKTANK_ROOM}
             identity={{ name: name || "Player", skin }}
-            onAuthoritativeResult={(score) => setBest((current) => Math.max(current, score))}
+            onAuthoritativeResult={recordBest}
             onQuit={() => setScreen("menu")}
           />
         </Suspense>
