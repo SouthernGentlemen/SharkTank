@@ -1,7 +1,6 @@
-export interface Env {
+import type { EdgeEnv } from "../../platform/wg-edge/index.d.ts";
+
+export interface Env extends EdgeEnv {
   ASSETS: { fetch: (req: Request) => Promise<Response> };
   ROOM: DurableObjectNamespace;
-  ENVIRONMENT?: string;
-  SHARKTANK_RELEASE?: string;
-  SHARKTANK_RELEASE_REVISION?: string;
 }

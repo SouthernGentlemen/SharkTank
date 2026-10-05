@@ -72,7 +72,7 @@ export async function waitForReady({
     try {
       const response = await fetchImpl(baseUrl, {
         redirect: "manual",
-        headers: { "cache-control": "no-cache" },
+        headers: { "cache-control": "no-cache", "x-forwarded-proto": "https" },
       });
       if (response.status === 308 && response.headers.get("location") === "/play/") return;
     } catch {

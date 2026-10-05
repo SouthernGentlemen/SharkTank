@@ -18,7 +18,7 @@ Use Node.js 26.10.0 from `.node-version` and npm 12.1.0 from `packageManager`. R
 | `npm run check:game-surface -- http://127.0.0.1:8787` | Focused local check of the game HTTP and WebSocket surface. |
 | `npm run verify:github-settings` | Read-only comparison of live GitHub merge/ruleset settings with the committed authority. Requires repository-administration read access. |
 | `npm run apply:github-settings` | Explicit bounded mutation of GitHub merge/ruleset settings to the committed authority, followed by a fresh verification. |
-| `npm run deploy:wizardgangprod:dry-run` | Local deployment dry-run. It requires a semantic release tag at `HEAD` and the Cloudflare account identifier but does not deploy production. |
+| `npm run check:platform` | Verify the vendored baseline pin and conforming `sharktank` Worker config without provider access. |
 
 ## Full-3D game boundary
 
@@ -52,7 +52,7 @@ See [docs/ACCESSIBILITY.md](docs/ACCESSIBILITY.md), [docs/PRODUCT-ACCEPTANCE.md]
 
 Public HTTP and WebSocket input is untrusted. Unknown paths return plain-text 404s. The Worker enforces request/message bounds, allowed rooms, origin checks, rate limits, HTTPS redirects, strict response security headers, and server-side authority over simulation and score. Player name, skin, best score and settings stay in one device-local browser record; they are not profile or telemetry writes. Room is the only Durable Object and owns authoritative competitive state only in memory for the lifetime of the object; browser preferences never become competitive authority.
 
-The retired public evidence/status/spend surfaces and all `/admin/*` routes return 404. The maintenance gate and operator credentials are gone; billing, backup and scheduled copy internals are removed.
+The shared wg-edge shell owns the host guard, `/version.json`, security headers, errors, 404s and its operator gate. The retired evidence/status/spend routes return 404. Billing, backup and scheduled copy internals are removed.
 
 The Worker has no scheduled handler or R2 binding.
 
@@ -60,7 +60,7 @@ The Worker has no scheduled handler or R2 binding.
 
 Ordinary controlled changes do not create tags, GitHub Releases, or production deployments. A normal semantic release advances `package.json` and `package-lock.json` together and resets tracked `releaseRevision` to 0. A same-product release advances `package.json.releaseRevision` exactly once and creates an immutable `vX.Y.Z-rN` revision tag while package and lock product versions remain `X.Y.Z`. An unchanged product version and unchanged revision are a no-op.
 
-The Release workflow verifies exact tag/package/revision/commit identity, runs the canonical checks and advisory gate, publishes the matching GitHub Release, then may enter the existing protected production deployment path. Production exposes the base product identity through `SHARKTANK_RELEASE` and the immutable deployed artifact identity through `SHARKTANK_RELEASE_REVISION`.
+The Release workflow verifies exact tag/package/commit identity, runs the canonical checks and advisory gate, publishes the matching GitHub Release, then calls baseline's pinned `deploy-worker.yml` with `secrets: inherit`. The called workflow waits for protected `production` approval, builds the exact tag, deploys `sharktank`, and verifies `/version.json` identity. The first production cut-over is ST-224; this task does not deploy. Baseline's pinned workflow accepts semantic `vX.Y.Z` tags.
 
 ## Controlled work
 

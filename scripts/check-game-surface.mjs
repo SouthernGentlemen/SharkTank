@@ -3,18 +3,19 @@
 const base = (process.argv[2] || "http://127.0.0.1:8787").replace(/\/$/, "");
 const failures = [];
 const fail = (message) => failures.push(message);
-const request = (path) => fetch(base + path, { redirect: "manual", headers: { "cache-control": "no-cache" } });
+const request = (path) => fetch(base + path, { redirect: "manual", headers: { "cache-control": "no-cache", "x-forwarded-proto": "https" } });
 
 async function checkNotFound(path) {
   const response = await request(path);
   if (response.status !== 404) fail(`${path}: expected 404, got ${response.status}`);
-  if (!response.headers.get("content-type")?.startsWith("text/plain")) fail(`${path}: expected plain text`);
-  if ((await response.text()) !== "Not found") fail(`${path}: unexpected 404 body`);
+  if (!response.headers.get("content-type")?.startsWith("application/json")) fail(`${path}: expected shell JSON`);
+  const body = await response.json();
+  if (body.error !== "Not found" || body.status !== 404) fail(`${path}: unexpected shell 404 body`);
 }
 
 async function checkRoomSocket() {
   const wsBase = base.replace(/^http:/, "ws:").replace(/^https:/, "wss:");
-  const socket = new WebSocket(`${wsBase}/room/room-1/ws`);
+  const socket = new WebSocket(`${wsBase}/room/room-1/ws`, { headers: { "x-forwarded-proto": "https" } });
   try {
     const welcome = await new Promise((resolve, reject) => {
       const timer = setTimeout(() => reject(new Error("room welcome timed out")), 5_000);
@@ -58,7 +59,8 @@ try {
   }
 
   const version = await request("/version.json");
-  if (version.status !== 200 || !(await version.json()).product) fail("/version.json lost release identity");
+  const identity = await version.json();
+  if (version.status !== 200 || identity.app !== "sharktank" || !identity.version || !/^[0-9a-f]{40}$/.test(identity.commit)) fail("/version.json lost baseline release identity");
   const health = await request("/api/health");
   if (health.status !== 200 || (await health.json()).ok !== true) fail("/api/health lost its existing JSON contract");
   const noUpgrade = await request("/room/room-1/ws");
@@ -67,13 +69,10 @@ try {
 
   for (const path of [
     "/unknown", "/index.html", "/assets/missing.js", "/styles/page-old.css",
-    "/robots.txt", "/sitemap.xml", "/evidence", "/evidence/", "/status.json", "/spend.json",
+    "/sitemap.xml", "/evidence", "/evidence/", "/status.json", "/spend.json",
     "/trust", "/trust/", "/status", "/status/", "/incidents", "/incidents/",
     "/logs", "/logs/", "/spend", "/spend/", "/inquiry", "/inquiry/",
     "/arena", "/uno", "/x4", "/21", "/game", "/checkers", "/battleship", "/3d", "/shark-run", "/sharkrun",
-    "/admin", "/admin/", "/admin/status.json", "/admin/log.json", "/admin/maintenance",
-    "/admin/security-report", "/admin/security-resolve", "/admin/test-alert",
-    "/admin/game/room-1", "/admin/replay/room-1",
     "/audit.json", "/audit.jsonl", "/audit/status.json", "/audit/game/room-1", "/audit/replay/room-1",
     "/logs/game/room-1.txt", "/docs", "/docs/", "/openapi.json", "/docs/openapi.json",
     "/incidents.json", "/logs.json", "/inquiry.json",
@@ -85,8 +84,10 @@ try {
       if (response.status !== 404) fail(`${path}: expected 404, got ${response.status}`);
     } else await checkNotFound(path);
   }
-  const retiredMutation = await fetch(base + "/admin/maintenance", { method: "POST", redirect: "manual" });
-  if (retiredMutation.status !== 404) fail("POST /admin/maintenance must return 404");
+  const robots = await request("/robots.txt");
+  if (robots.status !== 200 || !(await robots.text()).includes("Disallow: /admin/")) fail("shell robots policy missing");
+  const admin = await request("/admin/maintenance");
+  if (admin.status !== 503 || (await admin.json()).status !== 503) fail("unconfigured shell admin gate must refuse access");
 } catch (error) {
   fail(error instanceof Error ? error.message : String(error));
 }

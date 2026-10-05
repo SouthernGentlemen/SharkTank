@@ -110,7 +110,7 @@ describe("ST-131 full-3D product acceptance", () => {
     const gameDocument = read("../src/client/game-document.tsx");
 
     expect(worker).toContain('const ROOM_ID = "room-1", ROOM_NAME = "SharkTank";');
-    expect(worker).toContain("const ALLOWED_ROOMS = new Set([ROOM_ID]);");
+    expect(worker).toContain("if (roomId !== ROOM_ID) return json");
     for (const retiredRoom of ["room-2", "room-3", "room-4"]) {
       expect(worker).not.toContain(`id: "${retiredRoom}"`);
     }
@@ -255,7 +255,6 @@ describe("ST-131 full-3D product acceptance", () => {
     const ci = read("../.github/workflows/ci.yml");
     const tagRelease = read("../.github/workflows/tag-release.yml");
     const release = read("../.github/workflows/release.yml");
-    const deploy = read("../.github/workflows/deploy.yml");
     const plan = read("../implementation_plan.md");
     const manual = read("../docs/PRODUCT-ACCEPTANCE.md");
     const pkg = JSON.parse(read("../package.json")) as { version: string };
@@ -271,7 +270,7 @@ describe("ST-131 full-3D product acceptance", () => {
     expect(localAcceptance).toContain('"CLOUDFLARE_API_TOKEN"');
     expect(gameSurface).toContain('const root = await request("/?from=acceptance")');
     expect(gameSurface).toContain('await checkRoomSocket()');
-    expect(gameSurface).toContain('"/robots.txt", "/sitemap.xml"');
+    expect(gameSurface).toContain('"/sitemap.xml"');
 
     expect(wrangler).toContain('"name": "ROOM"');
     expect(wrangler).toContain('"class_name": "Room"');
@@ -283,9 +282,8 @@ describe("ST-131 full-3D product acceptance", () => {
     expect(tagRelease).toContain("workflow_run:");
     expect(tagRelease).toContain("github.event.workflow_run.head_branch == 'main'");
     expect(release).toContain("needs: publish-release");
-    expect(release).toContain("uses: ./.github/workflows/deploy.yml");
-    expect(deploy).toContain("workflow_call:");
-    expect(deploy).toContain("environment: production");
+    expect(release).toContain("uses: Wizard-Gang/baseline/.github/workflows/deploy-worker.yml@67b4b86847e0d635a3f6fe4c21618a25d5bc71a0");
+    expect(release).toContain("secrets: inherit");
 
     expect(github.mergeMethods).toEqual({ mergeCommit: false, squash: true, rebase: false });
     expect(github.deleteBranchOnMerge).toBe(true);

@@ -14,6 +14,7 @@ const major = (spec, value) => new RegExp("^[~^]?" + value + "(?:\\.|$)").test(s
 
 const packageJson = json("package.json");
 const packageLock = json("package-lock.json");
+const platformLock = json("platform/vendor.lock.json");
 const nodeVersion = read(".node-version").trim();
 const npmAgent = process.env.npm_config_user_agent ?? "";
 const npmVersionMatch = /^npm@(\d+\.\d+\.\d+)$/.exec(packageJson.packageManager ?? "");
@@ -35,8 +36,8 @@ expect(packageLock.lockfileVersion === 3, "package-lock.json must use lockfileVe
 expect(packageLock.packages?.[""]?.version === packageJson.version, "package-lock root version must match package.json");
 expect(packageLock.packages?.[""]?.engines?.node === packageJson.engines?.node, "package-lock root Node engine must match package.json");
 expect(packageLock.packages?.[""]?.engines?.npm === packageJson.engines?.npm, "package-lock root npm engine must match package.json");
-expect(JSON.stringify(packageJson.allowScripts) === JSON.stringify({ "esbuild@0.28.1": true, "fsevents@2.3.3": false, "workerd@1.20260925.1": true }), "allowScripts must specify reviewed exact install-script packages");
-for (const [name, expected] of Object.entries({ typescript: "7.0.2", vite: "8.3.1", vitest: "5.0.2", wrangler: "4.141.0", "@types/node": "26.6.3" })) {
+expect(JSON.stringify(packageJson.allowScripts) === JSON.stringify({ "esbuild@0.28.1": true, "fsevents@2.3.3": false, "workerd@1.20261001.1": true }), "allowScripts must specify reviewed exact install-script packages");
+for (const [name, expected] of Object.entries({ typescript: "7.0.2", vite: "8.3.1", vitest: "5.0.2", wrangler: "4.147.0", "@types/node": "26.6.3" })) {
   expect(packageJson.devDependencies?.[name] === expected, `${name} must match the shared cohort`);
   expect(packageLock.packages?.[`node_modules/${name}`]?.version === expected, `${name} lockfile must match the shared cohort`);
 }
@@ -74,7 +75,7 @@ for (const needle of [
   '"tag": "v1"',
 ]) has(wrangler, needle, "Wrangler baseline");
 expect(!/\b(?:LOBBY|Lobby)\b/.test(wrangler), "Wrangler must bind only Room");
-expect((wrangler.match(/"class_name": "Room"/g) ?? []).length === 2, "Wrangler must bind Room once in local and production config");
+expect((wrangler.match(/"class_name": "Room"/g) ?? []).length === 1, "Wrangler must bind Room exactly once");
 expect(!existsSync(join(root, "src/worker/lobby-do.ts")), "retired Lobby class must be deleted");
 for (const retired of ["R2_ASSETS", "r2_buckets", "triggers", "crons", "version_metadata", "CF_VERSION_METADATA", "AUDIT_GENERATION", "GAME_LOG_GENERATION", "BILLING_HARD_LIMIT_USD", "R2_BUCKET_NAME", "R2_PREFIX"]) expect(!wrangler.includes(retired), "Wrangler must omit retired billing/backup binding: " + retired);
 
@@ -84,6 +85,7 @@ const worker = read("src/worker/index.ts");
 expect(!/\bscheduled\s*\(/.test(worker), "Worker must have no scheduled handler");
 expect(!/\b(?:runBackup|runRestoreDrill|R2_ASSETS)\b/.test(worker), "Worker must have no R2 backup path");
 expect(!worker.includes('export { Lobby }'), "Worker must export only Room");
+has(worker, "createEdge<Env>", "Worker must use the shared wg-edge shell");
 const responses = read("src/worker/responses.ts");
 const architecture = read("docs/ARCHITECTURE.md");
 has(gameDocument, "renderToStaticMarkup(<GameDocument />)", "/play/ document must render from React at build time");
@@ -112,7 +114,7 @@ expect(!builtAssets.includes("human-docs.js"), "build must omit the retired huma
 for (const required of [
   "README.md","AGENTS.md","CONTRIBUTING.md","SECURITY.md","LICENSE",".gitignore",
   ".node-version",".npmrc","package.json","package-lock.json","tsconfig.json","wrangler.jsonc",
-  ".github/workflows/ci.yml",".github/workflows/release.yml",".github/workflows/deploy.yml",
+  ".github/workflows/ci.yml",".github/workflows/release.yml",
 ]) expect(existsSync(join(root, required)), "required repository file missing: " + required);
 expect(!existsSync(join(root, ".github/dependabot.yml")), "automated dependency-version PRs must remain disabled");
 
@@ -226,7 +228,10 @@ has(releaseTag, 'gh workflow run release.yml --ref main -f tag="$RELEASE_TAG" -f
 has(release, "workflow_dispatch:", "release workflow must accept explicit release dispatch");
 has(release, "expected_sha:", "release workflow must require the accepted commit SHA");
 has(release, "needs: publish-release", "production deploy must remain downstream of GitHub Release publication");
-has(release, "uses: ./.github/workflows/deploy.yml", "release workflow must delegate production deployment to the reusable stage");
+has(release, `uses: Wizard-Gang/baseline/.github/workflows/deploy-worker.yml@${platformLock.commit}`, "release workflow must call the same baseline commit as platform/");
+has(release, "worker: sharktank", "release workflow must select sharktank");
+has(release, "secrets: inherit", "release workflow must pass the production secret boundary");
+expect(!release.includes("PRODUCTION_DEPLOY_ENABLED"), "release workflow must use protected approval, not a variable gate");
 has(release, "tag: ${{ inputs.tag }}", "release workflow must pass the exact dispatched tag to reusable deployment");
 has(release, "expected_sha: ${{ inputs.expected_sha }}", "release workflow must pass the accepted commit SHA to reusable deployment");
 has(release, 'run: node "$RUNNER_TEMP/sharktank-release-tools/scripts/release-publication.mjs"', "release workflow must use guarded create-or-verify publication");
@@ -241,45 +246,26 @@ has(releasePublication, '"--title"', "release creation must retain the exact tag
 has(releasePublication, 'env.GITHUB_ACTIONS !== "true"', "release publication must be workflow-only");
 has(releasePublication, "SHARKTANK_RELEASE_WORKFLOW_REF", "release publication must bind exact Release workflow identity");
 expect(!/["']edit["']|["']delete["']/.test(releasePublication), "release publication must not edit or delete an existing Release");
-const reusableDeploy = read(".github/workflows/deploy.yml");
-requireRepositoryToolchain(reusableDeploy, "reusable deploy workflow");
-has(reusableDeploy, "workflow_call:", "production deploy must be callable only as a reusable workflow");
-expect(!reusableDeploy.includes("workflow_dispatch:"), "production deploy must not expose an arbitrary manual dispatch path");
-expect(!reusableDeploy.includes("push:"), "production deploy must not expose a branch or tag push trigger");
-has(reusableDeploy, "environment: production", "production deploy must use the protected production environment");
-has(reusableDeploy, "ref: ${{ inputs.tag }}", "production deploy must checkout the exact released tag");
-has(reusableDeploy, "SHARKTANK_RELEASE: ${{ inputs.tag }}", "production deploy must bind exact reusable release identity");
-has(reusableDeploy, "SHARKTANK_RELEASE_WORKFLOW_REF: ${{ github.workflow_ref }}", "production deploy must bind the caller Release workflow identity");
-has(reusableDeploy, 'node "$RUNNER_TEMP/sharktank-release-tools/scripts/release-identity.mjs"', "production deploy must revalidate exact release identity");
-has(reusableDeploy, 'node "$RUNNER_TEMP/sharktank-release-tools/scripts/deploy-prod.mjs"', "reusable deploy workflow must own production deployment");
+expect(!existsSync(join(root, ".github/workflows/deploy.yml")), "old deploy workflow must be removed");
 expect(packageJson.scripts?.["tag:release"] === "node scripts/release-tag.mjs", "release tagging must expose one guarded command");
 expect(packageJson.scripts?.["test:release-tagging"] === "node --test scripts/release-tag-cases.mjs", "release tagging must have focused disposable-Git coverage");
 expect(packageJson.scripts?.["test:release-publication"] === "node --test scripts/release-publication-cases.mjs", "release publication must have focused create-or-verify coverage");
 expect(packageJson.scripts?.["check:release-workflow"] === "node --test scripts/release-workflow-cases.mjs", "release workflow must have focused behavior coverage");
 expect(packageJson.scripts?.["test:release-identity"] === "node --test scripts/release-identity-cases.mjs", "release identity must have focused behavior coverage");
-expect(packageJson.scripts?.["test:deploy-prod"] === "node --test scripts/deploy-prod-cases.mjs", "production deploy guard must have focused behavior coverage");
+expect(packageJson.scripts?.["check:platform"] === "node platform/conformance/cli.mjs pin && node platform/conformance/cli.mjs wrangler --worker sharktank", "platform pin and conformance must be in the canonical gate");
 expect(packageJson.scripts?.["check:release-identity"] === "node scripts/release-identity.mjs", "release workflow must expose the reusable identity gate");
 expect(packageJson.scripts?.["check:implementation-plan"] === "node --test scripts/implementation-plan-cases.mjs && node scripts/check-implementation-plan.mjs", "implementation plan must have focused current/future queue coverage");
 has(release, 'run: node "$RUNNER_TEMP/sharktank-release-tools/scripts/release-identity.mjs"', "release verify must run exact release identity validation");
 has(release, "run: npm run audit:dependencies", "release verify must run the separate network advisory gate");
 expect(packageJson.scripts?.["audit:dependencies"] === "node scripts/dependency-advisories.mjs", "network advisory command must use the committed policy");
 expect(packageJson.scripts?.["test:dependency-advisories"] === "node --test scripts/dependency-advisory-cases.mjs", "advisory policy must have pure cases");
-const deploy = read("scripts/deploy-prod.mjs");
-has(deploy, "SHARKTANK_RELEASE", "deployment must bind to release identity");
-has(deploy, "tagsAtHead.includes(release)", "deployment must require the release tag at HEAD");
-has(deploy, "if (dryRun) loadDotEnv();", "local dotenv authority must be limited to dry-run");
-expect(!/^loadDotEnv\(\);$/m.test(deploy), "real production deploy must not load local dotenv authority");
-has(deploy, 'env.GITHUB_ACTIONS !== "true"', "real production deploy must require GitHub Actions");
-has(deploy, "SHARKTANK_RELEASE_WORKFLOW_REF", "real production deploy must require caller Release workflow identity");
-has(deploy, "validateReleaseIdentity", "real production deploy must revalidate exact annotated release identity");
-expect(packageJson.scripts?.dev === "node scripts/local.mjs", "dev must use the safe whole-stack lifecycle");
-expect(packageJson.scripts?.local === packageJson.scripts?.dev, "local and dev must share one lifecycle implementation");
+expect(!existsSync(join(root, "scripts/deploy-prod.mjs")), "old deploy script must be removed");
 expect(packageJson.scripts?.["dev:worker"] === "wrangler dev --port 8787", "dev:worker must be the explicit Worker-only path");
 expect(packageJson.scripts?.start === "npm run dev:worker", "start must preserve Worker-only behavior through the explicit command");
 expect(packageJson.scripts?.["check:local-readiness"] === "node --test scripts/local-readiness-cases.mjs", "local readiness must have focused behavior coverage");
 
 for (const requiredCheck of [
-  "npm run test:plan-queue","npm run check:implementation-plan","npm run test:release-tagging","npm run test:release-publication","npm run check:release-workflow","npm run test:release-identity","npm run test:deploy-prod",
+  "npm run test:plan-queue","npm run check:implementation-plan","npm run test:release-tagging","npm run test:release-publication","npm run check:release-workflow","npm run test:release-identity","npm run check:platform",
   "npm run typecheck","npm test","npm run build","npm run check:repository-baseline",
   "npm run check:change-contract","npm run test:github-settings","npm run check:history","npm run test:public-secrets","npm run check:public-secrets","npm run check:provenance",
   "npm run check:local-readiness","npm run check:dev-command","npm run check:local-http","npm run test:dependency-advisories","npm run check:whitespace",

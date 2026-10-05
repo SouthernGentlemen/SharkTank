@@ -1,3 +1,7 @@
+import { readFileSync } from "node:fs";
+
+const baselineCommit = JSON.parse(readFileSync(new URL("../platform/vendor.lock.json", import.meta.url), "utf8")).commit;
+
 function jobBlock(workflow, jobName) {
   const jobsMarker = /^jobs:\s*$/m.exec(workflow);
   if (!jobsMarker) return null;
@@ -64,71 +68,7 @@ function hasFullHistoryCheckout(block) {
   return Boolean(block?.includes("uses: actions/checkout@") && block.includes("fetch-depth: 0"));
 }
 
-function deployTriggerFailures(workflow) {
-  const lines = workflow.split("\n");
-  const on = blockLines(lines, "on", 0);
-  if (!on) return ["deploy workflow must define workflow_call"];
-
-  const events = on
-    .filter((line) => line.trim() && indentation(line) === 2 && /^[A-Za-z0-9_-]+:\s*$/.test(line.trim()))
-    .map((line) => line.trim().slice(0, -1));
-
-  if (events.length !== 1 || events[0] !== "workflow_call") {
-    return ["deploy workflow must be callable only from another workflow"];
-  }
-  return [];
-}
-
-export function validateProductionDeployWorkflow(workflow) {
-  const failures = deployTriggerFailures(workflow);
-  const deploy = jobBlock(workflow, "deploy");
-
-  if (!deploy) {
-    failures.push("deploy workflow must define deploy");
-    return failures;
-  }
-
-  if (jobValue(deploy, "environment") !== "production") failures.push("deploy must retain the protected production environment");
-  if (!deploy.includes("group: sharktank-production")) failures.push("deploy must retain serialized production concurrency");
-  if (!hasFullHistoryCheckout(deploy)) failures.push("deploy must checkout full Git/tag history");
-  if (!deploy.includes("ref: ${{ inputs.tag }}")) failures.push("deploy must checkout the exact input tag");
-  if (!deploy.includes("git fetch origin refs/heads/main:refs/remotes/origin/main")) failures.push("deploy must fetch accepted main ancestry");
-  if (!deploy.includes("node-version-file: .node-version")) failures.push("deploy must use the repository Node authority");
-  if (!deploy.includes('npm install --global "$package_manager"')) failures.push("deploy must install the repository npm authority");
-  if (!deploy.includes("run: npm ci")) failures.push("deploy must install locked dependencies");
-  if (!deploy.includes("SHARKTANK_RELEASE: ${{ inputs.tag }}")) failures.push("deploy must bind release identity from the workflow input");
-  if (!deploy.includes("SHARKTANK_EXPECTED_SHA: ${{ inputs.expected_sha }}")) failures.push("deploy must bind the accepted commit SHA");
-  if (!deploy.includes("SHARKTANK_RELEASE_WORKFLOW_REF: ${{ github.workflow_ref }}\n          SHARKTANK_RELEASE_CHECKOUT: ${{ github.workspace }}")) failures.push("deploy must bind caller release workflow identity");
-  if (!deploy.includes('[ "$GITHUB_EVENT_NAME" = "workflow_dispatch" ]')) failures.push("deploy must require explicit release dispatch");
-  if (!deploy.includes('[ "$GITHUB_REF" = "refs/heads/main" ]')) failures.push("deploy must require the main Release workflow ref");
-  if (!deploy.includes('node "$RUNNER_TEMP/sharktank-release-tools/scripts/release-identity.mjs"')) failures.push("deploy must revalidate exact annotated release identity");
-  if (!deploy.includes('git show "$GITHUB_SHA:scripts/release-identity.mjs"')) failures.push("deploy must load the current release identity guard");
-  if (!deploy.includes('git show "$GITHUB_SHA:scripts/deploy-prod.mjs"')) failures.push("deploy must load the current production guard");
-  if (!deploy.includes("SHARKTANK_RELEASE_CHECKOUT: ${{ github.workspace }}")) failures.push("deploy must bind the exact released checkout");
-  if (!deploy.includes("CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}")) failures.push("deploy must retain the Cloudflare token boundary");
-  if (!deploy.includes("CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}")) failures.push("deploy must retain the Cloudflare account boundary");
-  if (!deploy.includes('node "$RUNNER_TEMP/sharktank-release-tools/scripts/deploy-prod.mjs"')) failures.push("deploy must use the guarded production deployment command");
-  if (!deploy.includes("id: deploy")) failures.push("production mutation must expose the uploaded Version ID");
-  if (!deploy.includes('echo "version=$version" >> "$GITHUB_OUTPUT"')) failures.push("production mutation must publish the uploaded Version ID");
-  if (!deploy.includes("npx wrangler deployments list --env wizardgangprod")) failures.push("deploy must confirm provider deployment state");
-  if (!deploy.includes("VERSION: ${{ steps.deploy.outputs.version }}")) failures.push("provider proof must bind the uploaded Version ID");
-  if (!deploy.includes('grep -q "$VERSION"')) failures.push("provider proof must require the uploaded Version ID");
-  if (!deploy.includes("grep -q '(100%)'")) failures.push("deploy must prove the uploaded version serves 100% of traffic");
-  if (!deploy.includes("live_revision=$(jq -r .revision < /tmp/version.json)")) failures.push("deploy must verify the immutable public release revision when reachable");
-  if (!deploy.includes("https://sharktank.wizardgang.ai/play/")) failures.push("deploy must verify the public full-3D game route when reachable");
-  if (!deploy.includes("public /play/ did not reference a built JavaScript asset")) failures.push("deploy must verify a built public game asset when reachable");
-  if (!deploy.includes("cf-mitigated: *challenge")) failures.push("public edge fallback must remain limited to the documented managed challenge");
-
-  const productionIndex = deploy.indexOf('node "$RUNNER_TEMP/sharktank-release-tools/scripts/deploy-prod.mjs"');
-  const providerIndex = deploy.indexOf("npx wrangler deployments list --env wizardgangprod");
-  if (productionIndex >= 0 && providerIndex >= 0 && providerIndex <= productionIndex) {
-    failures.push("authenticated provider proof must follow the production mutation");
-  }
-
-  return failures;
-}
-
-export function validateReleaseWorkflow(workflow, deployWorkflow) {
+export function validateReleaseWorkflow(workflow) {
   const failures = releaseTriggerFailures(workflow);
   const verify = jobBlock(workflow, "verify");
   const publish = jobBlock(workflow, "publish-release");
@@ -175,24 +115,22 @@ export function validateReleaseWorkflow(workflow, deployWorkflow) {
   }
   if (deploy) {
     if (jobValue(deploy, "needs") !== "publish-release") failures.push("deploy-production must depend on successful publish-release");
-    if (jobValue(deploy, "if") !== "vars.PRODUCTION_DEPLOY_ENABLED == 'true'") failures.push("deploy-production must retain the PRODUCTION_DEPLOY_ENABLED opt-in");
-    if (jobValue(deploy, "uses") !== "./.github/workflows/deploy.yml") failures.push("deploy-production must call the reusable production workflow");
+    if (jobValue(deploy, "if") !== null) failures.push("deploy-production must follow protected approval without a variable gate");
+    if (jobValue(deploy, "uses") !== `Wizard-Gang/baseline/.github/workflows/deploy-worker.yml@${baselineCommit}`) failures.push("deploy-production must call the pinned baseline workflow");
+    if (!deploy.includes("worker: sharktank")) failures.push("deploy-production must select the sharktank Worker");
     if (!deploy.includes("tag: ${{ inputs.tag }}")) failures.push("deploy-production must pass the exact dispatched release tag");
     if (!deploy.includes("expected_sha: ${{ inputs.expected_sha }}")) failures.push("deploy-production must pass the accepted commit SHA");
     if (!deploy.includes("secrets: inherit")) failures.push("deploy-production must inherit the caller secret boundary");
     if (deploy.includes("runs-on:") || deploy.includes("steps:")) failures.push("deploy-production must not embed production steps in release.yml");
   }
 
-  if (typeof deployWorkflow !== "string") failures.push("release validation requires the reusable deploy workflow");
-  else failures.push(...validateProductionDeployWorkflow(deployWorkflow));
-
   return failures;
 }
 
-export function validateVersionToProductionChain({ tagWorkflow, releaseWorkflow, deployWorkflow }) {
+export function validateVersionToProductionChain({ tagWorkflow, releaseWorkflow }) {
   return [
     ...validateReleaseTagWorkflow(tagWorkflow).map((failure) => `tag stage: ${failure}`),
-    ...validateReleaseWorkflow(releaseWorkflow, deployWorkflow).map((failure) => `release/deploy stage: ${failure}`),
+    ...validateReleaseWorkflow(releaseWorkflow).map((failure) => `release/deploy stage: ${failure}`),
   ];
 }
 
