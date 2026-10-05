@@ -71,18 +71,19 @@ for (const needle of [
   '"not_found_handling": "none"',
   '"run_worker_first": true',
   '"class_name": "Room"',
-  '"class_name": "Lobby"',
   '"tag": "v1"',
 ]) has(wrangler, needle, "Wrangler baseline");
+expect(!/\b(?:LOBBY|Lobby)\b/.test(wrangler), "Wrangler must bind only Room");
+expect((wrangler.match(/"class_name": "Room"/g) ?? []).length === 2, "Wrangler must bind Room once in local and production config");
+expect(!existsSync(join(root, "src/worker/lobby-do.ts")), "retired Lobby class must be deleted");
 for (const retired of ["R2_ASSETS", "r2_buckets", "triggers", "crons", "version_metadata", "CF_VERSION_METADATA", "AUDIT_GENERATION", "GAME_LOG_GENERATION", "BILLING_HARD_LIMIT_USD", "R2_BUCKET_NAME", "R2_PREFIX"]) expect(!wrangler.includes(retired), "Wrangler must omit retired billing/backup binding: " + retired);
 
 const gameDocument = read("src/client/game-document.tsx");
 const clientMain = read("src/client/main.tsx");
 const worker = read("src/worker/index.ts");
-const lobby = read("src/worker/lobby-do.ts");
 expect(!/\bscheduled\s*\(/.test(worker), "Worker must have no scheduled handler");
-expect(!/\b(?:runBackup|runRestoreDrill|R2_ASSETS)\b/.test(worker + lobby), "Worker and Lobby must have no R2 backup path");
-expect(!/\b(?:billingWindow|spendHistory|backupState|hardLimitUsd)\b/.test(lobby), "Lobby must have no billing or backup state");
+expect(!/\b(?:runBackup|runRestoreDrill|R2_ASSETS)\b/.test(worker), "Worker must have no R2 backup path");
+expect(!worker.includes('export { Lobby }'), "Worker must export only Room");
 const responses = read("src/worker/responses.ts");
 const architecture = read("docs/ARCHITECTURE.md");
 has(gameDocument, "renderToStaticMarkup(<GameDocument />)", "/play/ document must render from React at build time");

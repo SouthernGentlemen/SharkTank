@@ -28,7 +28,6 @@ const focusTrap = read("../vendor/ModuleReact3Fiber/src/client/a11y/useFocusTrap
 const input = read("../vendor/ModuleReact3Fiber/src/client/game/useLocalInput.ts");
 const theme = read("../vendor/ModuleReact3Fiber/src/client/ui/theme.css");
 const settings = read("../vendor/ModuleReact3Fiber/src/client/ui/Settings.tsx");
-const lobby = read("../src/worker/lobby-do.ts");
 const protocol = read("../vendor/ModuleReact3Fiber/src/protocol/index.ts");
 const gameViewport = read("../vendor/ModuleReact3Fiber/src/client/game/GameViewport.tsx");
 const gameScreen = read("../vendor/ModuleReact3Fiber/src/client/ui/GameScreen.tsx");
@@ -222,6 +221,6 @@ describe("canonical game surface", () => {
     expect(worker).not.toContain('if (path === "/robots.txt")');
     expect(worker).not.toContain('if (path === "/sitemap.xml")');
     expect(protocol).not.toContain('leaderboard: "/api/leaderboard"');
-    expect(lobby).not.toContain('ctx.storage.put("global"');
+    expect(worker).not.toContain('export { Lobby }');
   });
 });

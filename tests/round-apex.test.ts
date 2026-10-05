@@ -244,7 +244,6 @@ describe("ST-124 authoritative round and Apex loop", () => {
     const screen = read("../vendor/ModuleReact3Fiber/src/client/ui/GameScreen.tsx");
     const theme = read("../vendor/ModuleReact3Fiber/src/client/ui/theme.css");
     const roomDo = read("../src/worker/room-do.ts");
-    const lobby = read("../src/worker/lobby-do.ts");
     const worker = read("../src/worker/index.ts");
     const app = read("../vendor/ModuleReact3Fiber/src/client/App.tsx");
     const settings = read("../vendor/ModuleReact3Fiber/src/client/settings/SettingsContext.tsx");
@@ -256,7 +255,7 @@ describe("ST-124 authoritative round and Apex loop", () => {
     expect(screen).toContain("roundUi?.phase !== \"result\"");
     expect(theme).toMatch(/@media \(max-width:560px\)\{[\s\S]*\.hud-card--round\{min-width:94px\}/);
     expect(roomDo).not.toContain("profile-result");
-    expect(lobby).not.toContain('path.endsWith("/profile")');
+    expect(worker).not.toContain('export { Lobby }');
     expect(worker).not.toContain("x-profile-id");
     expect(app).toContain("onAuthoritativeResult={recordBest}");
     expect(settings).toContain('const STORAGE_KEY = "sharktank.player.v1"');

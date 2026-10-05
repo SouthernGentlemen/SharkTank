@@ -106,15 +106,13 @@ describe("ST-131 full-3D product acceptance", () => {
 
   it("serves only room-1 as SharkTank with eight human seats and twenty-four bots", () => {
     const worker = read("../src/worker/index.ts");
-    const lobby = read("../src/worker/lobby-do.ts");
     const room = read("../src/worker/room-do.ts");
     const gameDocument = read("../src/client/game-document.tsx");
 
     expect(worker).toContain('const ROOM_ID = "room-1", ROOM_NAME = "SharkTank";');
     expect(worker).toContain("const ALLOWED_ROOMS = new Set([ROOM_ID]);");
-    expect(lobby).toContain('const CATALOG = [{ id: "room-1", name: "SharkTank" }] as const;');
     for (const retiredRoom of ["room-2", "room-3", "room-4"]) {
-      expect(lobby).not.toContain(`id: "${retiredRoom}"`);
+      expect(worker).not.toContain(`id: "${retiredRoom}"`);
     }
     expect(room).not.toContain('const ROOM_NAME = "SharkTank";');
     expect(room).toContain("CAPACITY = 8, BOT_COUNT = SHARK_CAPACITY - CAPACITY");
@@ -129,7 +127,6 @@ describe("ST-131 full-3D product acceptance", () => {
     const menu = read("../vendor/ModuleReact3Fiber/src/client/ui/MainMenu.tsx");
     const worker = read("../src/worker/index.ts");
     const room = read("../src/worker/room-do.ts");
-    const lobby = read("../src/worker/lobby-do.ts");
     const protocol = read("../vendor/ModuleReact3Fiber/src/protocol/index.ts");
 
     expect(settings).toContain('const STORAGE_KEY = "sharktank.player.v1"');
@@ -145,9 +142,7 @@ describe("ST-131 full-3D product acceptance", () => {
       expect(room).not.toContain(retired);
     }
     expect(protocol).not.toContain('profile: "/api/profile"');
-    expect(lobby).not.toContain('path.endsWith("/profile")');
-    expect(lobby).not.toContain('path.endsWith("/profile-result")');
-    expect(lobby).not.toContain('source === "public"');
+    expect(worker).not.toContain('export { Lobby }');
   });
 
   it("accepts desktop keyboard, optional mouse look and independent mobile dual-stick intent", () => {
@@ -280,8 +275,8 @@ describe("ST-131 full-3D product acceptance", () => {
 
     expect(wrangler).toContain('"name": "ROOM"');
     expect(wrangler).toContain('"class_name": "Room"');
-    expect(wrangler).toContain('"name": "LOBBY"');
-    expect(wrangler).toContain('"class_name": "Lobby"');
+    expect(wrangler).not.toContain('"name": "LOBBY"');
+    expect(wrangler).not.toContain('"class_name": "Lobby"');
     expect(wrangler).toContain('"tag": "v1"');
     expect(ci).toContain("run: npm run check");
     expect(ci).toContain("run: npm run audit:dependencies");
