@@ -47,6 +47,7 @@ const isRetiredTarget = (path) =>
   path === "/audit.json" ||
   path === "/audit.jsonl" ||
   path === "/audit/status.json" ||
+  path === "/admin" || path.startsWith("/admin/") ||
   path.startsWith("/audit/game/") ||
   path.startsWith("/audit/replay/") ||
   path.startsWith("/logs/game/");
@@ -325,53 +326,35 @@ async function main() {
   if (missingAssetCsp.includes("'unsafe-inline'")) fail("unknown static asset CSP still allows unsafe-inline");
   assertNotGameDocument("/assets/not-a-real-asset.js", await missingAsset.text());
 
-  const adminDenied = await request("/admin/");
-  if (adminDenied.status !== 401) fail(`unauthenticated /admin/ expected 401, got ${adminDenied.status}`);
-  if (!(adminDenied.headers.get("www-authenticate") || "").startsWith("Basic realm=")) fail("unauthenticated /admin/ lost its authentication challenge");
-  const auth = Buffer.from("ops:local-acceptance-only").toString("base64");
-  const admin = await fetch(`${base}/admin/`, { redirect: "manual", headers: { authorization: `Basic ${auth}`, "cache-control": "no-cache" } });
-  if (admin.status !== 200) fail(`authenticated /admin/ expected 200, got ${admin.status}`);
-  if (!(admin.headers.get("content-type") || "").startsWith("text/html")) fail("authenticated /admin/ must remain HTML");
-  if (admin.headers.get("cache-control") !== "no-store") fail("authenticated /admin/ must remain no-store");
-  const adminHtml = await admin.text();
-  assertStrictPresentation("/admin/", admin, adminHtml);
-  if (!adminHtml.includes("<h1>Admin</h1>")) fail("authenticated /admin/ lost its control-room content");
-  if (adminHtml.includes('href="/controls/')) fail("authenticated /admin/ still links to the retired register");
-  for (const retiredControl of ["/admin/security-report", "/admin/security-resolve", "/admin/test-alert", "admin-security-report", "test-alert-form"]) {
-    if (adminHtml.includes(retiredControl)) fail(`authenticated /admin/ still exposes retired control ${retiredControl}`);
+  for (const adminPath of ["/admin", "/admin/", "/admin/status.json", "/admin/backup.json", "/admin/log.json", "/admin/maintenance"]) {
+    const response = await request(adminPath);
+    if (response.status !== 404) fail(`${adminPath} expected 404, got ${response.status}`);
+    if (response.headers.has("www-authenticate")) fail(`${adminPath} must not challenge for operator credentials`);
+    const body = await response.text();
+    assertStrictPresentation(adminPath, response, body);
+    assertNotGameDocument(adminPath, body);
   }
-
-  const adminStatus = await fetch(`${base}/admin/status.json`, { redirect: "manual", headers: { authorization: `Basic ${auth}`, "cache-control": "no-cache" } });
-  if (adminStatus.status !== 200) fail(`authenticated /admin/status.json expected 200, got ${adminStatus.status}`);
-  const adminStatusBody = await adminStatus.json().catch(() => null);
-  if (!adminStatusBody?.instance?.bootId) fail("/admin/status.json lost operator instance status");
-  if (!Array.isArray(adminStatusBody?.rooms)) fail("/admin/status.json lost room status");
-  if (!adminStatusBody?.billingWindow) fail("/admin/status.json lost billing status");
+  const retiredMutation = await fetch(`${base}/admin/maintenance`, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ enabled: true }) });
+  if (retiredMutation.status !== 404) fail(`POST /admin/maintenance expected 404, got ${retiredMutation.status}`);
+  const credentialedAdmin = await fetch(`${base}/admin/`, { headers: { authorization: "Basic b3BzOm9ic29sZXRl" } });
+  if (credentialedAdmin.status !== 404) fail(`credentialed /admin/ expected 404, got ${credentialedAdmin.status}`);
 
   for (const retiredPath of retiredOperatorAliases) {
     const retired = await fetch(`${base}${retiredPath}`, {
       redirect: "manual",
-      headers: { authorization: `Basic ${auth}`, "cache-control": "no-cache" },
+      headers: { "cache-control": "no-cache" },
     });
-    if (retired.status !== 404) fail(`authenticated ${retiredPath} expected 404, got ${retired.status}`);
-    if (retired.headers.has("location")) fail(`authenticated ${retiredPath} must not redirect`);
-    if (!(retired.headers.get("content-type") || "").startsWith("text/html")) fail(`authenticated ${retiredPath} must use the normal HTML 404`);
+    if (retired.status !== 404) fail(`${retiredPath} expected 404, got ${retired.status}`);
+    if (retired.headers.has("location")) fail(`${retiredPath} must not redirect`);
+    if (!(retired.headers.get("content-type") || "").startsWith("text/html")) fail(`${retiredPath} must use the normal HTML 404`);
     const body = await retired.text();
     assertStrictPresentation(retiredPath, retired, body);
     assertNotGameDocument(retiredPath, body);
-    if (!body.includes("<h1>Route not found</h1>")) fail(`authenticated ${retiredPath} lost the standard not-found presentation`);
+    if (!body.includes("<h1>Route not found</h1>")) fail(`${retiredPath} lost the standard not-found presentation`);
   }
 
-  const retiredSwitch = await fetch(`${base}/admin/switch`, {
-    redirect: "manual",
-    headers: { authorization: `Basic ${auth}`, "cache-control": "no-cache" },
-  });
-  if (retiredSwitch.status !== 404) fail(`authenticated /admin/switch expected 404, got ${retiredSwitch.status}`);
-  const retiredSwitchHtml = await retiredSwitch.text();
-  assertStrictPresentation("/admin/switch", retiredSwitch, retiredSwitchHtml);
-  assertNotGameDocument("/admin/switch", retiredSwitchHtml);
 
-    const home = pages.get("/") || "";
+  const home = pages.get("/") || "";
   const headerNav = home.match(/<header[\s\S]*?<nav aria-label="Primary">([\s\S]*?)<\/nav>/)?.[1] || "";
   const primaryLinks = [...headerNav.matchAll(/<a href="([^"]+)">([^<]+)<\/a>/g)].map((match) => [match[1], match[2]]);
   if (JSON.stringify(primaryLinks) !== JSON.stringify([["/", "Overview"], ["/play/", "Play"]])) fail(`primary navigation is not the two-route contract: ${JSON.stringify(primaryLinks)}`);
@@ -425,7 +408,7 @@ async function main() {
   if (robots.status !== 200) fail(`robots.txt expected 200, got ${robots.status}`);
   const robotsBody = await robots.text();
   const disallowed = [...robotsBody.matchAll(/^Disallow: (.+)$/gm)].map((match) => match[1]);
-  const expectedDisallowed = ["/admin/", "/*.json$", "/*.jsonl$"];
+  const expectedDisallowed = ["/*.json$", "/*.jsonl$"];
   if (JSON.stringify(disallowed) !== JSON.stringify(expectedDisallowed)) fail(`robots.txt references an unexpected route set: ${JSON.stringify(disallowed)}`);
 
   const sitemap = await (await request("/sitemap.xml")).text();
@@ -437,7 +420,7 @@ async function main() {
     console.error(`\n${failures.length} public IA check(s) failed.`);
     process.exit(1);
   }
-  console.log(`Verified ${canonical.length} canonical pages, strict no-unsafe-inline CSP/generated-HTML contracts, explicit /play/ Static Assets routing with hashed/lazy Vite assets, application/index/asset misses that cannot fall back to the game document, admin/404 HTML, health API, retired tank/client-telemetry 404s and retired-endpoint 404s, a live Room Durable Object WebSocket welcome plus 426 non-upgrade behavior, primary navigation, unique IDs, internal anchors, assets, ${Object.keys(slashRedirects).length} canonical slash redirects, retired compatibility/API/operator aliases, surviving robots.txt entries, and canonical sitemap.`);
+  console.log(`Verified ${canonical.length} canonical pages, strict no-unsafe-inline CSP/generated-HTML contracts, explicit /play/ Static Assets routing with hashed/lazy Vite assets, application/index/asset misses that cannot fall back to the game document, retired admin/404 HTML, health API, retired tank/client-telemetry 404s and retired-endpoint 404s, a live Room Durable Object WebSocket welcome plus 426 non-upgrade behavior, primary navigation, unique IDs, internal anchors, assets, ${Object.keys(slashRedirects).length} canonical slash redirects, retired compatibility/API/operator aliases, surviving robots.txt entries, and canonical sitemap.`);
 }
 
 main().catch((error) => { console.error(error); process.exit(1); });

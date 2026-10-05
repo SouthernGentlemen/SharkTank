@@ -1,8 +1,10 @@
 import test from "node:test";
 import assert from "node:assert/strict";
+import { readFileSync } from "node:fs";
 import { deploymentPreconditionFailures, deploymentVariables, productReleaseIdentity } from "./deploy-prod.mjs";
 
 const release = "v1.2.3-r1";
+const deploySource = readFileSync(new URL("./deploy-prod.mjs", import.meta.url), "utf8");
 const validEnv = {
   GITHUB_ACTIONS: "true",
   GITHUB_REPOSITORY: "Wizard-Gang/SharkTank",
@@ -89,6 +91,11 @@ test("real deployment requires protected-environment Cloudflare credentials", ()
   const failures = real({ env: { CLOUDFLARE_ACCOUNT_ID: undefined, CLOUDFLARE_API_TOKEN: undefined } });
   assert.match(failures.join("\n"), /CLOUDFLARE_ACCOUNT_ID is required/);
   assert.match(failures.join("\n"), /CLOUDFLARE_API_TOKEN is required/);
+});
+
+test("deployment does not require retired operator secrets", () => {
+  assert.doesNotMatch(deploySource, /OPS_TOKEN|OPS_USERNAME|wrangler", "secret", "list"/);
+  assert.deepEqual(real(), []);
 });
 
 test("local dry-run keeps tag and account requirements without GitHub Actions", () => {

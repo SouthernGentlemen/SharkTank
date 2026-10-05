@@ -59,13 +59,13 @@ describe("public accessibility contract", () => {
     expect(humanDocs).toContain("target.focus({ preventScroll: true })");
   });
 
-  it("retires the public evidence routes without removing protected operator status", () => {
+  it("retires public evidence and operator routes", () => {
     expect(worker).not.toContain('if (path === "/evidence")');
     expect(worker).not.toContain('if (path === "/evidence/")');
     expect(worker).not.toContain('if (path === "/status.json")');
     expect(worker).not.toContain('if (path === "/spend.json")');
     expect(reactPresentation).not.toContain("renderEvidenceDocument");
-    expect(worker).toContain('if (path === "/admin/status.json")');
+    expect(worker).not.toContain('if (path === "/admin/status.json")');
   });
 
 
@@ -239,7 +239,7 @@ describe("canonical public information architecture", () => {
 
   it("keeps only the canonical slash redirects and retires compatibility aliases", () => {
     expect(routes).not.toContain("HUMAN_REDIRECTS");
-    expect(routes).toContain('return path === "/admin" || path.startsWith("/admin/");');
+    expect(routes).not.toContain("isOpsPath");
 
     expect(worker).toContain('if (path === "/play") return movedTo(url, "/play/");');
     expect(worker).not.toContain('if (path === "/evidence") return movedTo(url, "/evidence/");');
@@ -265,9 +265,9 @@ describe("canonical public information architecture", () => {
       "(?:arena|uno|x4|21|game|checkers|battleship|3d|shark-?run)",
     ]) expect(worker).not.toContain(retiredLiteral);
 
-    expect(worker).toContain('if (path === "/admin/status.json")');
-    expect(worker).toContain('if (path === "/admin/log.json")');
-    expect(worker).toContain('if (path === "/admin/log.jsonl")');
+    expect(worker).not.toContain('if (path === "/admin/status.json")');
+    expect(worker).not.toContain('if (path === "/admin/log.json")');
+    expect(worker).not.toContain('if (path === "/admin/log.jsonl")');
     expect(worker).not.toContain("path.match(/^\\/admin\\/game\\/");
     expect(worker).not.toContain("path.match(/^\\/admin\\/replay\\/");
     expect(protocol).not.toContain('leaderboard: "/api/leaderboard"');

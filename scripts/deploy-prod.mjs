@@ -121,14 +121,6 @@ function main() {
   const deploymentVars = deploymentVariables(release);
 
   run("npm", ["run", "build"]);
-  if (!dryRun) {
-    const secrets = run("npx", ["wrangler", "secret", "list", "--env", env], true);
-    const missing = ["OPS_TOKEN", "OPS_USERNAME"].filter((name) => !secrets.includes(name));
-    if (missing.length) {
-      console.error(`Refusing production deploy: missing required secrets: ${missing.join(", ")}. Configure them through the protected production environment/provider boundary.`);
-      process.exit(1);
-    }
-  }
   run("npx", ["wrangler", "deploy", ...(dryRun ? ["--dry-run"] : []), "--env", env, ...deploymentVars.flatMap((value) => ["--var", value])]);
 }
 

@@ -15,7 +15,6 @@ export class Room {
   private readonly sessions = new Map<WebSocket, Session>();
   private timer: ReturnType<typeof setInterval> | null = null;
   private roomId = "room-local";
-  private maintenance = false;
 
   constructor(private readonly ctx: DurableObjectState) {
     this.room = createRoom({ id: this.ctx.id.toString(), seed: `seed-${this.ctx.id.toString().slice(0, 8)}`, oceanRadius: OCEAN_RADIUS });
@@ -30,12 +29,6 @@ export class Room {
   async fetch(request: Request): Promise<Response> {
     const url = new URL(request.url);
     this.roomId = url.searchParams.get("roomId") ?? this.roomId;
-    if (url.pathname.endsWith("/maintenance")) {
-      this.maintenance = url.searchParams.get("enabled") === "1";
-      if (this.maintenance) for (const ws of [...this.sessions.keys()]) this.close(ws, 1012, "maintenance");
-      return roomJson({ ok: true, maintenance: this.maintenance });
-    }
-    if (this.maintenance) return new Response("maintenance", { status: 503, headers: { "retry-after": "60" } });
     if (request.method !== "GET" || request.headers.get("Upgrade")?.toLowerCase() !== "websocket") return new Response("expected websocket", { status: 426 });
 
     const pair = new WebSocketPair(), client = pair[0], server = pair[1];
@@ -99,5 +92,3 @@ export class Room {
   private send(ws: WebSocket, msg: ServerMessagePayload): void { try { ws.send(JSON.stringify(withRealtimeProtocol(msg))); } catch { this.dropSession(ws); } }
   private broadcast(msg: ServerMessagePayload): void { const body = JSON.stringify(withRealtimeProtocol(msg)); for (const s of [...this.sessions.values()]) if (s.joined) { try { s.ws.send(body); } catch { this.dropSession(s.ws); } } }
 }
-
-function roomJson(data: unknown, status = 200): Response { return new Response(JSON.stringify(data), { status, headers: { "content-type": "application/json; charset=utf-8", "cache-control": "no-store", "x-content-type-options": "nosniff" } }); }

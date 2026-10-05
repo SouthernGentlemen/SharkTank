@@ -197,10 +197,6 @@ export function useRoomSocket(
           return;
         }
         if (closedByUs) return;
-        if (event.code === 1012 && event.reason === "maintenance") {
-          window.location.assign("/");
-          return;
-        }
         const transition = connectionAfterClose(event.code, event.reason, failedAttempts);
         failedAttempts = transition.failedAttempts;
         setStatus(transition.status);

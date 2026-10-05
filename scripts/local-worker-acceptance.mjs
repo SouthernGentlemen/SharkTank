@@ -8,7 +8,6 @@ import { fileURLToPath } from "node:url";
 
 export const LOCAL_ACCEPTANCE_PORT = 8792;
 export const LOCAL_ACCEPTANCE_HOST = "127.0.0.1";
-const LOCAL_ACCEPTANCE_TOKEN = "local-acceptance-only";
 const PROJECT_ROOT = fileURLToPath(new URL("../", import.meta.url));
 
 export function createAcceptanceEnvFile({
@@ -21,7 +20,7 @@ export function createAcceptanceEnvFile({
   const path = join(directory, "acceptance.env");
 
   try {
-    writeFileFn(path, `OPS_TOKEN=${JSON.stringify(LOCAL_ACCEPTANCE_TOKEN)}\n`, {
+    writeFileFn(path, "", {
       encoding: "utf8",
       mode: 0o600,
     });
@@ -139,8 +138,6 @@ export function localWorkerEnvironment(source = process.env) {
     "CLOUDFLARE_ACCOUNT_ID",
     "CLOUDFLARE_EMAIL",
     "CLOUDFLARE_LOAD_DEV_VARS_FROM_DOT_ENV",
-    "OPS_TOKEN",
-    "OPS_USERNAME",
   ]) delete env[name];
   return env;
 }

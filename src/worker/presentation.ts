@@ -1,5 +1,4 @@
 import type { BackupState } from "./lobby-do.js";
-import type { MaintenanceState } from "./env.js";
 import { SECURITY_HEADERS } from "./responses.js";
 import { numberValue, publicBillingWindow, recordValue } from "./presentation-data.js";
 
@@ -35,7 +34,7 @@ function statusLiveScript(): string {
   function value(id,text){var el=document.getElementById(id);if(el)el.textContent=text;}
   function detail(id,text){var el=document.getElementById(id);if(!el||!el.parentNode)return;var d=el.parentNode.querySelector('.metric-detail');if(d)d.textContent=text;}
   function apply(d){
-    var list=d.rooms||[],players=list.reduce(function(n,r){return n+(r.players||0);},0),open=!(d.maintenance&&d.maintenance.enabled);
+    var list=d.rooms||[],players=list.reduce(function(n,r){return n+(r.players||0);},0),open=true;
     if(d.availability){value('status-tank-availability',d.availability.availabilityPercent+'%');detail('status-tank-availability',d.availability.unscheduledDowntimePercent+'% unscheduled downtime');}
     value('status-tank-access',open?'OPEN':'CLOSED');
     detail('status-tank-access',open?'game traffic available':'scheduled gate active');
@@ -139,7 +138,6 @@ const PAGE_CSS = `
   .sr-only{position:absolute;width:1px;height:1px;padding:0;margin:-1px;overflow:hidden;clip:rect(0 0 0 0);clip-path:inset(50%);white-space:nowrap;border:0}
   .live-controls{display:flex;align-items:center;gap:12px;flex-wrap:wrap;margin:0 0 18px}
   .live-controls .sub{margin:0}
-  .server-controls{display:flex;align-items:stretch;gap:10px;flex-wrap:wrap}.server-controls>*{flex:1 1 240px}.control-output{margin-top:12px;white-space:pre-wrap;overflow-wrap:anywhere}
   @media(prefers-reduced-motion:reduce){*,*::before,*::after{animation-duration:.01ms!important;animation-iteration-count:1!important;transition-duration:.01ms!important;scroll-behavior:auto!important}}
   .skip-link{position:absolute;left:-9999px;top:0;z-index:100;padding:10px 16px;border-radius:0 0 10px 0;background:var(--cyan);color:#07131a;font-weight:800;text-decoration:none}.skip-link:focus{left:0}main:focus{outline:none}table caption{caption-side:top;padding:0 0 8px;color:var(--muted);font-size:.78rem;text-align:left}[hidden]{display:none!important}.history-list{display:grid;gap:10px;margin-top:14px}.history-item{display:grid;grid-template-columns:7.2rem 1fr auto;gap:14px;align-items:start;padding:14px;border:1px solid var(--border);border-radius:12px;background:rgba(11,10,20,.48)}.history-sequence{color:var(--cyan);font:800 .76rem/1.4 ui-monospace,monospace}.history-copy strong{display:block}.history-copy p{margin:3px 0;color:var(--muted)}.history-meta{color:var(--faint);font-size:.75rem}.history-receipt{max-width:11rem;overflow:hidden;color:var(--faint);font:700 .72rem/1.4 ui-monospace,monospace;text-overflow:ellipsis;white-space:nowrap}.history-item--focus{border-color:var(--cyan);box-shadow:0 0 0 2px rgba(34,230,255,.28)}.history-pager{display:flex;gap:12px;align-items:center;justify-content:center;margin:16px 0 0;color:var(--muted);font-size:.8rem}.pager-btn{padding:7px 14px;border:1px solid var(--strong);border-radius:999px;background:rgba(11,10,20,.52);color:var(--text);font:inherit;font-weight:700;cursor:pointer}.pager-btn:disabled{opacity:.4;cursor:default}.pager-btn[aria-disabled="true"]{background:none;color:var(--faint);cursor:default}.integrity-line{display:flex;gap:8px;align-items:center;flex-wrap:wrap;color:var(--muted)}.incident-card{margin:0 0 12px}.incident-card--active{border-color:#ff8a1f}.incident-dot{display:inline-block;width:9px;height:9px;margin-right:7px;border-radius:3px;vertical-align:middle}.integrity-line code{overflow-wrap:anywhere}.integrity-badge{display:inline-flex;padding:3px 8px;border:1px solid #4ade80;border-radius:999px;color:#4ade80;font-size:.7rem;font-weight:900;letter-spacing:.07em;text-transform:uppercase}.integrity-badge.verdict-pass{border-color:#4ade80;color:#4ade80}.integrity-badge.verdict-fail{border-color:#ff6b6b;color:#ff6b6b}.integrity-badge.verdict-idle{border-color:var(--strong);color:var(--muted)}
   /* ── Spend ── */
@@ -269,15 +267,12 @@ const PAGE_CSS = `
   @media(max-width:760px){.site-footer{padding:0 12px 44px}.site-footer nav{grid-template-columns:1fr 1fr}}
 
   /* ST-059: CSP-safe presentation. All document styles are external first-party CSS. */
-  .downtime-page{display:grid;min-height:100vh;place-items:center;overflow-x:hidden;text-align:center}.downtime{width:min(720px,calc(100% - 24px));min-width:0;padding:24px}.downtime .card{width:100%;min-width:0;padding:clamp(26px,7vw,52px)}
-  .downtime-mark{width:min(210px,64vw);margin:0 auto 12px;filter:drop-shadow(0 16px 34px rgba(34,230,255,.2))}.downtime-quip{margin:0 auto 22px;color:var(--muted)}.downtime-trigger{display:flex;align-items:center;justify-content:center;gap:10px;width:max-content;max-width:100%;margin:0 auto 22px;padding:8px 12px;border:1px solid var(--border);border-radius:999px;background:rgba(11,10,20,.52);overflow:hidden}.downtime-trigger span{color:var(--faint);font-size:.68rem;font-weight:900;letter-spacing:.1em;text-transform:uppercase}.downtime-trigger strong{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.downtime .action-link{max-width:100%;justify-content:center;text-align:center;white-space:normal}
   .u-m-6-0-10{margin:6px 0 10px}.u-m-14-0-0{margin:14px 0 0}.u-m-12-0-0{margin:12px 0 0}.u-m-8-0-0{margin:8px 0 0}.u-card-heading{margin-top:0;font-size:1.1rem}.u-m-10-0-0{margin:10px 0 0}.u-m-0{margin:0}.u-m-6-0-14{margin:6px 0 14px}.u-m-6-0-0{margin:6px 0 0}.u-incident-heading{margin:0 0 4px;font-size:1.1rem}.u-m-0-0-10{margin:0 0 10px}.u-panel-heading{margin:0 0 10px;font-size:1.1rem}.u-panel-heading-tight{margin:0 0 8px;font-size:1.1rem}.u-mt-0{margin-top:0}.u-ops-pulse-heading{font-size:1rem;letter-spacing:.08em;text-transform:uppercase;color:#b9b4d6}.u-mt-14{margin-top:14px}.u-m-0-0-8{margin:0 0 8px}.u-font-1rem{font-size:1rem}.u-api-description{margin:6px 0 0;color:#b9b4d6}.u-index-heading{margin:0 0 10px;font-size:1.05rem}.coverage-reference{margin-left:8px}
   .tr-axis{fill:#8f89ae;font:500 9px ui-monospace,SFMono-Regular,Consolas,monospace}.tr-value{fill:#22e6ff;font:800 10px ui-monospace,SFMono-Regular,Consolas,monospace}.tr-today{fill:#8f7bff;font:700 9px ui-monospace,SFMono-Regular,Consolas,monospace}
   .ic-axis{fill:#8f89ae;font:500 9px ui-monospace,SFMono-Regular,Consolas,monospace}.ic-lane{fill:#b9b4d6;font:600 11px ui-sans-serif,system-ui,sans-serif}.ic-count{fill:#8f89ae;font-weight:800}a:focus-visible .ic-hit{fill:rgba(255,213,74,.22);stroke:#ffd54a;stroke-width:2}
 
   .tl-lane{fill:#b9b4d6;font:600 11px ui-sans-serif,system-ui,sans-serif}.tl-axis{fill:#8f89ae;font:500 10px ui-monospace,SFMono-Regular,Consolas,monospace}.tl-marker{transition:transform 120ms ease}a:hover .tl-marker,a:focus-visible .tl-marker{transform:translateY(-2px)}a:focus-visible .tl-hit{fill:rgba(255,213,74,.22);stroke:#ffd54a;stroke-width:2}
   .meter-bar{display:block;width:100%;height:9px;overflow:visible}.meter-track{fill:#292544}.meter-ticks{fill:none;stroke:rgba(233,230,255,.22);stroke-width:.5}.meter-fill{fill:#4ade80}.meter-bar.is-amber .meter-fill{fill:#f6c445}.meter-bar.is-red .meter-fill{fill:#ff5f66}.meter-marker{stroke:#e9e6ff;stroke-width:2}
-  @media(prefers-reduced-motion:reduce){.tl-marker{transition:none}}@media(max-width:420px){.downtime{padding:12px}.downtime .card{padding:24px 18px}.downtime-trigger{width:100%}}
 `;
 
 /**
@@ -649,7 +644,7 @@ function spendHtml(billing: Record<string, unknown>, embedded = false): string {
       <p class="meter-legend"><span><i></i> today, against a whole day's allowance</span><span><b></b> where the daily average sits</span><span>ticks mark 0.001 / 0.01 / 0.1 / 1 / 10 / 100% — the axis is logarithmic</span></p>
       <div class="table-scroll" role="region" aria-label="Usage against the free tier" tabindex="0"><table class="billing-table meter-table"><caption class="sr-only">Usage against the free tier</caption><thead><tr><th scope="col">Service</th><th scope="col">Used to date</th><th scope="col">Limit</th><th scope="col">Today</th><th scope="col">Daily average</th></tr></thead><tbody>
       ${rows.map(meterRowHtml).join("")}
-    </tbody></table></div><p class="sub u-m-12-0-0">At the ${hardLimit.toFixed(2)} hard stop, gameplay and metered public writes close while read-only evidence and protected administration remain available.</p><p class="sub u-m-12-0-0">Sources: <a href="${esc(String(sources.workers ?? "#"))}">Workers</a>, <a href="${esc(String(sources.durableObjects ?? "#"))}">Durable Objects</a>, <a href="${esc(String(sources.r2 ?? "#"))}">R2</a>. Worker requests are not counted here: exact request billing is only available from account analytics.</p></div>`;
+    </tbody></table></div><p class="sub u-m-12-0-0">The ${hardLimit.toFixed(2)} threshold is a displayed billing marker; it does not close gameplay.</p><p class="sub u-m-12-0-0">Sources: <a href="${esc(String(sources.workers ?? "#"))}">Workers</a>, <a href="${esc(String(sources.durableObjects ?? "#"))}">Durable Objects</a>, <a href="${esc(String(sources.r2 ?? "#"))}">R2</a>. Worker requests are not counted here: exact request billing is only available from account analytics.</p></div>`;
 }
 
 
@@ -673,7 +668,6 @@ function formatWindow(ms: number): string {
   return `${mins}m`;
 }
 
-const AUDIT_ROOMS = ["room-1"];
 const AUDIT_ROOM_NAMES: Record<string, string> = { "room-1": "SharkTank" };
 interface IncidentRecord { id: string; title: string; cause: string; status: "active" | "resolved"; startedAt: string | number; resolvedAt: string | number | null; impactEndedAt?: string | number | null; summary: string }
 interface ControlHistoryEntry { sequence: number; ts: number; code: string; actor: string; title: string; summary: string; reference: string | null; detail: string | null; previousHash: string; hash: string }
@@ -1183,7 +1177,6 @@ const LOG_FETCH_SERVICE = 100;
 const LOG_FETCH_CAPTURES = 2_000;
 
 interface PublicEvidenceStatus {
-  maintenance?: MaintenanceState;
   usage?: { uptimeMs?: number; durableObjects?: { tank?: number; rooms?: number; total?: number } };
   rooms?: Array<{ name: string; players: number; bots: number; capacity: number; topScore: number; topName: string }>;
   maintenanceIncidents?: IncidentRecord[];
@@ -1222,7 +1215,7 @@ function evidenceDashboardHtml(
     <div class="live-controls"><button type="button" id="status-autoupdate" class="secondary">Pause auto-update</button><p class="sub">Live figures refresh every 15 seconds in place. Last updated <time id="status-updated-at">just now</time>.</p></div>
     <p class="sr-only" id="status-live" role="status" aria-live="polite"></p>
     <div class="metric-grid status-metrics">
-      ${metricCard(data.maintenance?.enabled ? "CLOSED" : "OPEN", "Tank access", data.maintenance?.enabled ? "scheduled gate active" : "game traffic available", "traffic", data.maintenance?.enabled ? "tone-violet" : "tone-green", "status-tank-access")}
+      ${metricCard("OPEN", "Tank access", "game traffic available", "traffic", "tone-green", "status-tank-access")}
       ${metricCard(`${availability.availabilityPercent}%`, "Tank availability", `${availability.unscheduledDowntimePercent}% unscheduled downtime`, "availability", "tone-green", "status-tank-availability")}
       ${metricCard(players, "Active players", `${players === 1 ? "human session" : "human sessions"} across ${rooms.length} tanks`, "players", players ? "tone-cyan" : "tone-violet", "status-active-players")}
     </div>
@@ -1257,70 +1250,11 @@ function gameLogText(roomId: string, events: GameLogWireEvent[]): Response {
 }
 
 /** Authenticated operations dashboard. Dynamic values are written with textContent. */
-function adminViewerHtml(): string {
-  // No template literals / ${} inside, to stay valid in this string.
-  const script = [
-    "function duration(ms){var s=Math.max(0,Math.floor(ms/1000)),d=Math.floor(s/86400),h=Math.floor(s%86400/3600),m=Math.floor(s%3600/60);return d?d+'d '+h+'h':h?h+'h '+m+'m':m+'m';}",
-    "function coverageRow(body,name,value,url){var tr=document.createElement('tr'),a=document.createElement('td'),b=document.createElement('td'),span=document.createElement('span');a.className='cell-key';a.title=name;a.textContent=name;b.className='cell-detail';b.title=value;span.textContent=value;b.appendChild(span);if(url){var link=document.createElement('a');link.href=url;link.textContent='Reference';link.className='coverage-reference';b.appendChild(link);}tr.appendChild(a);tr.appendChild(b);body.appendChild(tr);}",
-    "async function tick(){try{",
-    "var sr=await fetch('/admin/status.json');var sd=await sr.json();var b=sd.billingWindow||{};",
-    "document.getElementById('billing-cost').textContent=typeof b.estimatedVariableUsd==='number'?'$'+b.estimatedVariableUsd.toFixed(8):'—';",
-    "document.getElementById('billing-requests').textContent=(b.requests||0).toLocaleString();",
-    "document.getElementById('billing-duration').textContent=(b.gbSeconds||0).toLocaleString();",
-    "document.getElementById('billing-do-rows').textContent=(b.storageRowsRead||0).toLocaleString()+' / '+(b.storageRowsWritten||0).toLocaleString();",
-    "document.getElementById('billing-rate').textContent=(b.requestRatePerMinute||0).toFixed(2)+'/min';",
-    "var services=b.services||{},dob=services.durableObjects||{},d1=services.d1||{},r2s=services.r2||{},workers=services.workers||{},sources=(b.freeTier||{}).sources||{},coverage=document.getElementById('billing-coverage');coverage.textContent='';if(workers.configured!==false)coverageRow(coverage,'Workers',workers.requests==null?String(workers.note||'Account analytics required'):(workers.requests||0).toLocaleString()+' requests',sources.workers);if(dob.configured!==false)coverageRow(coverage,'Durable Objects',(dob.requests||0).toLocaleString()+' requests · '+(dob.rowsRead||0).toLocaleString()+' reads · '+(dob.rowsWritten||0).toLocaleString()+' writes',sources.durableObjects);if(d1.configured)coverageRow(coverage,'D1',(d1.rowsRead||0).toLocaleString()+' reads · '+(d1.rowsWritten||0).toLocaleString()+' writes',sources.d1);if(r2s.configured)coverageRow(coverage,'R2',(r2s.objects||0).toLocaleString()+' objects · '+((r2s.classAOperations||0)+(r2s.classBOperations||0)).toLocaleString()+' operations · '+((r2s.storageBytes||0)/1000000).toFixed(2)+' MB',sources.r2);document.getElementById('billing-coverage-card').hidden=!coverage.children.length;document.getElementById('billing-r2-footprint').textContent=((r2s.classAOperations||0)+(r2s.classBOperations||0)).toLocaleString()+' · '+((r2s.storageBytes||0)/1000000).toFixed(2)+' MB';",
-    "var monthly=b.freeTierProjectedMonthlyUsd||0,ratio=Math.max(0,Math.min(1,monthly/5)),angle=-90+ratio*180,tone=monthly>5?'tone-red':monthly>0?'tone-yellow':'tone-green',state=monthly>5?'REDLINE':monthly>0?'METERED':'INCLUDED';",
-    "var needle=document.getElementById('billing-gauge-needle');needle.setAttribute('transform','rotate('+angle+' 110 112)');needle.setAttribute('class','gauge-needle '+tone);document.getElementById('billing-gauge-value').textContent='$'+monthly.toFixed(2);document.getElementById('billing-gauge-state').textContent=state;document.getElementById('billing-gauge-state').className='meter-pill '+tone;document.getElementById('billing-gauge-value').parentElement.className='gauge-readout '+tone;document.getElementById('billing-current-spend').textContent='$'+(b.estimatedVariableUsd||0).toFixed(8);",
-    "var rooms=sd.rooms||[],players=rooms.reduce(function(n,x){return n+(x.players||0)},0),seats=rooms.reduce(function(n,x){return n+(x.capacity||0)},0),active=rooms.filter(function(x){return x.players>0}).length,bots=rooms.reduce(function(n,x){return n+(x.bots||0)},0);",
-    "document.getElementById('kpi-active-players').textContent=players.toLocaleString();document.getElementById('kpi-human-seats').textContent=players+' / '+seats;document.getElementById('kpi-bot-seats').textContent=bots.toLocaleString();document.getElementById('kpi-active-rooms').textContent=active+' / '+rooms.length;document.getElementById('kpi-uptime').textContent=duration((sd.usage||{}).uptimeMs||0);document.getElementById('kpi-audit-events').textContent=((sd.usage||{}).auditEvents||0).toLocaleString();",
-    "var hi=sd.history||[],hib=document.getElementById('history-rows');hib.textContent='';hi.slice().reverse().forEach(function(e){var tr=document.createElement('tr'),cells=['#'+e.sequence,e.code,e.title,e.summary,new Date(e.ts).toLocaleString(),e.reference||'',String(e.hash||'').slice(0,16)+'…'],classes=['cell-seq','cell-code','cell-key','cell-detail','cell-time','cell-key','cell-code'];cells.forEach(function(v,i){var td=document.createElement('td');td.className=classes[i];td.title=String(v);if(i===1||i===6){var c=document.createElement('code');c.textContent=v;td.appendChild(c);}else if(i===3){var span=document.createElement('span');span.textContent=v;td.appendChild(span);}else td.textContent=v;tr.appendChild(td);});hib.appendChild(tr);});if(!hi.length){var hr=document.createElement('tr'),hd=document.createElement('td');hd.colSpan=7;hd.textContent='No control events recorded.';hr.appendChild(hd);hib.appendChild(hr);}var integrity=sd.historyIntegrity||{},head=integrity.headHash||'none',integrityNode=document.getElementById('history-integrity');integrityNode.textContent=(integrity.entryCount||0)+' append-only entries · '+(integrity.algorithm||'SHA-256')+' head '+(head==='none'?head:head.slice(0,16)+'…');integrityNode.title=head;",
-    "var m=sd.maintenance||{};var mb=document.getElementById('maintenance-toggle');mb.dataset.enabled=m.enabled?'1':'0';mb.textContent=m.enabled?'Bring server online':'Take server down';mb.className=m.enabled?'restore':'danger';",
-    "document.getElementById('maintenance-state').textContent=m.enabled?'OFFLINE':'ONLINE';document.getElementById('maintenance-state').className='m '+(m.enabled?'o':'g');",
-    "}catch(err){}}",
-    "document.getElementById('maintenance-toggle').addEventListener('click',async function(){var b=this,o=document.getElementById('maintenance-output'),enabling=b.dataset.enabled!=='1';if(enabling&&!confirm('Take the game offline and disconnect every active player? Public evidence, read-only API routes, and Admin will remain available.'))return;b.disabled=true;try{var r=await fetch('/admin/maintenance',{method:'POST',headers:{'content-type':'application/json','x-wg-ops-action':'maintenance'},body:JSON.stringify({enabled:enabling,reason:enabling?'Scheduled maintenance':''})}),d=await r.json();if(!r.ok)throw new Error(d.error||'request failed');o.hidden=false;o.textContent=d.message||'Maintenance state updated.';await tick();}catch(e){o.hidden=false;o.textContent='Unable to change maintenance mode.';}finally{b.disabled=false;}});",
-    "document.getElementById('billing-reset').addEventListener('click',async function(){var b=this;if(!confirm('Reset the billing measurement window to zero? Uptime and status history will be preserved.'))return;b.disabled=true;try{var r=await fetch('/admin/billing-reset',{method:'POST',headers:{'x-wg-ops-action':'billing-reset'}});if(!r.ok)throw new Error('request failed');await tick();}catch(e){alert('Unable to reset the billing counter.');}finally{b.disabled=false;}});",
-    "tick();setInterval(tick,1500);",
-  ].join("");
-  return `<section class="page-intro"><div class="eyebrow">Control room · sharp teeth</div><h1>Admin</h1>
-    <p class="sub">Authenticated traffic controls, incident receipts, billing thresholds, and live runtime KPIs.</p></section>
-    <h2 class="u-ops-pulse-heading">Operations pulse</h2>
-    <div class="metric-grid stat-grid">
-      ${metricCard("—", "Active players", "live human sessions", "players", "tone-cyan", "kpi-active-players")}
-      ${metricCard("—", "Human seats", "used / 24 available", "traffic", "tone-violet", "kpi-human-seats")}
-      ${metricCard("—", "Bot seats", "server-authoritative rivals", "bot", "tone-yellow", "kpi-bot-seats")}
-      ${metricCard("—", "Active tanks", "tanks with human players", "rooms", "tone-green", "kpi-active-rooms")}
-      ${metricCard("—", "Service uptime", "preserved across billing resets", "uptime", "tone-green", "kpi-uptime")}
-      ${metricCard("—", "Action log events", "lifetime status counter", "audit", "tone-cyan", "kpi-audit-events")}
-    </div>
-    <div class="card"><h2 class="u-panel-heading">Server control</h2>
-      <p>Game traffic: <strong id="maintenance-state" class="m">CHECKING…</strong></p>
-      <div class="server-controls"><button type="button" id="maintenance-toggle" class="danger" data-enabled="0">Take server down</button></div>
-      <pre class="control-output" id="maintenance-output" role="status" aria-live="polite" aria-atomic="true" hidden></pre>
-      <p class="sub u-m-10-0-0">Taking the game down disconnects active tanks and gates the game shell, assets, and tank WebSockets. Public evidence, read-only API routes, and Admin stay online.</p>
-    </div>
-    <div class="card"><div class="eyebrow">Control receipts</div><h2 class="u-panel-heading-tight">Append-only control history</h2><p class="sub" id="history-integrity">Loading receipt chain…</p><div class="table-scroll" role="region" aria-label="Append-only control history" tabindex="0"><table class="history-table"><caption class="sr-only">Append-only control history</caption><thead><tr><th scope="col">Seq</th><th scope="col">Code</th><th scope="col">Decision</th><th scope="col">Outcome</th><th scope="col">Time</th><th scope="col">Reference</th><th scope="col">Receipt</th></tr></thead><tbody id="history-rows"></tbody></table></div><p class="sub u-m-0">SHA-256 receipts link each control decision to the previous entry. These rows are not subject to the 90-day user-action retention policy.</p></div>
-    <div class="card gauge-card"><h2 class="u-panel-heading">Billing fuel gauge</h2>
-      ${billingGaugeSvg("billing")}
-      <div class="metric-grid stat-grid">
-        ${metricCard("—", "Window spend", "measured variable estimate", "audit", "tone-cyan", "billing-cost")}
-        ${metricCard("—", "Billable requests", "since reset", "requests", "tone-violet", "billing-requests")}
-        ${metricCard("—", "Request velocity", "current-window average", "availability", "tone-yellow", "billing-rate")}
-        ${metricCard("—", "Duration", "measured GB-s", "uptime", "tone-green", "billing-duration")}
-        ${metricCard("—", "DO rows R / W", "SQLite threshold window", "audit", "tone-violet", "billing-do-rows")}
-        ${metricCard("—", "R2 ops / storage", "bound asset bucket", "rooms", "tone-green", "billing-r2-footprint")}
-      </div>
-      <div class="card u-mt-14" id="billing-coverage-card" hidden><h3 class="u-m-0-0-8">Billing coverage</h3><div class="table-scroll u-m-0" role="region" aria-label="Billing coverage" tabindex="0"><table class="billing-table"><caption class="sr-only">Billing coverage</caption><thead><tr><th scope="col">Bound service</th><th scope="col">Measured usage or reference</th></tr></thead><tbody id="billing-coverage"></tbody></table></div></div>
-      <p><button type="button" id="billing-reset" class="secondary">Reset billing counter</button></p>
-    </div>
-    <script nonce="__WG_CSP_NONCE__">${script}</script>`;
-}
 
 export {
   PAGE_CSS_PATH,
   pageCssResponse,
   tankCopy,
-  AUDIT_ROOMS,
   AUDIT_ROOM_NAMES,
   incidentSummary,
   INCIDENTS,
@@ -1331,7 +1265,6 @@ export {
   LOG_FETCH_CAPTURES,
   evidenceDashboardHtml,
   gameLogText,
-  adminViewerHtml,
 };
 
 export type {

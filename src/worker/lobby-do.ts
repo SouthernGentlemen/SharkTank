@@ -187,11 +187,6 @@ interface RateBucket {
   start: number;
   count: number;
 }
-interface MaintenanceState {
-  enabled: boolean;
-  changedAt: number;
-  reason: string;
-}
 export interface MaintenanceIncident {
   id: string;
   title: string;
@@ -295,11 +290,6 @@ export class Lobby implements DurableObject {
     r2ClassA: 0,
     r2ClassB: 0,
   };
-  private maintenance: MaintenanceState = {
-    enabled: false,
-    changedAt: 0,
-    reason: "",
-  };
   private maintenanceIncidents: MaintenanceIncident[] = [];
   private r2Snapshot: R2Snapshot = {
     checkedAt: 0,
@@ -380,10 +370,6 @@ export class Lobby implements DurableObject {
       this.usage.storageRowsWritten ??= this.usage.storageWrites;
       this.usage.r2ClassA ??= 0;
       this.usage.r2ClassB ??= 0;
-      this.maintenance =
-        (await this.ctx.storage.get<MaintenanceState>("maintenance")) ??
-        this.maintenance;
-      bootstrapReads += 1;
       this.maintenanceIncidents =
         (await this.ctx.storage.get<MaintenanceIncident[]>(
           "maintenanceIncidents",
@@ -532,132 +518,6 @@ export class Lobby implements DurableObject {
     }
     const url = new URL(request.url),
       path = url.pathname;
-    if (path.endsWith("/maintenance")) {
-      if (request.method === "GET") {
-        await this.enforceSpendLimit();
-        return json({ ok: true, maintenance: this.maintenance });
-      }
-      if (request.method !== "POST")
-        return json({ ok: false, error: "method not allowed" }, 405);
-      const body = await safeJson<{ enabled?: boolean; reason?: string }>(
-        request,
-      );
-      if (!body || typeof body.enabled !== "boolean")
-        return json({ ok: false, error: "enabled must be boolean" }, 400);
-      if (!body.enabled) {
-        const billing = await this.billing();
-        if (billing.hardLimitExceeded)
-          return json(
-            {
-              ok: false,
-              error:
-                "billing hard limit must be reset before the game can return online",
-              maintenance: this.maintenance,
-            },
-            409,
-          );
-      }
-      const now = Date.now(),
-        wasEnabled = this.maintenance.enabled,
-        previousChangedAt = this.maintenance.changedAt,
-        reason = clean(body.reason, 120) ?? "",
-        reasonSentence = reason
-          ? `${reason}${/[.!?]$/.test(reason) ? "" : "."}`
-          : "";
-      let transitionReference: string | null = null;
-      if (body.enabled !== wasEnabled) {
-        if (body.enabled) {
-          const incident: MaintenanceIncident = {
-            id: `maintenance-${now}`,
-            title: "Tank maintenance",
-            cause: "Audit control",
-            status: "active",
-            startedAt: now,
-            resolvedAt: null,
-            impactEndedAt: null,
-            summary:
-              reason || "The tank was intentionally taken offline from the operations control panel.",
-          };
-          this.maintenanceIncidents.push(incident);
-          transitionReference = incident.id;
-        } else {
-          for (const incident of this.maintenanceIncidents) {
-            if (incident.status !== "active") continue;
-            if (incident.cause === "Independent security report") {
-              incident.impactEndedAt ??= now;
-              transitionReference ??= incident.id;
-              continue;
-            }
-            incident.status = "resolved";
-            incident.resolvedAt = now;
-            incident.impactEndedAt ??= now;
-            transitionReference = incident.id;
-          }
-        }
-      }
-      const openSecurityReports = this.maintenanceIncidents.filter(
-          (incident) =>
-            incident.cause === "Independent security report" &&
-            incident.status === "active",
-        ).length,
-        securityReportLabel = `${openSecurityReports} security report${openSecurityReports === 1 ? "" : "s"}`,
-        securityReportVerb = openSecurityReports === 1 ? "remains" : "remain",
-        message =
-          body.enabled === wasEnabled
-            ? `Game traffic is already ${body.enabled ? "offline" : "online"}. ${securityReportLabel} ${securityReportVerb} open.`
-            : body.enabled
-              ? openSecurityReports
-                ? `Operator maintenance enabled as a separate control event. ${securityReportLabel} ${securityReportVerb} open.`
-                : "Operator maintenance enabled as a separate control event."
-              : openSecurityReports
-                ? `Game traffic restored. ${securityReportLabel} ${securityReportVerb} open; restoring service does not close security reporting.`
-                : "Game traffic restored and operational downtime resolved.";
-      this.maintenance = { enabled: body.enabled, changedAt: now, reason };
-      this.pruneIncidents();
-      this.countWrites(3);
-      await this.ctx.storage.put({
-        maintenance: this.maintenance,
-        maintenanceIncidents: this.maintenanceIncidents,
-        usage: this.usage,
-      });
-      let history: ControlHistoryEntry | null = null;
-      if (body.enabled !== wasEnabled) {
-        this.record({
-          ts: now,
-          type: body.enabled ? "maintenance-on" : "maintenance-off",
-          subject: "ops",
-          detail: body.enabled
-            ? openSecurityReports
-              ? `${reason || "Tank taken offline"}; separate from ${securityReportLabel}`
-              : reason || "Tank taken offline"
-            : `Tank restored after ${Math.round((now - (previousChangedAt || now)) / 1000)}s; ${securityReportLabel} ${securityReportVerb} open`,
-        });
-        history = await this.appendControlHistory({
-          ts: now,
-          code: body.enabled
-            ? "OPS-MAINTENANCE-ON"
-            : "OPS-MAINTENANCE-OFF",
-          actor: "ops",
-          title: body.enabled ? "Game traffic disabled" : "Game traffic restored",
-          summary: body.enabled
-            ? openSecurityReports
-              ? `${reasonSentence || "Authenticated operations control disabled the game."} This is separate from ${securityReportLabel}.`
-              : reasonSentence || "Authenticated operations control disabled the game."
-            : openSecurityReports
-              ? `Authenticated operations control restored game traffic. ${securityReportLabel} ${securityReportVerb} open until separately resolved.`
-              : "Authenticated operations control restored the game and resolved operational downtime.",
-          reference: transitionReference,
-          detail: `maintenance=${body.enabled ? "enabled" : "disabled"};openSecurityReports=${openSecurityReports}`,
-        });
-      }
-      return json({
-        ok: true,
-        maintenance: this.maintenance,
-        history,
-        message,
-        openSecurityReports,
-      });
-    }
     if (path.endsWith("/billing/reset")) {
       if (request.method !== "POST")
         return json({ ok: false, error: "method not allowed" }, 405);
@@ -932,9 +792,8 @@ export class Lobby implements DurableObject {
   }
   private async status() {
     const rooms = this.list(),
-      billingWindow = await this.enforceSpendLimit();
+      billingWindow = await this.billing();
     return {
-      maintenance: this.maintenance,
       maintenanceIncidents: this.maintenanceIncidents,
       usage: {
         startedAt: this.usage.startedAt,
@@ -1367,56 +1226,6 @@ export class Lobby implements DurableObject {
   private hardLimitUsd(): number {
     const configured = Number(this.env.BILLING_HARD_LIMIT_USD ?? 5);
     return Number.isFinite(configured) && configured > 0 ? configured : 5;
-  }
-  private async enforceSpendLimit() {
-    const billing = await this.billing();
-    if (!billing.hardLimitExceeded || this.maintenance.enabled) return billing;
-    const now = Date.now(),
-      reason = `Measured application spend reached the $${billing.hardLimitUsd.toFixed(2)} hard limit.`;
-    this.maintenance = { enabled: true, changedAt: now, reason };
-    this.maintenanceIncidents.push({
-      id: `spend-limit-${now}`,
-      title: "Spend threshold shutdown",
-      cause: "Billing hard limit",
-      status: "active",
-      startedAt: now,
-      resolvedAt: null,
-      impactEndedAt: null,
-      summary:
-        "The system disabled all game traffic after the measured spend threshold was reached.",
-    });
-    this.pruneIncidents();
-    this.countWrites(3);
-    await this.ctx.storage.put({
-      maintenance: this.maintenance,
-      maintenanceIncidents: this.maintenanceIncidents,
-      usage: this.usage,
-    });
-    this.record({
-      ts: now,
-      type: "billing-hard-stop",
-      subject: "system",
-      detail: reason,
-    });
-    await this.appendControlHistory({
-      ts: now,
-      code: "BILLING-HARD-STOP",
-      actor: "system",
-      title: "Spend threshold forced game downtime",
-      summary:
-        "The measured application spend threshold was reached and all game traffic was disabled.",
-      reference: `spend-limit-${now}`,
-      detail: reason,
-    });
-    await Promise.all(
-      CATALOG.map(({ id }) =>
-        this.env.ROOM.get(this.env.ROOM.idFromName(id)).fetch(
-          `https://room/maintenance?enabled=1&roomId=${id}`,
-          { method: "POST" },
-        ),
-      ),
-    );
-    return billing;
   }
   private newBillingWindow(versionId: string): BillingWindow {
     const rooms: Record<string, BillingRoomBaseline> = {};
@@ -1968,7 +1777,6 @@ export class Lobby implements DurableObject {
     this.usage.roomsSeen = this.usage.roomsSeen.filter((id) => ROOM_IDS.has(id));
     this.spendHistory = (await this.ctx.storage.get<SpendSample[]>("spendHistory")) ?? [];
     this.dayBaseline = (await this.ctx.storage.get<DayBaseline>("dayBaseline")) ?? null;
-    this.maintenance = (await this.ctx.storage.get<MaintenanceState>("maintenance")) ?? { enabled: false, changedAt: 0, reason: "" };
     this.maintenanceIncidents = (await this.ctx.storage.get<MaintenanceIncident[]>("maintenanceIncidents")) ?? [];
     this.r2Snapshot = (await this.ctx.storage.get<R2Snapshot>("r2Snapshot")) ?? this.r2Snapshot;
     this.reports.clear();

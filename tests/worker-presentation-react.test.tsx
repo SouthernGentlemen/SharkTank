@@ -1,11 +1,9 @@
 import { readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
 import {
-  renderDowntimeDocument,
   renderNotFoundDocument,
   renderOverviewDocument,
 } from "../src/worker/presentation-react.js";
-import { html as htmlResponse } from "../src/worker/responses.js";
 
 const source = readFileSync(new URL("../src/worker/presentation-react.tsx", import.meta.url), "utf8");
 
@@ -37,40 +35,17 @@ describe("React Worker presentation", () => {
     expect(source).not.toMatch(/hydrateRoot|createRoot|BrowserRouter|createBrowserRouter/);
   });
 
-  it("serves maintenance with external styles and a strict generated response", async () => {
-    const response = htmlResponse(
-      renderDowntimeDocument({ enabled: true, changedAt: 1, reason: "Scheduled maintenance" }),
-      503,
-    );
-    const csp = response.headers.get("content-security-policy") ?? "";
-    const body = await response.text();
-
-    expect(csp).toContain("style-src 'self'");
-    expect(csp).not.toContain("'unsafe-inline'");
-    expect(body).toMatch(/<link rel="stylesheet" href="\/styles\/page-[^"]+\.css"/);
-    expect(body).not.toMatch(/<style\b/i);
-    expect(body).not.toMatch(/\sstyle=/i);
-    expect(body).not.toMatch(/\son[a-z][a-z0-9_-]*\s*=/i);
+  it("has no raw operator document insertion boundary", () => {
+    expect(source).not.toContain("dangerouslySetInnerHTML");
+    expect(source).not.toContain("renderAdminDocument");
+    expect(source).not.toContain("renderDowntimeDocument");
   });
 
-  it("keeps raw HTML confined to one audited generated-artifact boundary", () => {
-    expect(source.match(/dangerouslySetInnerHTML/g)).toHaveLength(1);
-    expect(source).toContain('type AuditedRawArtifactKind = "admin"');
-    expect(source).not.toContain("renderEvidenceDocument");
-    expect(source).not.toContain('data-raw-artifact="openapi"');
-    expect(source).not.toContain("renderOpenApiDocument");
-  });
-
-  it("renders ordinary not-found and maintenance responses as complete React documents", () => {
+  it("renders not-found responses as complete React documents", () => {
     const notFound = renderNotFoundDocument();
     expect(notFound).toContain("<h1>Route not found</h1>");
     expect(notFound).toContain("The requested Shark Tank route does not exist.");
     expect(notFound).toContain('href="/play/"');
 
-    const downtime = renderDowntimeDocument({ enabled: true, changedAt: 1, reason: "Scheduled maintenance" });
-    expect(downtime).toMatch(/^<!doctype html><html lang="en">/);
-    expect(downtime).toContain("<h1>The game is offline right now</h1>");
-    expect(downtime).toContain("<strong>Scheduled maintenance</strong>");
-    expect(downtime).not.toContain('href="/evidence/"');
   });
 });

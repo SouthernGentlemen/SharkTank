@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { existsSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
+import { existsSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import {
@@ -102,7 +102,7 @@ test("Unix cleanup signals only the spawned process group", () => {
   assert.deepEqual(calls, [[-9876, "SIGTERM"]]);
 });
 
-test("local Worker environment strips provider and developer auth inputs", () => {
+test("local Worker environment strips provider inputs", () => {
   const env = localWorkerEnvironment({
     PATH: "/bin",
     CLOUDFLARE_API_TOKEN: "provider-token",
@@ -111,8 +111,6 @@ test("local Worker environment strips provider and developer auth inputs", () =>
     CLOUDFLARE_EMAIL: "provider-email",
     CLOUDFLARE_INCLUDE_PROCESS_ENV: "true",
     CLOUDFLARE_LOAD_DEV_VARS_FROM_DOT_ENV: "false",
-    OPS_TOKEN: "developer-token",
-    OPS_USERNAME: "developer-user",
   });
   assert.equal(env.PATH, "/bin");
   assert.equal(env.CI, "1");
@@ -120,8 +118,6 @@ test("local Worker environment strips provider and developer auth inputs", () =>
   assert.equal(env.CLOUDFLARE_API_KEY, undefined);
   assert.equal(env.CLOUDFLARE_ACCOUNT_ID, undefined);
   assert.equal(env.CLOUDFLARE_EMAIL, undefined);
-  assert.equal(env.OPS_TOKEN, undefined);
-  assert.equal(env.OPS_USERNAME, undefined);
   assert.equal(env.CLOUDFLARE_INCLUDE_PROCESS_ENV, "false");
   assert.equal(env.CLOUDFLARE_LOAD_DEV_VARS_FROM_DOT_ENV, undefined);
 });
@@ -131,7 +127,7 @@ test("acceptance uses an explicit test-owned env file beside a conflicting ignor
   try {
     writeFileSync(
       join(fixtureRoot, ".dev.vars"),
-      'OPS_TOKEN="fixture-conflict"\nOPS_USERNAME="fixture-user"\n',
+      'EXAMPLE_VAR="fixture-conflict"\n',
       { encoding: "utf8", mode: 0o600 },
     );
     const acceptanceEnv = createAcceptanceEnvFile({ tempRoot: fixtureRoot });
@@ -157,6 +153,7 @@ test("acceptance uses an explicit test-owned env file beside a conflicting ignor
       );
       assert.equal(invocation.args.includes("--var"), false);
       assert.notEqual(acceptanceEnv.path, join(fixtureRoot, ".dev.vars"));
+      assert.equal(readFileSync(acceptanceEnv.path, "utf8"), "");
     } finally {
       const path = acceptanceEnv.path;
       acceptanceEnv.dispose();
