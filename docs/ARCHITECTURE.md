@@ -17,13 +17,14 @@ The retired `/evidence/`, `/status.json` and `/spend.json` surfaces return 404; 
 
 - `/` — permanent redirect to `/play/`.
 - `/play/` — the interactive realtime full-3D game.
-- `/admin/*` and unknown paths — plain-text 404.
+- `/admin/*` — shared wg-edge operator gate; the SharkTank app has no admin handler.
+- Unknown paths — shared shell 404 with JSON or HTML according to `Accept`.
 
-The only routable gameplay Room is stable id `room-1`, displayed as **SharkTank**; `room-2` through `room-4` are retired at the Worker boundary. The Worker exports only `Room`. Migration tag `v1` remains in the current config; the planned `sharktank` Worker cut-over gets fresh migration history. No `Lobby` deletion migration is applied to `wizardgangprod`.
+The only routable gameplay Room is stable id `room-1`, displayed as **SharkTank**; `room-2` through `room-4` are retired at the Worker boundary. The Worker exports only `Room`. The new top-level `sharktank` config creates a fresh SQLite-backed `Room` class with migration `v1`. It does not transfer old data or define `Lobby`; `wizardgangprod` remains untouched until its separately governed retirement.
 
 ## Worker, engine and renderer boundaries
 
-`src/worker/index.ts` owns request sequencing and controller flow. `src/worker/routes.ts` owns route predicates, and `src/worker/responses.ts` owns security-aware responses. The Worker emits no HTML; it serves the Vite-built game document through Static Assets. The game shell and assets use first-party-only script CSP without a nonce or analytics allowance.
+The vendored `platform/wg-edge/` shell owns host/TLS checks, `/version.json`, security headers, errors and 404s. `src/worker/index.ts` passes the game routes to `createEdge`; `src/worker/routes.ts` owns route predicates, and `src/worker/responses.ts` owns game responses. The app emits no HTML; it serves the Vite-built game document through Static Assets. The game shell and assets use first-party-only script CSP without a nonce or analytics allowance.
 
 `/play/` is the one explicit browser application boundary. `src/client/game-document.tsx` owns the React 19 game shell, `src/client/main.tsx` mounts the browser app, and Vite owns the client module graph and content-hashed assets. Name, skin, best score and systems settings share one device-local `localStorage` record; the legacy `snakeio.settings.v1` settings record migrates into it on first load.
 
@@ -85,7 +86,7 @@ The Worker has no operational Durable Object. Billing, backup, restore and sched
 
 Room Durable Objects run gameplay and sessions entirely in memory. On object boot the Room clears legacy Durable Object storage, starts a fresh round, and uses standard WebSockets with in-memory sessions; no Room snapshot or metadata is read or written, no hibernation attachment is restored, and the tick loop keeps the object active while sockets are connected. The `wizardgangprod` Worker is not deployed again; the later `sharktank` cut-over creates fresh class identity and migration history.
 
-Ordinary controlled changes do not create tags, GitHub Releases or production deployments. Release identity is package version + immutable annotated tag + GitHub Release + exact accepted commit. Production deployment remains gated by the current Release workflow, protected `production` environment and Cloudflare credentials.
+Ordinary controlled changes do not create tags, GitHub Releases or production deployments. Release identity is package version + immutable annotated tag + GitHub Release + exact accepted commit. The Release workflow calls baseline's pinned `deploy-worker.yml` with `secrets: inherit` after publication. That workflow owns the protected `production` approval and exact Worker deployment proof. Its current tag input is semantic `vX.Y.Z`.
 
 ## WG-ARCH-001 project-specific boundaries
 

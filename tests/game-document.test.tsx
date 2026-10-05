@@ -94,12 +94,12 @@ describe("React game document", () => {
     expect(wranglerSource).toContain('"not_found_handling": "none"');
     expect(wranglerSource).not.toContain('"single-page-application"');
     expect(workerSource).toContain('new Request(new URL("/index.html", request.url)');
-    expect(workerSource).toContain("if (!gameShell && !staticAsset)");
+    expect(workerSource).toContain("if (!gameShell && !isStaticAssetPath(path)) return null");
   });
 
   it("keeps the game client on its explicit browser route", () => {
     expect(mainSource).not.toMatch(/BrowserRouter|createBrowserRouter/);
     expect(source).not.toMatch(/BrowserRouter|createBrowserRouter|hydrateRoot/);
-    expect(workerSource).toContain('if (path === "/") return movedTo(url, "/play/");');
+    expect(workerSource).toContain('if (path === "/" || path === "/play") return movedTo(url, "/play/");');
   });
 });

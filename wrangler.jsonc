@@ -1,45 +1,58 @@
 {
-  // Local host worker. `wrangler dev` runs this on workerd/Miniflare — the same
-  // runtime we'll deploy to on Cloudflare. Keep this config Workers-deployable.
-  "name": "sharktank-local",
+  "$schema": "node_modules/wrangler/config-schema.json",
+  "name": "sharktank",
   "main": "src/worker/index.ts",
-  "compatibility_date": "2026-06-28",
-  "compatibility_flags": ["nodejs_compat"],
-  "vars": { "ENVIRONMENT": "development", "SHARKTANK_RELEASE": "development", "SHARKTANK_RELEASE_REVISION": "development" },
+  "compatibility_date": "2026-08-31",
+  "compatibility_flags": [
+    "nodejs_compat"
+  ],
+  "workers_dev": false,
+  "preview_urls": false,
+  "routes": [
+    {
+      "pattern": "sharktank.wizardgang.ai",
+      "custom_domain": true
+    }
+  ],
+  "observability": {
+    "enabled": true
+  },
   "assets": {
     "directory": "./dist",
     "binding": "ASSETS",
-    // The Worker owns application routing. /play/ explicitly fetches the built index.html;
-    // missing application paths and missing assets must never fall back to that document.
     "html_handling": "none",
     "not_found_handling": "none",
-    // Every request still passes through the Worker so maintenance/security policy can
-    // replace the game document and immutable asset requests when required.
     "run_worker_first": true
   },
-  // Authoritative realtime: Room hosts the tank simulation over a WebSocket.
+  "vars": {
+    "WG_APP": "sharktank"
+  },
+  "secrets_store_secrets": [
+    {
+      "binding": "WG_OPS_TOKEN",
+      "store_id": "e63e666172544d5c8c4a656ff28ac32a",
+      "secret_name": "WG_OPS_TOKEN"
+    },
+    {
+      "binding": "WG_SESSION_KEY",
+      "store_id": "e63e666172544d5c8c4a656ff28ac32a",
+      "secret_name": "WG_SESSION_KEY"
+    }
+  ],
   "durable_objects": {
     "bindings": [
-      { "name": "ROOM", "class_name": "Room" }
+      {
+        "name": "ROOM",
+        "class_name": "Room"
+      }
     ]
   },
-  "migrations": [{ "tag": "v1", "new_sqlite_classes": ["Room"] }],
-  "env": {
-    "wizardgangprod": {
-      "name": "wizardgangprod",
-      // account_id is deliberately absent: it is an account identifier and this file is
-      // tracked. It comes from CLOUDFLARE_ACCOUNT_ID in .env (gitignored), which
-      // scripts/deploy-prod.mjs loads before invoking wrangler.
-      "workers_dev": false,
-      "preview_urls": false,
-      "routes": [{ "pattern": "sharktank.wizardgang.ai", "custom_domain": true }],
-      "vars": { "ENVIRONMENT": "production", "SHARKTANK_RELEASE": "unreleased", "SHARKTANK_RELEASE_REVISION": "unreleased" },
-      // Durable Object bindings are non-inheritable and must be repeated per env.
-      "durable_objects": {
-        "bindings": [
-          { "name": "ROOM", "class_name": "Room" }
-        ]
-      }
+  "migrations": [
+    {
+      "tag": "v1",
+      "new_sqlite_classes": [
+        "Room"
+      ]
     }
-  }
+  ]
 }

@@ -1,0 +1,31 @@
+{
+  "schemaVersion": 1,
+  "source": "Wizard-Gang/baseline",
+  "commit": "67b4b86847e0d635a3f6fe4c21618a25d5bc71a0",
+  "files": {
+    "conformance/README.md": "7eb1f13decc94c1cf51ccd52efd39220cc16245e8bffe09c5fdbb00d3843af85",
+    "conformance/cli.mjs": "4ba4895eade516d7e35824346b4eee73fd0961ac2660657f40b3c00ea1856a7d",
+    "conformance/desired.mjs": "59de8e47007f7b65f92ada766fa980ffb14b337eba54c4a7526bd57754ab4b03",
+    "conformance/index.d.ts": "8b13c778927268af1c932280f80f38e31b81b48e2ba237e3a985cb78fd91cde3",
+    "conformance/jsonc.mjs": "29f270e085e36296663cd08a81f255dedc93e3b7674bfd7dd16206b4de653ce7",
+    "conformance/template.mjs": "3a99444554e89e9b60ff568b144e13311ee190e7973e0216048b230b33915b7f",
+    "conformance/vendor.mjs": "6954277896383d47f7b426ae5b7d0602ed72f14f148ffbe5f805b1dffa4d9062",
+    "conformance/wrangler.mjs": "8aefb543c5b20e1c7808d0cfad33057ef6e16604b78f168da283c72a1d984d45",
+    "deploy/README.md": "d871496400f89a06a0b367714ca4de7e654669567d2231df0d19a0ef05301c2f",
+    "deploy/index.d.ts": "e6c440b7e191851e31d2440fe4e9d6773fbb4142d1dab2bda17250c24e8ad837",
+    "deploy/verify.mjs": "8f1b32f33d8ac965d8bc1d03a19d8d390e481c1b7ad83125d3ffe3de88a53b8e",
+    "migrations/0001_universal.sql": "73b71827ac4aa38393222b809804091b12f6632e6f9fd4ed4bd5d531971f2cb7",
+    "migrations/pins.json": "594b589c4feb043e666f5f6daecac4a9585c96ff7f10bd44cefd750ecb8b85df",
+    "wg-edge/README.md": "ef1837856274564a2cead9d9b6d3b906c1e07dd7c98a0e835a9ae2b0f9e0c5e2",
+    "wg-edge/auth.mjs": "0546abfcb69846086dacd65038451559ccdeb4da9d138785c7018bada76190e6",
+    "wg-edge/github.mjs": "ca968099a4c283bf5a598f27da0d81fa07b771bc6b258869254d007f9ffa346d",
+    "wg-edge/http.mjs": "ae0154e3c4c8327bf59630c33679f1ac7d7f63a5b8f6c226268bec5db9358e0e",
+    "wg-edge/index.d.ts": "e0f4d6b59aa5f251b90722e934c1cb5159e312ab9c7818df500e969468f3d0cc",
+    "wg-edge/index.mjs": "bf1e2be8d5058e27d439aeda18528a914ac35d2a900822f08269f13551f55ac5",
+    "wg-edge/keys.mjs": "ce53553ab91931b0826bfeb9e2bdfb33b354237efb0acf3335a71576e7f1cd25",
+    "wg-edge/log.mjs": "165784edd09947b6e6dce368de49e9f4b9df5fb382916557d7a32266aa917799",
+    "wg-edge/storage.mjs": "81d8e33458f16ca78a3b48ad36351bea8badeba24f3ea347b04eb1aa2fc24b9e",
+    "wg-edge/workers.mjs": "f8b98bc84d4d3f54a8308f2371ead222bd97d348881f8e5a5dc5fbf942f00cd0",
+    "wrangler.template.jsonc": "4c850311e9b73ad9caccdd96300d53172b5cc5394bfd141640f05156b27d9820"
+  }
+}

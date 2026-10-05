@@ -46,7 +46,7 @@ const worldEnvironment = read("../vendor/ModuleReact3Fiber/src/client/game/World
 
 describe("public accessibility contract", () => {
   it("retires public evidence and operator routes while preserving the game accessibility surface", () => {
-    expect(worker).toContain('if (path === "/") return movedTo(url, "/play/");');
+    expect(worker).toContain('if (path === "/" || path === "/play") return movedTo(url, "/play/");');
     expect(worker).not.toContain('if (path === "/evidence/")');
     expect(worker).not.toContain('renderOverviewDocument');
     expect(worker).not.toContain('renderNotFoundDocument');
@@ -214,9 +214,8 @@ describe("full-3D accessibility re-proof", () => {
 describe("canonical game surface", () => {
   it("routes the game explicitly and leaves retired paths unmatched", () => {
     expect(routes).toContain('path === "/play/"');
-    expect(worker).toContain('if (path === "/") return movedTo(url, "/play/");');
-    expect(worker).toContain('if (path === "/play") return movedTo(url, "/play/");');
-    expect(worker).toContain('return new Response("Not found", { status: 404');
+    expect(worker).toContain('if (path === "/" || path === "/play") return movedTo(url, "/play/");');
+    expect(worker).toContain("if (!gameShell && !isStaticAssetPath(path)) return null");
     expect(worker).not.toContain('if (path === "/admin/status.json")');
     expect(worker).not.toContain('if (path === "/robots.txt")');
     expect(worker).not.toContain('if (path === "/sitemap.xml")');

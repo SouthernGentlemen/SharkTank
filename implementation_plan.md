@@ -142,31 +142,11 @@ On 2026-10-02 the owner directed that this SharkTank material be deleted from th
 
 ## Open tasks
 
-### ST-223 — [OPS] Adopt the shared wg-edge shell and the baseline deploy workflow as the sharktank Worker
-
-**Goal:** SharkTank runs on baseline's shared Worker shell, conforming config and single deploy path. Baseline's `config/cloudflare.json` and `config/secrets.json` are the authority.
-
-**Scope**
-- Vendor baseline `platform/` verbatim from a merged baseline commit (BASE-030 `67b4b86847e0d635a3f6fe4c21618a25d5bc71a0` or later), and commit the `platform/vendor.lock.json` that `npm run vendor:lock -- <commit>` prints in baseline.
-- Replace `wrangler.jsonc` with one conforming top-level Worker:
-  - name and `WG_APP` `sharktank`, with custom domain `sharktank.wizardgang.ai`;
-  - compatibility date 2026-08-31 with `nodejs_compat`;
-  - `workers_dev` and `preview_urls` false, and observability on;
-  - `Room` as the only Durable Object, with the ST-222 migration;
-  - no cron, D1, R2 or KV;
-  - `ASSETS`, plus Secrets Store bindings for `WG_OPS_TOKEN` and `WG_SESSION_KEY` with the store ID the owner recorded in baseline runbook step 3.5;
-  - no `env` blocks.
-- `node platform/conformance/cli.mjs wrangler --worker sharktank` passes.
-- The Worker entry uses `createEdge`. The shell provides the host guard, `/version.json`, headers, errors and 404s. The app handler serves `/` → `/play/`, `/play/`, assets and the tank WebSocket.
-- The release path calls `Wizard-Gang/baseline/.github/workflows/deploy-worker.yml` pinned to the same baseline commit as `platform/`, with `worker: sharktank` and `secrets: inherit`. A called workflow sees only the secrets its caller passes, so without `inherit` the deploy reads an empty token (WizardGang's v1.3.0 deploy failed that way on 2026-10-05). Remove the in-repo deploy workflow, its scripts and the `PRODUCTION_DEPLOY_ENABLED` gate; the `production` environment approval replaces it. Nothing reads `secrets.CLOUDFLARE_ACCOUNT_ID`.
-
-**Acceptance:** `npm run check` runs the vendored `pin` and `wrangler` conformance checks, local acceptance plays a round, and no deploy happens in this task.
-
----
-
 ### ST-224 — [OPS] Release the lean update as the sharktank cut-over, v2.1.0
 
 **Goal:** Ship ST-142 through ST-149 and ST-222 and ST-223. The first deploy through `deploy-worker.yml` creates the `sharktank` Worker and moves `sharktank.wizardgang.ai` from `wizardgangprod`.
+
+**Starting point:** The shared shell, fresh `Room` migration, Secrets Store bindings and pinned baseline deployment call are committed. `wizardgangprod` and its data remain live until this release and the separately governed R3 retirement.
 
 **Scope**
 - Semantic minor release.
