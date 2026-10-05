@@ -1,18 +1,17 @@
 # Architecture
 
-SharkTank is one Cloudflare Worker deployment with one React Three Fiber browser game, two Durable Object classes, static assets, and one R2 binding.
+SharkTank is one Cloudflare Worker deployment with one React Three Fiber browser game, two Durable Object classes and static assets.
 
 ```text
 browser ── HTTPS ──> Worker router ──> Lobby Durable Object
-   │                    │             status, billing,
-   │                    │             receipts, logs, backups
+   │                    │             status,
+   │                    │             receipts, logs
    │                    ├───────────> Room Durable Objects
    ├── localStorage                    memory-only authoritative full X/Y/Z simulation
    │   name / skin / best / settings
    └── WebSocket ───────┘
                         │
-                        ├───────────> Static Assets
-                        └───────────> R2 state copies
+                        └───────────> Static Assets
 ```
 
 ## Product surface
@@ -85,7 +84,7 @@ Repeated prey/environment work is bounded or batched where practical. Render-fra
 
 ## Operations, persistence and release
 
-Lobby state no longer stores player profiles or public client-action events. It still holds the operations state scheduled for retirement in later queue tasks: status, billing, receipts, server-originated service logs and backup evidence. Scheduled copies are written through the R2 binding. Restore drills reconstruct retained Lobby state into scratch Durable Object state without overwriting live production data.
+Lobby state no longer stores player profiles or public client-action events. It still holds status, receipts and server-originated service logs until its queued retirement. Billing, backup, restore and scheduled R2 copies are removed.
 
 Room Durable Objects run gameplay and sessions entirely in memory. On object boot the Room clears legacy Durable Object storage, starts a fresh round, and uses standard WebSockets with in-memory sessions; no Room snapshot or metadata is read or written, no hibernation attachment is restored, and the tick loop keeps the object active while sockets are connected. Stable Room/Lobby Durable Object identities and migration tag `v1` are not ordinary refactor targets.
 
@@ -93,6 +92,6 @@ Ordinary controlled changes do not create tags, GitHub Releases or production de
 
 ## WG-ARCH-001 project-specific boundaries
 
-SharkTank uses Node.js 26.10.0 and npm 12.1.0. It uses Durable Objects for coordinated game/operational state and R2 for retained copies.
+SharkTank uses Node.js 26.10.0 and npm 12.1.0. It uses Durable Objects for coordinated game and temporary operational state.
 
 Repository delivery is squash-only so each controlled ST change lands as one non-merge commit on `main`. Protected `verify` is required on the exact current PR head, completed branches delete automatically, and release tags are immutable.

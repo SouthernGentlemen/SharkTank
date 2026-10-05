@@ -12,10 +12,6 @@ import type { Env } from "./env.js";
 import { assetCsp, SECURITY_HEADERS, json, movedTo } from "./responses.js";
 import { isGameShellPath, isStaticAssetPath, parseRoomPath } from "./routes.js";
 
-function lobbyStub(env: Env): DurableObjectStub {
-  return env.LOBBY.get(env.LOBBY.idFromName("global"));
-}
-
 const ROOM_ID = "room-1", ROOM_NAME = "SharkTank";
 const ALLOWED_ROOMS = new Set([ROOM_ID]);
 
@@ -32,147 +28,6 @@ function isSecureRequest(request: Request, url: URL): boolean {
   const forwarded = (request.headers.get("x-forwarded-proto") ?? "").split(",")[0].trim().toLowerCase();
   if (forwarded) return forwarded === "https";
   return url.protocol === "https:";
-}
-
-/* ── State backup ────────────────────────────────────────────────────
-   The tank Durable Object holds the receipt chain, the 90-day action log, player
-   profiles and spend history, and until now none of it was copied anywhere. A copy
-   is written to the bound object storage on a schedule, older copies are pruned to a
-   retention window, and the outcome — success or failure — is receipted into the same
-   chain the copy protects. Restoring is a separate, deliberate act; see runRestoreDrill,
-   which proves the path works without touching live state. */
-const BACKUP_PATH = "backups/state/";
-const backupPrefix = (env: Env) => `${env.R2_PREFIX ?? ""}${BACKUP_PATH}`;
-/** How many dated copies are kept. Daily copies, so this is roughly a month of history. */
-const BACKUP_RETAIN = 30;
-
-interface StateExportShape {
-  format: string; version: number; takenAt: number; digest?: string;
-  counts?: { kv: number; profiles: number; audit: number; controlHistory: number };
-}
-
-/** Fetch a full export from the tank object. */
-async function fetchStateExport(env: Env): Promise<StateExportShape | null> {
-  const res = await lobbyStub(env).fetch("https://lobby/backup");
-  if (!res.ok) return null;
-  const body = (await res.json()) as { ok?: boolean; export?: StateExportShape };
-  return body.export ?? null;
-}
-
-/**
- * Take one copy and record the outcome. Returns a report rather than throwing, because a
- * failed backup must still leave a receipt saying so — a backup path that fails silently
- * is worse than none, since recovery evidence would otherwise look healthy.
- */
-async function runBackup(env: Env): Promise<Record<string, unknown>> {
-  if (!env.R2_ASSETS) {
-    await lobbyStub(env).fetch(new Request("https://lobby/backup/record", { method: "POST", body: JSON.stringify({ ok: false, lastBackupError: "no object storage bound" }), headers: { "content-type": "application/json" } }));
-    return { ok: false, error: "no object storage bound" };
-  }
-  try {
-    const prefix = backupPrefix(env);
-    const latestKey = `${prefix}latest.json`;
-    const data = await fetchStateExport(env);
-    if (!data) throw new Error("export refused");
-    const body = JSON.stringify(data);
-    const stamp = new Date(data.takenAt).toISOString().replace(/[:.]/g, "-");
-    const key = `${prefix}${stamp}.json`;
-    const headers = { httpMetadata: { contentType: "application/json" }, customMetadata: { digest: String(data.digest ?? ""), takenAt: String(data.takenAt) } };
-    await env.R2_ASSETS.put(key, body, headers);
-    await env.R2_ASSETS.put(latestKey, body, headers);
-
-    // Prune to the retention window. Keys are ISO-stamped, so lexical order is time order.
-    const listed = await env.R2_ASSETS.list({ prefix, limit: 1000 });
-    const dated = listed.objects.map((object) => object.key).filter((k) => k !== latestKey).sort();
-    const doomed = dated.slice(0, Math.max(0, dated.length - BACKUP_RETAIN));
-    for (const old of doomed) await env.R2_ASSETS.delete(old);
-
-    const record = { ok: true, lastBackupAt: data.takenAt, lastBackupKey: key, lastBackupBytes: body.length, lastBackupDigest: data.digest ?? "", lastBackupCounts: data.counts ?? null, retainedCopies: Math.max(0, dated.length - doomed.length) };
-    await lobbyStub(env).fetch(new Request("https://lobby/backup/record", { method: "POST", body: JSON.stringify(record), headers: { "content-type": "application/json" } }));
-    return { ...record, pruned: doomed.length };
-  } catch (e) {
-    const detail = e instanceof Error ? e.message : "unknown failure";
-    await lobbyStub(env).fetch(new Request("https://lobby/backup/record", { method: "POST", body: JSON.stringify({ ok: false, lastBackupError: detail }), headers: { "content-type": "application/json" } }));
-    return { ok: false, error: detail };
-  }
-}
-
-/**
- * Restore drill. Reads the most recent copy back out of object storage, restores that copy
- * into a scratch Durable Object addressed by a name nothing else uses, exports the scratch
- * instance and compares digests. A matching digest means the stored copy reconstitutes the
- * state it was taken from exactly, not merely something like it.
- *
- * The stored copy is deliberately the thing under test. An earlier version of this drill
- * exported the live object and restored that, which proved the object could round-trip its
- * own state and proved nothing whatever about object storage -- while /status/ went on
- * saying the most recent copy was what had been restored. If no bucket is bound, or there
- * is no copy in it, the drill fails and says which: it must never quietly fall back to the
- * live export, because that silent fallback is precisely how the published claim became
- * untrue in the first place.
- *
- * Live state is never written to, so this is safe to run against production.
- */
-/** The drill detail is rendered on the public status panel, so it has to read as English. */
-const countOf = (n: number, one: string, many = one + "s") => `${n} ${n === 1 ? one : many}`;
-
-async function runRestoreDrill(env: Env): Promise<Record<string, unknown>> {
-  const started = Date.now();
-  // One fixed scratch name, not one per run: a per-run name would leave a new object
-  // holding a full copy of every profile behind after every drill.
-  const scratch = env.LOBBY.get(env.LOBBY.idFromName("state-restore-drill"));
-  try {
-    const latestKey = `${backupPrefix(env)}latest.json`;
-    // No bucket, or nothing in it, is a failed drill and not a reason to test something else.
-    if (!env.R2_ASSETS) throw new Error("no object storage bound, so there is no stored copy to restore");
-    const stored = await env.R2_ASSETS.get(latestKey);
-    if (!stored) throw new Error(`no copy at ${latestKey} to restore; take one before drilling`);
-    let source: StateExportShape | null = null;
-    try { source = (await stored.json()) as StateExportShape; }
-    catch { throw new Error(`the copy at ${latestKey} is not readable JSON`); }
-    if (!source || typeof source !== "object") throw new Error("the stored copy is not an export");
-    // Without a digest on the copy there is nothing to compare the restore against, and a
-    // drill that cannot compare must not report a pass.
-    if (!source.digest) throw new Error("the stored copy carries no digest to compare against");
-
-    const restore = await scratch.fetch(new Request("https://lobby/restore", { method: "POST", body: JSON.stringify({ export: source }), headers: { "content-type": "application/json" } }));
-    const restored = (await restore.json()) as { ok?: boolean; error?: string };
-    if (!restore.ok || !restored.ok) throw new Error(restored.error ?? "restore refused");
-    const copyRes = await scratch.fetch("https://lobby/backup");
-    const copyBody = (await copyRes.json()) as { export?: StateExportShape };
-    const copy = copyBody.export;
-    if (!copy) throw new Error("scratch instance would not export");
-    // The digest covers state only, deliberately excluding takenAt and generation, so two
-    // exports of the same data hash the same however far apart they were taken.
-    const match = source.digest === copy.digest;
-
-    // Second assertion, reported rather than asserted. Whether the stored copy still matches
-    // the live object says how old the copy is, not whether the restore path works: every
-    // request moves spend and the action log on, so the two digests differ most of the time
-    // by design. Failing the drill on that would make it fail daily for the expected reason
-    // and teach the reader to ignore it.
-    const live = await fetchStateExport(env);
-    const drift = !live?.digest
-      ? "live state could not be exported to compare"
-      : live.digest === source.digest ? "live state unchanged since the copy" : "live state has moved on since the copy";
-
-    const takenLabel = Number.isFinite(source.takenAt) && source.takenAt > 0
-      ? new Date(source.takenAt).toISOString().slice(0, 16).replace("T", " ") + "Z"
-      : "unknown time";
-    const detail = match
-      ? `copy of ${takenLabel} read back from ${latestKey}; digest ${String(source.digest).slice(0, 16)}…; ${countOf(source.counts?.kv ?? 0, "key")}, ${countOf(source.counts?.controlHistory ?? 0, "receipt")}, ${countOf(source.counts?.audit ?? 0, "log row")}; ${drift}`
-      : `stored copy ${String(source.digest).slice(0, 16)}… vs restored ${String(copy.digest).slice(0, 16)}…`;
-    await lobbyStub(env).fetch(new Request("https://lobby/backup/drill-result", { method: "POST", body: JSON.stringify({ ok: match, detail }), headers: { "content-type": "application/json" } }));
-    return { ok: match, detail, restoredFrom: latestKey, storedTakenAt: source.takenAt ?? null, storedBytes: stored.size, storedDigest: source.digest, liveDigest: live?.digest ?? null, liveMatchesStored: Boolean(live?.digest) && live?.digest === source.digest, sourceCounts: source.counts ?? null, restoredCounts: copy.counts ?? null, elapsedMs: Date.now() - started };
-  } catch (e) {
-    const detail = e instanceof Error ? e.message : "unknown failure";
-    await lobbyStub(env).fetch(new Request("https://lobby/backup/drill-result", { method: "POST", body: JSON.stringify({ ok: false, detail }), headers: { "content-type": "application/json" } }));
-    return { ok: false, detail, elapsedMs: Date.now() - started };
-  } finally {
-    // Whether the drill passed or failed, the scratch copy of every profile goes away.
-    try { await scratch.fetch(new Request("https://lobby/wipe", { method: "POST" })); }
-    catch (e) { console.error("restore drill scratch wipe failed", e); }
-  }
 }
 
 export default {
@@ -248,10 +103,4 @@ export default {
     const secured = new Response(asset.body, asset); for (const [key, value] of Object.entries(SECURITY_HEADERS)) secured.headers.set(key, value); secured.headers.set("content-security-policy", assetCsp); return secured;
   },
 
-  // Cron. One daily copy of tank state to object storage; see runBackup. The handler
-  // never throws: a backup failure is recorded as a receipt and left visible on /status/,
-  // because a scheduled job that fails quietly is how a backup gap goes unnoticed.
-  async scheduled(_event: ScheduledController, env: Env, ctx: ExecutionContext): Promise<void> {
-    ctx.waitUntil(runBackup(env).then((result) => { if (!result.ok) console.error("scheduled backup failed", result.error); }));
-  },
 };

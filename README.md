@@ -52,9 +52,9 @@ See [docs/ACCESSIBILITY.md](docs/ACCESSIBILITY.md), [docs/PRODUCT-ACCEPTANCE.md]
 
 Public HTTP and WebSocket input is untrusted. Unknown paths return plain-text 404s. The Worker enforces request/message bounds, allowed rooms, origin checks, rate limits, HTTPS redirects, strict response security headers, and server-side authority over simulation and score. Player name, skin, best score and settings stay in one device-local browser record; they are not profile or telemetry writes. The Room owns authoritative competitive state only in memory for the lifetime of the object, while the Lobby still owns the operational state scheduled for later retirement; browser preferences never become competitive authority.
 
-The retired public evidence/status/spend surfaces and all `/admin/*` routes return 404. The maintenance gate and operator credentials are gone; billing and backup internals remain until their queued removal.
+The retired public evidence/status/spend surfaces and all `/admin/*` routes return 404. The maintenance gate and operator credentials are gone; billing, backup and scheduled copy internals are removed; the remaining Lobby is queued for retirement.
 
-The scheduled Worker copies Lobby state to the configured R2 binding. Restore drills read the retained copy into a scratch Durable Object, compare state digests, record the result, and wipe scratch state; they never overwrite live production state.
+The Worker has no scheduled handler or R2 binding.
 
 ## Release and deployment boundary
 
