@@ -384,60 +384,7 @@ export default {
         const fwd = new URL(request.url);
         fwd.searchParams.set("roomId", roomId);
         fwd.searchParams.set("roomName", name);
-        return stub.fetch(new Request(fwd.toString(), request));
-      }
-
-      // ── HTTP API ───────────────────────────────────────────────────────────
-      if (path === API.health) {
-        return json({ ok: true, module: "module-react3fiber", release: env.SHARKTANK_RELEASE ?? "unknown", revision: env.SHARKTANK_RELEASE_REVISION ?? "unknown", time: new Date().toISOString() });
-      }
-
-      if (path === "/version.json") {
-        return json({ product: "SharkTank", release: env.SHARKTANK_RELEASE ?? "unknown", revision: env.SHARKTANK_RELEASE_REVISION ?? "unknown", environment: env.ENVIRONMENT ?? "unknown" });
-      }
-
-      if (path === API.tank) {
-        const stub = env.LOBBY.get(env.LOBBY.idFromName("global"));
-        return stub.fetch("https://lobby/list");
-      }
-
-      if (path.startsWith("/api/")) return json({ ok: false, error: "service gated", reason: state.reason || "Safety control active" }, 503);
-          const response = html(renderDowntimeDocument(state), 503);
-          response.headers.set("retry-after", "60");
-          response.headers.set("cache-control", "no-store");
-          return response;
-        }
-      }
-      // The page stylesheet, ahead of every other route and of static asset dispatch. Only
-      // the current fingerprint is served: any other /styles/ path is an explicit miss, so a
-      // text/css request can never be answered with the game document.
-      if (path === PAGE_CSS_PATH) return pageCssResponse();
-      if (path.startsWith("/styles/")) return new Response("Not found", { status: 404, headers: { "content-type": "text/plain; charset=utf-8", "cache-control": "no-store", ...SECURITY_HEADERS } });
-
-      if (path === "/play") return movedTo(url, "/play/");
-      if (path === "/favicon.ico") return new Response(null, { status: 404, headers: { "cache-control": "public, max-age=3600", ...SECURITY_HEADERS } });
-      if (path === "/robots.txt") return new Response("User-agent: *\nAllow: /\nDisallow: /admin/\nDisallow: /logs/game/\nDisallow: /*.json$\nDisallow: /*.jsonl$\nSitemap: https://sharktank.wizardgang.ai/sitemap.xml\n", { headers: { "content-type": "text/plain; charset=utf-8", "cache-control": "public, max-age=3600", ...SECURITY_HEADERS } });
-      if (path === "/sitemap.xml") {
-        const routes = CANONICAL_HUMAN_ROUTES;
-        const body = `<?xml version="1.0" encoding="UTF-8"?><urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">${routes.map((route) => `<url><loc>https://sharktank.wizardgang.ai${route}</loc></url>`).join("")}</urlset>`;
-        return new Response(body, { headers: { "content-type": "application/xml; charset=utf-8", "cache-control": "public, max-age=3600", ...SECURITY_HEADERS } });
-      }
-
-
-      // ── WebSocket → Room DO ────────────────────────────────────────────────
-      const roomId = parseRoomPath(path);
-      if (roomId) {
-        if (!ALLOWED_ROOMS.has(roomId)) return json({ ok: false, error: "unknown room" }, 404);
-        if (request.method !== "GET" || request.headers.get("Upgrade")?.toLowerCase() !== "websocket") return new Response("WebSocket upgrade required", { status: 426 });
-        const origin = request.headers.get("origin");
-        if (origin && new URL(origin).host !== url.host) return json({ ok: false, error: "origin rejected" }, 403);
-        const id = env.ROOM.idFromName(roomId);
-        const stub = env.ROOM.get(id);
-        const name = ROOM_NAME;
-        const fwd = new URL(request.url);
-        fwd.searchParams.set("roomId", roomId);
-        fwd.searchParams.set("roomName", name);
-        return stub.fetch(new Request(fwd.toString(), request));
+        return stub.fetch(new Request(fwd.toString(), { method: request.method, headers: request.headers }));
       }
 
       // ── HTTP API ───────────────────────────────────────────────────────────
