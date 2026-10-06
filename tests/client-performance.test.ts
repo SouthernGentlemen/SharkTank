@@ -14,6 +14,7 @@ import {
 } from "../src/engine/index.js";
 import {
   REALTIME_PROTOCOL_VERSION,
+  STATE_BROADCAST_EVERY,
   toNetState,
   withRealtimeProtocol,
 } from "../src/protocol/index.js";
@@ -124,7 +125,7 @@ describe("ST-127 3D client performance contracts", () => {
     const state = populateRepresentativeRoom();
     const message = withRealtimeProtocol({ t: "state" as const, state: toNetState(state) });
     const snapshotBytes = bytes(message);
-    const measuredBytesPerSecond = snapshotBytes * (TICKS_PER_SECOND / 2);
+    const measuredBytesPerSecond = snapshotBytes * (TICKS_PER_SECOND / STATE_BROADCAST_EVERY);
 
     expect(message.state.snakes).toHaveLength(32);
     expect(message.state.food).toHaveLength(PREY_BUDGET.max);
@@ -132,10 +133,11 @@ describe("ST-127 3D client performance contracts", () => {
     expect(measuredBytesPerSecond).toBeLessThanOrEqual(600_000);
 
     const roomDo = read("../src/worker/room-do.ts");
-    expect(roomDo).toContain("STATE_BROADCAST_EVERY = 2");
-    expect(TICKS_PER_SECOND / 2).toBe(10);
+    expect(roomDo).toContain("STATE_BROADCAST_EVERY,");
+    expect(STATE_BROADCAST_EVERY).toBe(2);
+    expect(TICKS_PER_SECOND / STATE_BROADCAST_EVERY).toBe(10);
     console.info(
-      `ST-127 network fixture: ${snapshotBytes} bytes/snapshot × ${TICKS_PER_SECOND / 2} snapshots/s = ${measuredBytesPerSecond} bytes/s max representative stream`,
+      `ST-127 network fixture: ${snapshotBytes} bytes/snapshot × ${TICKS_PER_SECOND / STATE_BROADCAST_EVERY} snapshots/s = ${measuredBytesPerSecond} bytes/s max representative stream`,
     );
   });
 

@@ -8,6 +8,7 @@ import { clampPitch, normalizeYaw, shortestYawDelta, TICKS_PER_SECOND } from "..
 import { parseRealtimeServerMessage, withRealtimeProtocol, type ClientMessagePayload, type NetState, type ScoreEntry } from "../../protocol/index.js";
 import { connectionAfterClose, connectionAfterWelcome, type ConnectionStatus } from "./roomConnectionState.js";
 
+import { bracketSnapshots, type InterpFrame } from "./snapshotTimeline.js";
 import { toClientState, type ClientState } from "./clientState.js";
 
 const TICK_MS = 1000 / TICKS_PER_SECOND;
@@ -23,12 +24,7 @@ export interface DeathInfo {
   at: number; // client timestamp
 }
 
-/** A pair of buffered snapshots straddling the render time, plus the blend factor. */
-export interface InterpFrame {
-  older: ClientState;
-  newer: ClientState;
-  alpha: number; // 0 at `older`, 1 at `newer`
-}
+export type { InterpFrame } from "./snapshotTimeline.js";
 
 export interface RoomSocket {
   /** Latest authoritative snapshot; null until the first packet. Used by HUD/minimap/audio. */
@@ -115,24 +111,7 @@ export function useRoomSocket(
   }, []);
 
   const frameAt = useCallback((delayMs: number): InterpFrame | null => {
-    const buf = bufferRef.current;
-    const n = buf.length;
-    if (n === 0) return null;
-    const origin = timelineOriginRef.current ?? (buf[0].t - buf[0].state.tick * TICK_MS);
-    const renderServerTime = performance.now() - origin - delayMs;
-    const oldestServerTime = buf[0].state.tick * TICK_MS;
-    const newestServerTime = buf[n - 1].state.tick * TICK_MS;
-    if (renderServerTime <= oldestServerTime) return { older: buf[0].state, newer: buf[0].state, alpha: 0 };
-    if (renderServerTime >= newestServerTime) return { older: buf[n - 1].state, newer: buf[n - 1].state, alpha: 1 };
-    // Find snapshots that bracket the render point on the authoritative tick clock.
-    let i = n - 2;
-    while (i > 0 && buf[i].state.tick * TICK_MS > renderServerTime) i -= 1;
-    const older = buf[i];
-    const newer = buf[i + 1];
-    const olderServerTime = older.state.tick * TICK_MS;
-    const span = (newer.state.tick - older.state.tick) * TICK_MS;
-    const alpha = span > 0 ? (renderServerTime - olderServerTime) / span : 0;
-    return { older: older.state, newer: newer.state, alpha };
+    return bracketSnapshots(bufferRef.current, timelineOriginRef.current, performance.now(), delayMs);
   }, []);
 
   useEffect(() => {

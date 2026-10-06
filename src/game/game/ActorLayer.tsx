@@ -1,3 +1,4 @@
+import { REMOTE_INTERP_DELAY_MS } from "../net/snapshotTimeline.js";
 import { useFrame, useThree } from "@react-three/fiber";
 import { useMemo, useRef } from "react";
 import * as THREE from "three";
@@ -28,7 +29,7 @@ import type { LocalInput } from "./useLocalInput.js";
 
 const MAX_SHARKS = 32;
 const MAX_EYES = MAX_SHARKS * 2;
-const INTERP_DELAY_MS = 45;
+
 
 const WHITE = new THREE.Color("#ffffff");
 const FALLBACK = new THREE.Color("#33b679");
@@ -155,7 +156,7 @@ export function ActorLayer({
       pectoralRight,
     ] as const;
 
-    const frame = socket.frameAt(INTERP_DELAY_MS);
+    const frame = socket.frameAt(REMOTE_INTERP_DELAY_MS);
     if (!frame) {
       followRef.current.active = false;
       return;

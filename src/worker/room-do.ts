@@ -1,12 +1,11 @@
 import { applyAction, createRoom, leaderboard, SKINS, spawnBots, step, TICKS_PER_SECOND, type RoomState } from "../engine/index.js";
-import { clientInputToAction, parseRealtimeClientMessage, sanitizeDisplayName, toNetState, withRealtimeProtocol, type ServerMessagePayload } from "../protocol/index.js";
+import { STATE_BROADCAST_EVERY, clientInputToAction, parseRealtimeClientMessage, sanitizeDisplayName, toNetState, withRealtimeProtocol, type ServerMessagePayload } from "../protocol/index.js";
 
 // A tank holds 32 sharks: up to SHARK_CAPACITY - BOT_COUNT humans, with bots making up
 // the rest so a lightly-populated tank still feels like a full lobby.
 const SHARK_CAPACITY = 32, CAPACITY = 8, BOT_COUNT = SHARK_CAPACITY - CAPACITY;
 const OCEAN_RADIUS = 82;
 const LEADERBOARD_EVERY = TICKS_PER_SECOND * 2;
-const STATE_BROADCAST_EVERY = 2; // 20Hz authoritative simulation, 10Hz snapshots.
 const MAX_MESSAGE_BYTES = 4_096, INPUTS_PER_SECOND = 40;
 interface Session { id: string; ws: WebSocket; name: string; skin: string; wasAlive: boolean; joined: boolean; rateAt: number; rateCount: number }
 
