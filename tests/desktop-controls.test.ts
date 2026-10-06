@@ -2,11 +2,14 @@ import { readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
 import {
   DEFAULT_KEYBINDS,
+  DEFAULT_SETTINGS,
   normalizeKeybinds,
   rebindKeybinds,
 } from "../src/game/settings/SettingsContext.js";
 import {
   advanceCameraLookOffsets,
+  advanceKeyboardSteering,
+  autoLevelPitch,
   cameraLookFromPointer,
   desktopAxesForPressed,
 } from "../src/game/game/desktopControls.js";
@@ -103,5 +106,43 @@ describe("ST-116 desktop full-3D controls", () => {
     expect(screen).toContain("<PauseMenu");
     expect(screen).toContain("settingsOpen || helpOpen || paused");
     expect(screen).not.toContain("else { e.preventDefault(); handleQuit(); }");
+  });
+});
+
+describe("ST-244 gentle steering", () => {
+  it("ramps keyboard flight in over 120 ms and out over 80 ms without changing look", () => {
+    let axes = { yaw: 0, pitch: 0 };
+    for (let i = 0; i < 6; i++) axes = advanceKeyboardSteering(axes, { yaw: 1, pitch: -1 }, 0.02);
+    expect(axes.yaw).toBeCloseTo(1);
+    expect(axes.pitch).toBeCloseTo(-1);
+    axes = advanceKeyboardSteering(axes, { yaw: 0, pitch: 0 }, 0.04);
+    expect(axes.yaw).toBeCloseTo(0.5);
+    axes = advanceKeyboardSteering(axes, { yaw: 0, pitch: 0 }, 0.04);
+    expect(axes).toEqual({ yaw: 0, pitch: 0 });
+  });
+
+  it("handles reversal, assisted axes and frame rates without overshooting", () => {
+    const advance = (dt: number, count: number) => {
+      let axes = { yaw: 0, pitch: 0 };
+      for (let i = 0; i < count; i++) axes = advanceKeyboardSteering(axes, { yaw: -0.6, pitch: 1 }, dt);
+      return axes;
+    };
+    expect(advance(1 / 60, 6).yaw).toBeCloseTo(advance(1 / 30, 3).yaw);
+    expect(advance(1 / 60, 12)).toEqual({ yaw: -0.6, pitch: 1 });
+    expect(advanceKeyboardSteering({ yaw: 1, pitch: 0 }, { yaw: -1, pitch: 0 }, 0.03).yaw).toBeCloseTo(0.75);
+    expect(advanceKeyboardSteering({ yaw: 0, pitch: 0 }, { yaw: 1, pitch: 1 }, NaN)).toEqual({ yaw: 0, pitch: 0 });
+  });
+
+  it("levels either idle pitch at 1.2 rad/s, preserves active input and supports opt-out", () => {
+    expect(DEFAULT_SETTINGS.controls.autoLevel).toBe(true);
+    expect(autoLevelPitch(0.5, 0, 0.05, true)).toBeCloseTo(0.44);
+    expect(autoLevelPitch(-0.5, 0, 0.05, true)).toBeCloseTo(-0.44);
+    expect(autoLevelPitch(0.02, 0, 0.05, true)).toBe(0);
+    expect(autoLevelPitch(0.5, 0.01, 0.05, true)).toBe(0.5);
+    expect(autoLevelPitch(0.5, 0, 0.05, false)).toBe(0.5);
+    expect(autoLevelPitch(0.5, 0, NaN, true)).toBe(0.5);
+    let pitch = 0.5;
+    for (let i = 0; i < 30; i++) pitch = autoLevelPitch(pitch, 0, 1 / 60, true);
+    expect(pitch).toBe(0);
   });
 });

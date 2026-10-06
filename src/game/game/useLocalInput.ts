@@ -9,6 +9,8 @@ import type { RoomSocket } from "../net/useRoomSocket.js";
 import type { Settings } from "../settings/SettingsContext.js";
 import {
   advanceCameraLookOffsets,
+  advanceKeyboardSteering,
+  autoLevelPitch,
   cameraLookFromPointer,
   desktopAxesForPressed,
   type CameraLook,
@@ -53,6 +55,7 @@ export function useLocalInput(
   const pitchRef = useRef(0);
   const boostRef = useRef(false);
   const pressed = useRef<Set<string>>(new Set());
+  const keyboardSteering = useRef({ yaw: 0, pitch: 0 });
   const pointerLook = useRef<CameraLook | null>(null);
   const cameraLook = useRef<CameraLook>({ yaw: 0, pitch: 0 });
   const orientationInitialized = useRef(false);
@@ -72,6 +75,7 @@ export function useLocalInput(
     };
     const releaseActiveInput = () => {
       pressed.current.clear();
+      keyboardSteering.current = { yaw: 0, pitch: 0 };
       pointerLook.current = null;
       cameraLook.current = { yaw: 0, pitch: 0 };
       boostRef.current = false;
@@ -175,9 +179,10 @@ export function useLocalInput(
       const touch = touchControls && touchInputRef
         ? touchAxesForState(touchInputRef.current, controls.turnAssist, controls.invertSteer)
         : { yaw: 0, pitch: 0, lookYaw: 0, lookPitch: 0 };
+      keyboardSteering.current = advanceKeyboardSteering(keyboardSteering.current, desktop, dt);
       const axes = {
-        yaw: clampAxis(desktop.yaw + touch.yaw),
-        pitch: clampAxis(desktop.pitch + touch.pitch),
+        yaw: clampAxis(keyboardSteering.current.yaw + touch.yaw),
+        pitch: clampAxis(keyboardSteering.current.pitch + touch.pitch),
         lookYaw: clampAxis(desktop.lookYaw + touch.lookYaw),
         lookPitch: clampAxis(desktop.lookPitch + touch.lookPitch),
       };
@@ -190,7 +195,7 @@ export function useLocalInput(
         dt,
       );
       yawRef.current = steered.yaw;
-      pitchRef.current = steered.pitch;
+      pitchRef.current = autoLevelPitch(steered.pitch, axes.pitch, dt, controls.autoLevel);
       const touchLookActive = touchControls && touchInputRef?.current.look.pointerId !== null;
       cameraLook.current = advanceCameraLookOffsets(
         cameraLook.current,

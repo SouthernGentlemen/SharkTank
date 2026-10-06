@@ -80,3 +80,25 @@ export function advanceCameraLookOffsets(
     current.pitch + (target.pitch - current.pitch) * blend,
   );
 }
+
+/** Linear keyboard attack/release ramps, independent of the camera-look keys. */
+export function advanceKeyboardSteering(
+  current: Pick<DesktopAxes, "yaw" | "pitch">,
+  target: Pick<DesktopAxes, "yaw" | "pitch">,
+  dt: number,
+): Pick<DesktopAxes, "yaw" | "pitch"> {
+  const step = Math.max(0, Math.min(0.05, Number.isFinite(dt) ? dt : 0));
+  const advance = (value: number, goal: number) => {
+    const duration = goal === 0 ? 0.08 : 0.12;
+    const delta = goal - value;
+    return value + Math.sign(delta) * Math.min(Math.abs(delta), step / duration);
+  };
+  return { yaw: advance(current.yaw, target.yaw), pitch: advance(current.pitch, target.pitch) };
+}
+
+/** Level idle flight intent without changing server-owned orientation. */
+export function autoLevelPitch(pitch: number, pitchAxis: number, dt: number, enabled: boolean): number {
+  if (!enabled || pitchAxis !== 0) return pitch;
+  const step = Math.max(0, Math.min(0.05, Number.isFinite(dt) ? dt : 0));
+  return Math.sign(pitch) * Math.max(0, Math.abs(pitch) - 1.2 * step);
+}

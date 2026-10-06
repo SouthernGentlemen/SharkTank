@@ -91,7 +91,7 @@ Tasks follow these defaults unless the owner changes them before the task starts
 | Remote interpolation | 150 ms shared delay, rate estimation, bounded clock correction and ≤ 120 ms extrapolation | 1.5 × snapshot interval (150 ms), drift-locked, ≤ 120 ms extrapolation | ST-233–ST-235 |
 | Snapshot weight | ≤ 14 KB typical per-session; ≤ 25 KB unfiltered stress fixture | ≤ 14 KB typical × 10 Hz | ST-241 |
 | Steering send | ≤ 20 Hz, 0.015 rad deadband, trailing final send | 20 Hz, 0.015 rad, trailing final send | ST-237 |
-| Pitch on release | Held | Auto-levels at ~1.2 rad/s | ST-244 |
+| Pitch on release | Auto-levels at ~1.2 rad/s by default; optional held pitch | Auto-levels at ~1.2 rad/s | ST-244 |
 | Surface and seabed | Pitch snapped to 0 | Proportional glide band (3 units) | ST-245 |
 | Shark overlap | Instant heading snap | Positional push, headings kept | ST-246 |
 | Wall | Death on contact | Inward current from 4 units inside, no death | ST-247 |
@@ -105,21 +105,6 @@ Tasks follow these defaults unless the owner changes them before the task starts
 | Music | Six-note loop on `setInterval`, off by default | Layered adaptive score on the audio clock, on at 35% | ST-275–ST-278 |
 
 ## Open tasks
-
-### ST-244 — [FEAT] Auto-level pitch and ease keyboard steering
-
-**Goal:** Held pitch drives sharks into the surface or seabed, and keys jump straight to full turn rate.
-
-**Scope**
-- When the pitch axis is idle, ease the target pitch to level at about 1.2 rad/s.
-- Ramp keyboard steering axes in over about 120 ms and out over about 80 ms.
-- Add `controls.autoLevel` (default on) and update Help.
-
-**Acceptance:** Steering-helper tests pass; turning the setting off restores held pitch.
-
-**Validation:** `npm test -- tests/desktop-controls.test.ts tests/mobile-controls.test.ts tests/swimming-camera.test.ts`.
-
----
 
 ### ST-245 — [FIX] Glide along the surface and seabed instead of snapping pitch
 
