@@ -60,7 +60,7 @@ The Worker has no scheduled handler or R2 binding.
 
 Ordinary controlled changes do not create tags, GitHub Releases, or production deployments. A normal semantic release advances `package.json` and `package-lock.json` together and resets tracked `releaseRevision` to 0. A same-product release advances `package.json.releaseRevision` exactly once and creates an immutable `vX.Y.Z-rN` revision tag while package and lock product versions remain `X.Y.Z`. An unchanged product version and unchanged revision are a no-op.
 
-The Release workflow verifies exact tag/package/commit identity, runs the canonical checks and advisory gate, publishes the matching GitHub Release, then calls baseline's pinned `deploy-worker.yml` with `secrets: inherit`. The called workflow waits for protected `production` approval, builds the exact tag, deploys `sharktank`, and verifies `/version.json` identity. The first production cut-over is ST-224; this task does not deploy. Baseline's pinned workflow accepts semantic `vX.Y.Z` tags.
+The Release workflow verifies exact tag/package/commit identity, runs the canonical checks and advisory gate, publishes the matching GitHub Release, then calls baseline's pinned `deploy-worker.yml` with `secrets: inherit`. The called workflow waits for protected `production` approval, builds the exact tag, deploys `sharktank`, and verifies `/version.json` identity. Production releases deploy `sharktank` through this protected path. Baseline's pinned workflow accepts semantic `vX.Y.Z` tags.
 
 ## Controlled work
 

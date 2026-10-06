@@ -291,7 +291,7 @@ describe("ST-131 full-3D product acceptance", () => {
     expect(github.rulesets.find((rule) => rule.name === "main-protection")?.bypassActors).toEqual([]);
     expect(github.rulesets.find((rule) => rule.name === "release-tag-immutability")?.bypassActors).toEqual([]);
 
-    expect(pkg.version).toBe("2.0.1");
+    expect(pkg.version).toBe("2.1.0");
     expect(pkg.releaseRevision).toBe(0);
     expect(ROOM_SCHEMA_VERSION).toBe(11);
     expect(REALTIME_PROTOCOL_VERSION).toBe(11);

@@ -68,7 +68,7 @@ describe("full-3D current-state documentation", () => {
 
   it("keeps identity and the current-only queue stable while documentation advances", () => {
     const pkg = JSON.parse(read("../package.json")) as { version: string };
-    expect(pkg.version).toBe("2.0.1");
+    expect(pkg.version).toBe("2.1.0");
     expect(pkg.releaseRevision).toBe(0);
     expect(ROOM_SCHEMA_VERSION).toBe(11);
     expect(REALTIME_PROTOCOL_VERSION).toBe(11);

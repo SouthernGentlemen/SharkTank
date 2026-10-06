@@ -142,27 +142,6 @@ On 2026-10-02 the owner directed that this SharkTank material be deleted from th
 
 ## Open tasks
 
-### ST-224 — [OPS] Release the lean update as the sharktank cut-over, v2.1.0
-
-**Goal:** Ship ST-142 through ST-149 and ST-222 and ST-223. The first deploy through `deploy-worker.yml` creates the `sharktank` Worker and moves `sharktank.wizardgang.ai` from `wizardgangprod`.
-
-**Starting point:** The shared shell, fresh `Room` migration, Secrets Store bindings and pinned baseline deployment call are committed. `wizardgangprod` and its data remain live until this release and the separately governed R3 retirement.
-
-**Scope**
-- Semantic minor release.
-- The wizardgang.ai change is already live (WizardGang `v1.3.0`, 2026-10-05).
-- Before release, the owner records the manual rows for data use and the one-tank flow.
-- `sharktank.wizardgang.ai` is a Worker custom domain on `wizardgangprod`. The locked wrangler 4.147.0 runs non-interactively in CI and then moves an existing custom domain to the new Worker without a prompt (WizardGang's cut-over moved `wizardgang.ai` that way). It cannot override a hand-made DNS record: before deploying, confirm the host has none, or the owner deletes it immediately before the deploy.
-- The production deploy token must hold Secrets Store Edit (baseline runbook step 3.6) for the `WG_OPS_TOKEN` and `WG_SESSION_KEY` bindings.
-- Owner follow-up from baseline's runbooks:
-  - retire `wizardgangprod` (R3). Its `Lobby`, `Room` data, cron and `OPS_TOKEN`/`OPS_USERNAME` secrets go with it. R3's precondition assumes a transferred `Room`, so a baseline change aligns it with the ST-222 decision first;
-  - retire `wizardgang-demo-assets` (R1), now that ST-148 is deployed;
-  - delete the `production` secret `CLOUDFLARE_ACCOUNT_ID` (now a variable) and the `PRODUCTION_DEPLOY_ENABLED` variable.
-
-**Acceptance:** `v2.1.0` is live as `sharktank` at 100% of traffic with one Durable Object class, serving only the game surface. `https://sharktank.wizardgang.ai/version.json` reports `sharktank`, 2.1.0 and the tag commit, and a full round plays. Baseline `npm run verify:cloudflare` shows no `sharktank` drift. Protected approval is honored; stop and report if it is pending.
-
----
-
 ### ST-226 — [DOCS] Retire the ISO-era documents and provenance records
 
 **Goal:** Leave documentation that describes a lean game, not an evidence program.
