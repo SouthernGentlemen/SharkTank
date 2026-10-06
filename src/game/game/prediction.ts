@@ -4,6 +4,7 @@
 
 import {
   MOVE,
+  DASH_TICKS,
   TICKS_PER_SECOND,
   clampPitch,
   distance3,
@@ -41,12 +42,22 @@ export class LocalPredictor {
   private yaw = 0;
   private pitch = 0;
   private alive = false;
+  private lastPress = -Infinity;
+  private pendingAt: number | null = null;
+  private cooldownAtPress = 0;
+  private lastTick = -1;
+  private sharkId: string | null = null;
 
   reset(): void {
     this.alive = false;
+    this.pendingAt = null;
+    this.lastTick = -1;
+    this.sharkId = null;
   }
 
   private seed(auth: ClientShark): void {
+    this.pendingAt = null;
+    this.sharkId = auth.id;
     this.head = { ...auth.position! };
     this.yaw = auth.yaw;
     this.pitch = auth.pitch;
@@ -59,21 +70,42 @@ export class LocalPredictor {
     dt: number,
     staleness: number,
     world?: PredictionWorld,
+    nowMs = performance.now(),
+    dashPressedAt = -Infinity,
   ): PredictionResult | null {
     if (!auth || !auth.alive || !auth.position) {
-      this.alive = false;
+      this.reset();
+      this.lastPress = dashPressedAt;
       return null;
     }
+    if (auth.id !== this.sharkId || (world && world.tick < this.lastTick)) this.reset();
+    this.lastTick = world?.tick ?? this.lastTick;
     if (!this.alive) {
       this.seed(auth);
+      this.lastPress = dashPressedAt;
       return this.build();
     }
+
+    if (dashPressedAt !== this.lastPress) {
+      this.lastPress = dashPressedAt;
+      if (world && world.tick >= auth.dashCooldownTick && auth.lungeTicks === 0
+        && nowMs - dashPressedAt < 250 && this.pendingAt === null) {
+        this.pendingAt = dashPressedAt;
+        this.cooldownAtPress = auth.dashCooldownTick;
+      }
+    }
+    if (this.pendingAt !== null && (auth.lungeTicks > 0
+      || auth.dashCooldownTick > this.cooldownAtPress || nowMs - this.pendingAt >= 250)) {
+      this.pendingAt = null;
+    }
+    const predictedTicks = this.pendingAt === null ? auth.lungeTicks
+      : Math.max(0, DASH_TICKS - Math.floor((nowMs - this.pendingAt) / 1000 * TICKS_PER_SECOND));
 
     const frameStep = Math.min(dt, 0.05);
     this.yaw = rotateYawToward(this.yaw, input.targetYaw, TURN * frameStep);
     this.pitch = clampPitch(moveToward(this.pitch, input.targetPitch, PITCH * frameStep));
     const frenzyMultiplier = world && world.frenzyUntilTick > world.tick ? MOVE.FRENZY_SPEED : 1;
-    const speed = swimSpeedForLungeTicks(auth.lungeTicks) * TICKS_PER_SECOND * frenzyMultiplier;
+    const speed = swimSpeedForLungeTicks(predictedTicks) * TICKS_PER_SECOND * frenzyMultiplier;
     const forward = forwardFromYawPitch(this.yaw, this.pitch);
     const next: Vec3 = {
       x: this.head.x + forward.x * speed * frameStep,

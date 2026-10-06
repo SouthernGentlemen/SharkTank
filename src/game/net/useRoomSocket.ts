@@ -30,6 +30,7 @@ export interface RoomSocket {
   stateRef: React.MutableRefObject<ClientState | null>;
   /** performance.now() when the newest snapshot arrived — for prediction reconciliation. */
   newestAtRef: React.MutableRefObject<number>;
+  dashPressedAtRef: React.MutableRefObject<number>;
   /**
    * Sample the snapshot buffer at (now − delayMs) and return the two snapshots that
    * bracket that render time with an interpolation factor. This is anchored to the
@@ -61,6 +62,7 @@ export function useRoomSocket(
 ): RoomSocket {
   const stateRef = useRef<ClientState | null>(null);
   const newestAtRef = useRef<number>(0);
+  const dashPressedAtRef = useRef(-Infinity);
   // Ring of recent snapshots stamped with client receive time, ordered oldest→newest.
   const bufferRef = useRef<Array<{ t: number; state: ClientState }>>([]);
   const timelineClockRef = useRef(new SnapshotClock());
@@ -129,6 +131,8 @@ export function useRoomSocket(
       const ws = new WebSocket(wsUrl(roomId, roomName));
       orientationSenderRef.current?.reset();
       youIdRef.current = null;
+      dashPressedAtRef.current = -Infinity;
+      lastBoostRef.current = false;
       wsRef.current = ws;
 
       ws.onopen = () => {
@@ -241,6 +245,9 @@ export function useRoomSocket(
     (on: boolean) => {
       if (on === lastBoostRef.current) return;
       lastBoostRef.current = on;
+      if (on && wsRef.current?.readyState === WebSocket.OPEN && youIdRef.current) {
+        dashPressedAtRef.current = performance.now();
+      }
       send({ t: "input", action: { type: "setBoost", on } });
     },
     [send],
@@ -256,6 +263,7 @@ export function useRoomSocket(
   return {
     stateRef,
     newestAtRef,
+    dashPressedAtRef,
     frameAt,
     youId,
     status,

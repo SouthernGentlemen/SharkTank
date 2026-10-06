@@ -133,7 +133,7 @@ export const BOT_AI_BUDGET = {
   wanderInterval: 20,
   wanderPitch: 0.45,
 } as const;
-const DASH_TICKS = 10;
+export const DASH_TICKS = 10;
 const DASH_ACCEL_TICKS = 3;
 const DASH_DECEL_TICKS = 4;
 const DASH_COOLDOWN_TICKS = TICKS_PER_SECOND * 2;
