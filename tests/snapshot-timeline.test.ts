@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { bracketSnapshots, REMOTE_INTERP_DELAY_MS, type BufferedSnapshot } from "../src/game/net/snapshotTimeline.js";
+import { SnapshotClock, bracketSnapshots, REMOTE_INTERP_DELAY_MS, type BufferedSnapshot } from "../src/game/net/snapshotTimeline.js";
 import type { ClientState } from "../src/game/net/clientState.js";
 import { STATE_BROADCAST_EVERY } from "../src/protocol/index.js";
 import { TICKS_PER_SECOND } from "../src/engine/index.js";
@@ -35,5 +35,57 @@ describe("snapshot timeline", () => {
       }
       expect(clamped / frames).toBeLessThan(0.02);
     }
+  });
+});
+
+describe("drift-locked snapshot clock", () => {
+  it.each([0.99, 1, 1.01])("keeps ten minutes of jittered playback locked at rate %s", rate => {
+    const clock = new SnapshotClock();
+    const buffer: BufferedSnapshot[] = [];
+    let next = 0, frames = 0, clamped = 0, previous: number | null = null;
+    let maxLagError = 0, maxStep = 0;
+    for (let now = 1000; now < 601000; now += 1000 / 60) {
+      while (1000 + next * 100 / rate + ((next * 37) % 51) <= now) {
+        const t = 1000 + next * 100 / rate + ((next * 37) % 51);
+        const snapshot = { t, state: state(next * STATE_BROADCAST_EVERY) };
+        clock.observe(snapshot.state.tick, t);
+        buffer.push(snapshot);
+        while (buffer.length > 2 && buffer[0].t < now - 1500) buffer.shift();
+        next += 1;
+      }
+      const origin = clock.originAt(now);
+      if (origin === null) continue;
+      const renderTime = now - origin - REMOTE_INTERP_DELAY_MS;
+      if (previous !== null) {
+        expect(renderTime).toBeGreaterThanOrEqual(previous);
+        maxStep = Math.max(maxStep, renderTime - previous);
+      }
+      previous = renderTime;
+      if (now < 4000) continue;
+      const frame = bracketSnapshots(buffer, origin, now, REMOTE_INTERP_DELAY_MS)!;
+      frames += 1;
+      if (frame.older === frame.newer) clamped += 1;
+      const rendered = (frame.older.tick + (frame.newer.tick - frame.older.tick) * frame.alpha) * 1000 / TICKS_PER_SECOND;
+      maxLagError = Math.max(maxLagError, Math.abs((now - 1000) * rate - rendered - REMOTE_INTERP_DELAY_MS));
+    }
+    expect(clamped / frames).toBeLessThan(0.02);
+    expect(maxLagError).toBeLessThanOrEqual(20);
+    // A frame advances at the estimated server rate plus at most the phase slew.
+    expect(maxStep).toBeLessThanOrEqual(1000 / 60 * 1.025 + 1e-6);
+  });
+
+  it("bounds phase slew and resets on reconnect and tick regression", () => {
+    const clock = new SnapshotClock();
+    clock.observe(20, 1000);
+    clock.observe(22, 1150);
+    const before = clock.originAt(1150)!;
+    const after = clock.originAt(1250)!;
+    expect(Math.abs(after - before)).toBeLessThanOrEqual(0.5 + 1e-9);
+    clock.reset();
+    expect(clock.originAt(1300)).toBeNull();
+    clock.observe(200, 1400);
+    clock.observe(0, 1500);
+    expect(clock.originAt(1500)).toBe(1500);
+    expect(clock.originAt(1600)).toBe(1500);
   });
 });

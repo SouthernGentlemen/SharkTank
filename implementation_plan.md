@@ -88,7 +88,7 @@ Tasks follow these defaults unless the owner changes them before the task starts
 
 | Knob | Today | Target | Task |
 | --- | --- | --- | --- |
-| Remote interpolation | 150 ms shared delay vs 100 ms snapshots; drift correction and extrapolation queued | 1.5 × snapshot interval (150 ms), drift-locked, ≤ 120 ms extrapolation | ST-233–ST-235 |
+| Remote interpolation | 150 ms shared delay, rate estimation and bounded clock correction; extrapolation queued | 1.5 × snapshot interval (150 ms), drift-locked, ≤ 120 ms extrapolation | ST-233–ST-235 |
 | Snapshot weight | ~30 KB × 10 Hz ≈ 295 KB/s | ≤ 14 KB typical × 10 Hz | ST-240–ST-241 |
 | Steering send | ≤ 10 Hz, 0.05/0.04 rad deadband | 20 Hz, 0.015 rad, trailing final send | ST-237 |
 | Pitch on release | Held | Auto-levels at ~1.2 rad/s | ST-244 |
@@ -105,18 +105,6 @@ Tasks follow these defaults unless the owner changes them before the task starts
 | Music | Six-note loop on `setInterval`, off by default | Layered adaptive score on the audio clock, on at 35% | ST-275–ST-278 |
 
 ## Open tasks
-
-### ST-234 — [FIX] Keep the interpolation clock locked to the server tick rate
-
-**Goal:** The tick-to-client clock is fixed at the first packet and drifts over a session.
-
-**Scope:** Estimate the packet offset baseline as a windowed minimum over about 2 s and slew toward it at no more than 5 ms per second. Reset on reconnect or tick regression.
-
-**Acceptance:** Server clocks 1% fast or slow over ten minutes keep clamped frames under 2%, render lag within ±20 ms of target, and no render-time jump larger than one frame.
-
-**Validation:** Timeline tests.
-
----
 
 ### ST-235 — [FEAT] Extrapolate remote actors briefly when a snapshot is late
 

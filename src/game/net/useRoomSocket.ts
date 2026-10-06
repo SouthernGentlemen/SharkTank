@@ -4,14 +4,12 @@
 // Auto-reconnects with backoff.
 
 import { useCallback, useEffect, useRef, useState } from "react";
-import { clampPitch, normalizeYaw, shortestYawDelta, TICKS_PER_SECOND } from "../../engine/index.js";
+import { clampPitch, normalizeYaw, shortestYawDelta } from "../../engine/index.js";
 import { parseRealtimeServerMessage, withRealtimeProtocol, type ClientMessagePayload, type NetState, type ScoreEntry } from "../../protocol/index.js";
 import { connectionAfterClose, connectionAfterWelcome, type ConnectionStatus } from "./roomConnectionState.js";
 
-import { bracketSnapshots, type InterpFrame } from "./snapshotTimeline.js";
+import { bracketSnapshots, SnapshotClock, type InterpFrame } from "./snapshotTimeline.js";
 import { toClientState, type ClientState } from "./clientState.js";
-
-const TICK_MS = 1000 / TICKS_PER_SECOND;
 
 export type { ConnectionStatus } from "./roomConnectionState.js";
 
@@ -64,10 +62,7 @@ export function useRoomSocket(
   const newestAtRef = useRef<number>(0);
   // Ring of recent snapshots stamped with client receive time, ordered oldest→newest.
   const bufferRef = useRef<Array<{ t: number; state: ClientState }>>([]);
-  // Convert the authoritative tick clock to the client's monotonic clock once per
-  // connection. Interpolation then advances on server time instead of packet-arrival
-  // time, so a late packet cannot make every remote entity visibly speed up or stall.
-  const timelineOriginRef = useRef<number | null>(null);
+  const timelineClockRef = useRef(new SnapshotClock());
   const wsRef = useRef<WebSocket | null>(null);
   const retryNowRef = useRef<() => void>(() => {});
   const lastOrientationRef = useRef({ yaw: Infinity, pitch: Infinity });
@@ -101,9 +96,9 @@ export function useRoomSocket(
     const buf = bufferRef.current;
     if (buf.length && state.tick < buf[buf.length - 1].state.tick) {
       buf.length = 0;
-      timelineOriginRef.current = null;
+      timelineClockRef.current.reset();
     }
-    timelineOriginRef.current ??= now - state.tick * TICK_MS;
+    timelineClockRef.current.observe(state.tick, now);
     buf.push({ t: now, state });
     // Keep ~1.5s of history; always retain at least two to interpolate across.
     const cutoff = now - 1500;
@@ -111,7 +106,8 @@ export function useRoomSocket(
   }, []);
 
   const frameAt = useCallback((delayMs: number): InterpFrame | null => {
-    return bracketSnapshots(bufferRef.current, timelineOriginRef.current, performance.now(), delayMs);
+    const now = performance.now();
+    return bracketSnapshots(bufferRef.current, timelineClockRef.current.originAt(now), now, delayMs);
   }, []);
 
   useEffect(() => {
@@ -156,7 +152,7 @@ export function useRoomSocket(
             failedAttempts = transition.failedAttempts;
             setStatus(transition.status);
             bufferRef.current = [];
-            timelineOriginRef.current = null;
+            timelineClockRef.current.reset();
             setYouId(msg.youId);
             youIdRef.current = msg.youId;
             pushSnapshot(msg.state);
@@ -215,7 +211,7 @@ export function useRoomSocket(
       wsRef.current = null;
       stateRef.current = null;
       bufferRef.current = [];
-      timelineOriginRef.current = null;
+      timelineClockRef.current.reset();
     };
   }, [roomId, roomName, send, pushSnapshot]);
 

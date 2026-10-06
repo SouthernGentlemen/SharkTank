@@ -326,7 +326,7 @@ describe("ST-129 full-3D authority acceptance wall", () => {
 
     expect(socketSource).toContain("Auto-reconnects with backoff.");
     expect(socketSource).toContain("bufferRef.current = [];");
-    expect(socketSource).toContain("timelineOriginRef.current = null;");
+    expect(socketSource).toContain("timelineClockRef.current.reset();");
     expect(socketSource).toContain("setDeath(null);");
     expect(socketSource).toContain("if (buf.length && state.tick < buf[buf.length - 1].state.tick)");
     expect(socketSource).toContain('setStatus("incompatible")');
