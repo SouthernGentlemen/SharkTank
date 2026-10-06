@@ -35,6 +35,15 @@ export function clampPitch(value: number): number {
 }
 
 
+/** Limit outward pitch continuously over the final three units of water. */
+export function glidePitch(pitch: number, y: number, ocean: Pick<OceanVolume, "seabedY" | "surfaceY">): number {
+  const safe = clampPitch(pitch);
+  const gap = safe >= 0 ? ocean.surfaceY - y : y - ocean.seabedY;
+  const limit = MAX_PITCH * Math.max(0, Math.min(1, gap / 3));
+  return Math.sign(safe) * Math.min(Math.abs(safe), limit);
+}
+
+
 export function forwardFromYawPitch(
   yaw: number,
   pitch: number,

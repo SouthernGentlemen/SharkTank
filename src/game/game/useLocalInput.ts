@@ -5,6 +5,7 @@
 // orientation. Mobile reads the same flight/look semantics from the twin-stick contract.
 
 import { useEffect, useRef } from "react";
+import { glidePitch } from "../../engine/index.js";
 import type { RoomSocket } from "../net/useRoomSocket.js";
 import type { Settings } from "../settings/SettingsContext.js";
 import {
@@ -196,6 +197,9 @@ export function useLocalInput(
       );
       yawRef.current = steered.yaw;
       pitchRef.current = autoLevelPitch(steered.pitch, axes.pitch, dt, controls.autoLevel);
+      const state = stateRef.current;
+      const me = state?.sharks.find((shark) => shark.id === youId);
+      if (me?.position && state) pitchRef.current = glidePitch(pitchRef.current, me.position.y, state);
       const touchLookActive = touchControls && touchInputRef?.current.look.pointerId !== null;
       cameraLook.current = advanceCameraLookOffsets(
         cameraLook.current,

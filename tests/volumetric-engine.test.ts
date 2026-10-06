@@ -6,6 +6,7 @@ import {
   createRoom,
   forwardFromYawPitch,
   MAX_PITCH,
+  glidePitch,
   normalizeYaw,
   spawnBots,
   step,
@@ -87,13 +88,13 @@ describe("volumetric authoritative engine", () => {
     step(state);
     expect(shark.alive).toBe(true);
     expect(shark.position.y).toBeLessThanOrEqual(state.ocean.surfaceY);
-    expect(shark.pitch).toBe(0);
+    expect(shark.pitch).toBeCloseTo(glidePitch(Math.PI / 3, 3.9, state.ocean));
 
     place(shark, 0, -3.9, 0);
     shark.pitch = shark.targetPitch = -Math.PI / 3;
     step(state);
     expect(shark.position.y).toBeGreaterThanOrEqual(state.ocean.seabedY);
-    expect(shark.pitch).toBe(0);
+    expect(shark.pitch).toBeCloseTo(glidePitch(-Math.PI / 3, -3.9, state.ocean));
 
     place(shark, state.ocean.radius - 0.1, 0, 0);
     shark.yaw = shark.targetYaw = 0;

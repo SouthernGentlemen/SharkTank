@@ -7,6 +7,7 @@ import {
   DASH_TICKS,
   TICKS_PER_SECOND,
   clampPitch,
+  glidePitch,
   distance3,
   forwardFromYawPitch,
   moveToward,
@@ -108,6 +109,7 @@ export class LocalPredictor {
     const frameStep = Math.min(dt, 0.05);
     this.yaw = rotateYawToward(this.yaw, input.targetYaw, TURN * frameStep);
     this.pitch = clampPitch(moveToward(this.pitch, input.targetPitch, PITCH * frameStep));
+    if (world) this.pitch = glidePitch(this.pitch, this.head.y, world);
     const frenzyMultiplier = world && world.frenzyUntilTick > world.tick ? MOVE.FRENZY_SPEED : 1;
     const speed = swimSpeedForLungeTicks(predictedTicks) * TICKS_PER_SECOND * frenzyMultiplier;
     const forward = forwardFromYawPitch(this.yaw, this.pitch);
@@ -118,7 +120,6 @@ export class LocalPredictor {
     };
     if (world) {
       const boundedY = Math.max(world.seabedY, Math.min(world.surfaceY, next.y));
-      if (boundedY !== next.y) this.pitch = 0;
       next.y = boundedY;
     }
 

@@ -5,6 +5,7 @@
 
 import {
   clampPitch,
+  glidePitch,
   clampToOceanVolume,
   distance3,
   distanceSquared3,
@@ -812,7 +813,7 @@ export function step(state: RoomState): RoomState {
 
 function moveShark(state: RoomState, s: Shark): void {
   s.yaw = rotateYawToward(s.yaw, s.targetYaw, TURN_RATE);
-  s.pitch = clampPitch(moveToward(s.pitch, s.targetPitch, PITCH_RATE));
+  s.pitch = glidePitch(moveToward(s.pitch, s.targetPitch, PITCH_RATE), s.position.y, state.ocean);
 
   let speed = swimSpeedForLungeTicks(s.lungeTicks);
   s.lungeTicks ??= 0;
@@ -827,10 +828,6 @@ function moveShark(state: RoomState, s: Shark): void {
   const forward = forwardFromYawPitch(s.yaw, s.pitch);
   const rawY = head.y + forward.y * speed;
   const y = Math.max(state.ocean.seabedY, Math.min(state.ocean.surfaceY, rawY));
-  if (y !== rawY) {
-    s.pitch = 0;
-    s.targetPitch = 0;
-  }
   s.position = {
     x: head.x + forward.x * speed,
     y,
