@@ -31,8 +31,8 @@ type ClientMessage = ClientMessagePayload & { v: typeof REALTIME_PROTOCOL_VERSIO
 /** A trimmed shark for the wire — one authoritative head/body sample plus orientation. */
 export type NetSnake = Pick<
   Snake,
-  "id" | "name" | "skin" | "segments" | "yaw" | "pitch" | "length" | "boosting" | "chargeTicks" | "lungeTicks" | "dashCooldownTick" | "health" | "biteCooldownTick" | "score" | "alive"
->;
+  "id" | "name" | "skin" | "yaw" | "pitch" | "length" | "lungeTicks" | "dashCooldownTick" | "health" | "biteCooldownTick" | "score" | "alive"
+> & { segments: Vec3[]; boosting: boolean; chargeTicks: number };
 
 /**
  * Compact authoritative prey on the wire. Stable ids allow interpolation between
@@ -248,12 +248,12 @@ export function toNetState(state: RoomState): NetState {
       id: s.id,
       name: s.name,
       skin: s.skin,
-      segments: s.segments.map((seg) => ({ x: round(seg.x), y: round(seg.y), z: round(seg.z) })),
+      segments: s.alive ? [{ x: round(s.position.x), y: round(s.position.y), z: round(s.position.z) }] : [],
       yaw: round(s.yaw, 3),
       pitch: round(s.pitch, 3),
       length: round(s.length, 2),
-      boosting: s.boosting,
-      chargeTicks: s.chargeTicks ?? 0,
+      boosting: false,
+      chargeTicks: 0,
       lungeTicks: s.lungeTicks ?? 0,
       dashCooldownTick: s.dashCooldownTick ?? 0,
       health: s.health,

@@ -31,6 +31,8 @@ Gameplay is not restored after a Room object restart. A new object starts a new 
 
 The pure deterministic `src/engine/` and shared `src/protocol/` stay free of DOM, React, Three.js and Node-only APIs. Simulation randomness uses seeded RNG in live memory.
 
+Sharks use one authoritative `position`; client snapshots and prediction use the same single-position model. Protocol 11 keeps `segments: [position]` for living sharks (empty for dead sharks) and the legacy `boosting: false` / `chargeTicks: 0` fields until the queued protocol update.
+
 Wire state schema 11 and realtime protocol 11 are current. The Worker imports only server-safe engine/protocol entries.
 
 ## Client boundary

@@ -3,7 +3,8 @@
 // target identity stay readable without inventing a second client-side game truth.
 
 import { useEffect, useState } from "react";
-import type { NetPrey, NetState } from "../../protocol/index.js";
+import type { NetPrey } from "../../protocol/index.js";
+import type { ClientState } from "../net/clientState.js";
 import type { RoomSocket } from "../net/useRoomSocket.js";
 
 export type RelativeBearing =
@@ -112,12 +113,12 @@ const cuePriority: Record<DepthCueKind, number> = {
 };
 
 export function buildDepthNavigation(
-  state: NetState | null,
+  state: ClientState | null,
   youId: string | null,
   compact = false,
 ): DepthNavigationState {
   const me = state?.snakes.find((shark) => shark.id === youId && shark.alive);
-  const head = me?.segments[0];
+  const head = me?.position;
   if (!state || !me || !head) return { depth: 0, apexSelf: false, cues: [] };
 
   const cues: DepthCue[] = [];
@@ -127,9 +128,9 @@ export function buildDepthNavigation(
   if (apexId === me.id) {
     apexSelf = true;
   } else if (apexId) {
-    const apex = state.snakes.find((shark) => shark.id === apexId && shark.alive && shark.segments[0]);
-    if (apex?.segments[0]) {
-      cues.push(cue(apex.id, "apex", apex.name, "Apex target", head, me.yaw, apex.segments[0]));
+    const apex = state.snakes.find((shark) => shark.id === apexId && shark.alive && shark.position);
+    if (apex?.position) {
+      cues.push(cue(apex.id, "apex", apex.name, "Apex target", head, me.yaw, apex.position));
     }
   }
 
@@ -146,10 +147,10 @@ export function buildDepthNavigation(
   }
 
   const rivals = state.snakes
-    .filter((shark) => shark.id !== me.id && shark.id !== apexId && shark.alive && shark.segments[0])
+    .filter((shark) => shark.id !== me.id && shark.id !== apexId && shark.alive && shark.position)
     .map((shark) => ({
       shark,
-      relation: describeRelativeTarget(head, me.yaw, shark.segments[0]),
+      relation: describeRelativeTarget(head, me.yaw, shark.position!),
       larger: shark.length >= me.length * 1.08,
     }))
     .filter(({ relation }) => relation.distance <= RIVAL_RANGE)
@@ -163,7 +164,7 @@ export function buildDepthNavigation(
       larger ? "larger rival" : "nearby rival",
       head,
       me.yaw,
-      shark.segments[0],
+      shark.position!,
     ));
   }
 

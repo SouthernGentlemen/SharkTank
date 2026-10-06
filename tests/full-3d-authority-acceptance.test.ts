@@ -1,3 +1,4 @@
+import { toClientSnake } from "../src/game/net/clientState.js";
 import { existsSync, readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
 import {
@@ -46,8 +47,7 @@ function join(state: RoomState, id: string): Snake {
 
 function place(shark: Snake, x: number, y: number, z: number, yaw = 0, pitch = 0): void {
   const point = { x, y, z };
-  shark.path = [{ ...point }];
-  shark.segments = [{ ...point }];
+  shark.position = { ...point };
   shark.yaw = shark.targetYaw = yaw;
   shark.pitch = shark.targetPitch = pitch;
 }
@@ -94,7 +94,7 @@ describe("ST-129 full-3D authority acceptance wall", () => {
     expect(ROOM_SCHEMA_VERSION).toBe(11);
     expect(toNetState(state).schemaVersion).toBe(11);
     expect(Object.values(state.snakes).every((shark) =>
-      shark.path.every((point) => Number.isFinite(point.x) && Number.isFinite(point.y) && Number.isFinite(point.z))
+      [shark.position].every((point) => Number.isFinite(point.x) && Number.isFinite(point.y) && Number.isFinite(point.z))
       && Number.isFinite(shark.yaw)
       && Number.isFinite(shark.pitch)
     )).toBe(true);
@@ -154,7 +154,7 @@ describe("ST-129 full-3D authority acceptance wall", () => {
       const respawned = state.snakes[victim.id];
       expect(respawned.alive).toBe(true);
       expect(respawned.health).toBe(COMBAT.maxHealth);
-      expect(respawned.segments[0]).toMatchObject({
+      expect(respawned.position).toMatchObject({
         x: expect.any(Number),
         y: expect.any(Number),
         z: expect.any(Number),
@@ -250,11 +250,11 @@ describe("ST-129 full-3D authority acceptance wall", () => {
       frenzyUntilTick: state.frenzyUntilTick,
     };
 
-    const seeded = predictor.step(auth, input, 1 / 60, 0, world);
+    const seeded = predictor.step(toClientSnake(auth!), input, 1 / 60, 0, world);
     expect(seeded).not.toBeNull();
-    const predicted = predictor.step(auth, input, 1 / 30, 0.1, world);
+    const predicted = predictor.step(toClientSnake(auth!), input, 1 / 30, 0.1, world);
     expect(predicted).not.toBeNull();
-    expect(predicted!.head.y).not.toBe(auth.segments[0].y);
+    expect(predicted!.position.y).not.toBe(auth.segments[0].y);
 
     const corrected = {
       ...auth,
@@ -266,9 +266,9 @@ describe("ST-129 full-3D authority acceptance wall", () => {
         z: point.z - 14,
       })),
     };
-    const snapped = predictor.step(corrected, input, 1 / 60, 0, world);
+    const snapped = predictor.step(toClientSnake(corrected!), input, 1 / 60, 0, world);
     expect(snapped).not.toBeNull();
-    expect(snapped!.head).toEqual(corrected.segments[0]);
+    expect(snapped!.position).toEqual(corrected.segments[0]);
     expect(snapped!.yaw).toBe(corrected.yaw);
     expect(snapped!.pitch).toBe(corrected.pitch);
   });

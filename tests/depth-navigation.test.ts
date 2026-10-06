@@ -1,6 +1,7 @@
 import { readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
-import type { NetPrey, NetSnake, NetState } from "../src/protocol/index.js";
+import type { NetPrey } from "../src/protocol/index.js";
+import type { ClientSnake, ClientState } from "../src/game/net/clientState.js";
 import {
   buildDepthNavigation,
   cueDescription,
@@ -9,17 +10,15 @@ import {
 
 const read = (path: string) => readFileSync(new URL(path, import.meta.url), "utf8");
 
-function shark(id: string, x: number, y: number, z: number, overrides: Partial<NetSnake> = {}): NetSnake {
+function shark(id: string, x: number, y: number, z: number, overrides: Partial<ClientSnake> = {}): ClientSnake {
   return {
     id,
     name: id,
     skin: "reef",
-    segments: [{ x, y, z }],
+    position: { x, y, z },
     yaw: 0,
     pitch: 0,
     length: 10,
-    boosting: false,
-    chargeTicks: 0,
     lungeTicks: 0,
     dashCooldownTick: 0,
     health: 100,
@@ -34,7 +33,7 @@ function prey(id: string, x: number, y: number, z: number, kind: NetPrey["kind"]
   return { id, kind, x, y, z, value: kind === "chum" ? 3 : 1, r: 0.6, yaw: 0, pitch: 0 };
 }
 
-function state(): NetState {
+function state(): ClientState {
   return {
     schemaVersion: 11,
     tick: 100,

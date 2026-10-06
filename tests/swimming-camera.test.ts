@@ -51,15 +51,14 @@ describe("ST-115 shark swimming and chase camera", () => {
     state.food = [];
     applyAction(state, { type: "join", playerId: "pilot", name: "Pilot" });
     const shark = state.snakes.pilot;
-    shark.path = [{ x: 0, y: 0, z: 0 }];
-    shark.segments = [{ x: 0, y: 0, z: 0 }];
+    shark.position = { x: 0, y: 0, z: 0 };
     shark.yaw = shark.targetYaw = 0;
     shark.pitch = shark.targetPitch = 0;
     applyAction(state, { type: "setOrientation", playerId: "pilot", yaw: Math.PI / 3, pitch: Math.PI / 5 });
     for (let i = 0; i < 8; i += 1) step(state);
-    expect(Math.abs(shark.segments[0].x)).toBeGreaterThan(0.5);
-    expect(shark.segments[0].y).toBeGreaterThan(0.5);
-    expect(Math.abs(shark.segments[0].z)).toBeGreaterThan(0.5);
+    expect(Math.abs(shark.position.x)).toBeGreaterThan(0.5);
+    expect(shark.position.y).toBeGreaterThan(0.5);
+    expect(Math.abs(shark.position.z)).toBeGreaterThan(0.5);
   });
 
   it("derives presentation bank from yaw rate and returns smoothly to neutral", () => {

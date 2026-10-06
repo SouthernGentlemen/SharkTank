@@ -29,18 +29,14 @@ export interface Snake {
   id: string;
   name: string;
   skin: string;
-  /** Head breadcrumb trail, newest first. */
-  path: Vec3[];
-  /** Body points, head first. Derived from path each tick. */
-  segments: Vec3[];
+  /** Authoritative position, retained through death until respawn. */
+  position: Vec3;
   /** Yaw rotates around +Y; pitch tilts forward motion toward +Y. */
   yaw: number;
   pitch: number;
   targetYaw: number;
   targetPitch: number;
   length: number;
-  boosting: boolean;
-  chargeTicks: number;
   lungeTicks: number;
   dashCooldownTick: number;
   health: number;

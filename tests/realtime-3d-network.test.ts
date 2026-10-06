@@ -1,3 +1,4 @@
+import { toClientSnake, toClientState } from "../src/game/net/clientState.js";
 import { readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
 import {
@@ -26,8 +27,7 @@ function join(state: ReturnType<typeof createRoom>, id: string): Snake {
 
 function place(shark: Snake, x: number, y: number, z: number): void {
   const point = { x, y, z };
-  shark.path = [{ ...point }];
-  shark.segments = [{ ...point }];
+  shark.position = { ...point };
 }
 
 function bytes(value: unknown): number {
@@ -137,6 +137,28 @@ describe("ST-122 realtime combat protocol", () => {
     }))).toEqual({ ok: false, reason: "malformed" });
   });
 
+  it("preserves protocol 11 while adapting living and dead sharks to single positions", () => {
+    const state = createRoom({ seed: "single-position-adapter" });
+    const shark = join(state, "you");
+    place(shark, 10.123, -4.567, 2.345);
+    const wire = toNetState(state);
+    expect(wire.snakes[0]).toMatchObject({
+      segments: [{ x: 10.12, y: -4.57, z: 2.35 }], boosting: false, chargeTicks: 0,
+    });
+    const client = toClientState(wire).snakes[0];
+    expect(client.position).toEqual(wire.snakes[0].segments[0]);
+    expect(client).not.toHaveProperty("segments");
+    expect(client).not.toHaveProperty("boosting");
+    expect(client).not.toHaveProperty("chargeTicks");
+    shark.alive = false;
+    const deadWire = toNetState(state);
+    expect(deadWire.snakes[0].segments).toEqual([]);
+    expect(toClientState(deadWire).snakes[0].position).toBeUndefined();
+    expect(new LocalPredictor().step(toClientSnake(deadWire.snakes[0]), {
+      targetYaw: 0, targetPitch: 0, boosting: false,
+    }, 1 / 60, 0)).toBeNull();
+  });
+
   it("predicts climb/dive and yaw movement, then reconciles authoritative X/Y/Z correction", () => {
     const state = createRoom({ seed: "prediction", oceanRadius: 100, seabedY: -20, surfaceY: 20 });
     state.food = [];
@@ -148,24 +170,24 @@ describe("ST-122 realtime combat protocol", () => {
     expect(auth).toBeDefined();
 
     const predictor = new LocalPredictor();
-    predictor.step(auth, { targetYaw: 0, targetPitch: 0, boosting: false }, 0.016, 0, {
+    predictor.step(toClientSnake(auth!), { targetYaw: 0, targetPitch: 0, boosting: false }, 0.016, 0, {
       seabedY: -20, surfaceY: 20, tick: 0, frenzyUntilTick: 0,
     });
-    const climbed = predictor.step(auth, { targetYaw: Math.PI / 3, targetPitch: Math.PI / 5, boosting: false }, 0.05, 0, {
+    const climbed = predictor.step(toClientSnake(auth!), { targetYaw: Math.PI / 3, targetPitch: Math.PI / 5, boosting: false }, 0.05, 0, {
       seabedY: -20, surfaceY: 20, tick: 0, frenzyUntilTick: 0,
     });
     expect(climbed).not.toBeNull();
-    expect(climbed!.head.x).toBeGreaterThan(0);
-    expect(climbed!.head.y).toBeGreaterThan(0);
-    expect(Math.abs(climbed!.head.z)).toBeGreaterThan(0);
+    expect(climbed!.position.x).toBeGreaterThan(0);
+    expect(climbed!.position.y).toBeGreaterThan(0);
+    expect(Math.abs(climbed!.position.z)).toBeGreaterThan(0);
 
     const correctedAuth = {
       ...auth!,
-      segments: [{ x: climbed!.head.x + 2, y: climbed!.head.y + 1, z: climbed!.head.z - 2 }],
+      segments: [{ x: climbed!.position.x + 2, y: climbed!.position.y + 1, z: climbed!.position.z - 2 }],
       yaw: climbed!.yaw,
       pitch: climbed!.pitch,
     };
-    const corrected = predictor.step(correctedAuth, {
+    const corrected = predictor.step(toClientSnake(correctedAuth), {
       targetYaw: climbed!.yaw,
       targetPitch: -Math.PI / 5,
       boosting: false,
@@ -173,8 +195,8 @@ describe("ST-122 realtime combat protocol", () => {
       seabedY: -20, surfaceY: 20, tick: 1, frenzyUntilTick: 0,
     });
     expect(corrected).not.toBeNull();
-    expect(corrected!.head.x).toBeGreaterThan(climbed!.head.x);
-    expect(corrected!.head.z).toBeLessThan(climbed!.head.z);
+    expect(corrected!.position.x).toBeGreaterThan(climbed!.position.x);
+    expect(corrected!.position.z).toBeLessThan(climbed!.position.z);
     expect(corrected!.pitch).toBeLessThan(climbed!.pitch);
   });
 
