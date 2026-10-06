@@ -93,7 +93,7 @@ Tasks follow these defaults unless the owner changes them before the task starts
 | Steering send | ≤ 20 Hz, 0.015 rad deadband, trailing final send | 20 Hz, 0.015 rad, trailing final send | ST-237 |
 | Pitch on release | Auto-levels at ~1.2 rad/s by default; optional held pitch | Auto-levels at ~1.2 rad/s | ST-244 |
 | Surface and seabed | Shared proportional pitch limit over the final 3 units | Proportional glide band (3 units) | ST-245 |
-| Shark overlap | Instant heading snap | Positional push, headings kept | ST-246 |
+| Shark overlap | Positional push, headings kept | Positional push, headings kept | ST-246 |
 | Wall | Death on contact | Inward current from 4 units inside, no death | ST-247 |
 | Eating | Body centre, radius 1.2 + prey r, 2 chomps/tick | Mouth, 1.2 + 0.55 × scale + prey r, swept, 4 chomps/tick | ST-255 |
 | Biting | Centre-to-centre ≤ 3.4 (+0.8), 50° cone | Mouth to victim body surface ≤ 1.8 + 0.3 × scale, 65° cone | ST-256 |
@@ -105,18 +105,6 @@ Tasks follow these defaults unless the owner changes them before the task starts
 | Music | Six-note loop on `setInterval`, off by default | Layered adaptive score on the audio clock, on at 35% | ST-275–ST-278 |
 
 ## Open tasks
-
-### ST-246 — [FIX] Separate overlapping sharks softly instead of snapping headings
-
-**Goal:** Overlap rewrites both sharks' headings instantly.
-
-**Scope:** Push the two sharks apart along the contact normal by the overlap, clamped to the ocean, and keep both headings.
-
-**Acceptance:** After separation the sharks are at least their combined radius apart with headings unchanged (test).
-
-**Validation:** `npm test -- tests/shark-combat.test.ts tests/volumetric-engine.test.ts tests/determinism.test.ts`.
-
----
 
 ### ST-247 — [FEAT] Replace the lethal arena wall with a soft returning current
 
