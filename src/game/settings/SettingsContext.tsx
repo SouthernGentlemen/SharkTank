@@ -84,6 +84,7 @@ export interface Settings {
   };
   controls: {
     keybinds: Keybinds;
+    autoLevel: boolean; // ease idle pitch toward level
     turnAssist: boolean; // gentler steering — accessibility aid
     invertSteer: boolean;
     /** Independent on-screen flight/look sticks plus ability pads. "auto" follows (pointer: coarse). */
@@ -111,6 +112,7 @@ export const DEFAULT_SETTINGS: Settings = {
   audio: { master: 0.8, sfx: 0.9, music: 0, captions: false },
   controls: {
     keybinds: { ...DEFAULT_KEYBINDS },
+    autoLevel: true,
     turnAssist: false,
     invertSteer: false,
     touchControls: "auto",

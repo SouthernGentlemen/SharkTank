@@ -46,6 +46,9 @@ export function HelpOverlay({ onClose }: { onClose: () => void }) {
           </div>
         )}
         <p className="help-note">
+          Keyboard steering eases in and out. Auto-level returns idle pitch to level; turn it off in Controls settings to hold your pitch.
+        </p>
+        <p className="help-note">
           Every 75 seconds a <strong>Feeding Frenzy</strong> drops chum in the middle of the tank:
           everyone swims faster and dashes twice as often for twenty seconds.
         </p>

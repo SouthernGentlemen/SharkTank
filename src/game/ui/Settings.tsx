@@ -217,6 +217,7 @@ function ControlsPanel() {
         ))}
       </ul>
       {conflict && <p className="settings-note" role="alert">{conflict}</p>}
+      <Toggle label="Auto-level pitch" hint="Return to level when pitch input is idle. Turn off to hold your pitch." checked={settings.controls.autoLevel} onChange={(v) => update("controls", { autoLevel: v })} />
       <Toggle label="Turn assist" hint="Gentler, slower steering." checked={settings.controls.turnAssist} onChange={(v) => update("controls", { turnAssist: v })} />
       <Toggle label="Invert yaw steering" checked={settings.controls.invertSteer} onChange={(v) => update("controls", { invertSteer: v })} />
       <Toggle label="Single-key shortcuts" hint="Press ? to open help. Turn off if a speech or switch device sends stray keys." checked={settings.controls.singleKeyShortcuts} onChange={(v) => update("controls", { singleKeyShortcuts: v })} />
