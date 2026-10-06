@@ -1,8 +1,10 @@
+import { RemotePose } from "./remotePose.js";
 import { REMOTE_INTERP_DELAY_MS } from "../net/snapshotTimeline.js";
 import { useFrame, useThree } from "@react-three/fiber";
 import { useMemo, useRef } from "react";
 import * as THREE from "three";
 import {
+  forwardFromYawPitch,
   MOVE,
   SKINS,
   TICKS_PER_SECOND,
@@ -118,6 +120,7 @@ export function ActorLayer({
   const part = useMemo(() => new THREE.Object3D(), []);
   const composed = useMemo(() => new THREE.Matrix4(), []);
   const position = useMemo(() => new THREE.Vector3(), []);
+  const remotePoses = useMemo(() => new Map<string, RemotePose>(), []);
   const interpolatedPose = useMemo<OrientedScenePose>(() => ({ x: 0, y: 0, z: 0, yaw: 0, pitch: 0 }), []);
   const projected = useMemo(() => new THREE.Vector3(), []);
   const cameraForward = useMemo(() => new THREE.Vector3(), []);
@@ -163,6 +166,10 @@ export function ActorLayer({
     }
 
     const state = frame.newer;
+    const activeIds = new Set(state.sharks.filter(shark => shark.alive).map(shark => shark.id));
+    for (const id of remotePoses.keys()) {
+      if (!activeIds.has(id)) remotePoses.delete(id);
+    }
     const previous = frame.older;
     const reducedMotion = settings.a11y.motion === "reduced";
     const alpha = reducedMotion ? 1 : frame.alpha;
@@ -234,6 +241,13 @@ export function ActorLayer({
           alpha,
           interpolatedPose,
         );
+        let remote = remotePoses.get(shark.id);
+        if (!remote) { remote = new RemotePose(); remotePoses.set(shark.id, remote); }
+        const velocity = forwardFromYawPitch(shark.yaw, shark.pitch);
+        const remoteSpeed = swimSpeedForLungeTicks(shark.lungeTicks) * TICKS_PER_SECOND
+          * (state.frenzyUntilTick > state.tick ? MOVE.FRENZY_SPEED : 1);
+        velocity.x *= remoteSpeed; velocity.y *= remoteSpeed; velocity.z *= remoteSpeed;
+        remote.sample(interpolatedPose, velocity, frame.extrapolationMs ?? 0, state.tick, nowMs);
         position.set(interpolatedPose.x, interpolatedPose.y, interpolatedPose.z);
         yaw = interpolatedPose.yaw;
         pitch = interpolatedPose.pitch;

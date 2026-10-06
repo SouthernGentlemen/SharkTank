@@ -12,7 +12,19 @@ describe("snapshot timeline", () => {
     expect(bracketSnapshots(buffer, null, 1200, 150)).toEqual({ older: buffer[0].state, newer: buffer[1].state, alpha: 0.5 });
     expect(bracketSnapshots(buffer, null, 1000, 150)?.alpha).toBe(0);
     expect(bracketSnapshots(buffer, null, 1300, 150)?.alpha).toBe(1);
+    expect(bracketSnapshots(buffer, null, 1450, 150)?.extrapolationMs).toBe(120);
     expect(bracketSnapshots(buffer.slice(0, 1), null, 1200, 150)?.older).toBe(buffer[0].state);
+  });
+
+  it("advances 120 ms through a 200 ms render gap, then holds and keeps the velocity pair", () => {
+    const buffer = [{ t: 1000, state: state(0) }, { t: 1100, state: state(2) }];
+    for (let extra = 10; extra <= 200; extra += 10) {
+      const frame = bracketSnapshots(buffer, 1000, 1250 + extra, 150)!;
+      expect(frame.older).toBe(buffer[0].state);
+      expect(frame.newer).toBe(buffer[1].state);
+      expect(frame.alpha).toBe(1);
+      expect(frame.extrapolationMs).toBe(Math.min(extra, 120));
+    }
   });
 
   it("clamps fewer than 2% of 60 Hz frames at 10 Hz with ±25 ms jitter", () => {

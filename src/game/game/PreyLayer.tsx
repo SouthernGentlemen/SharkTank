@@ -1,3 +1,4 @@
+import { RemotePose } from "./remotePose.js";
 import { REMOTE_INTERP_DELAY_MS } from "../net/snapshotTimeline.js";
 import { useFrame } from "@react-three/fiber";
 import { useMemo, useRef } from "react";
@@ -68,6 +69,7 @@ export function PreyLayer({ socket, settings }: { socket: RoomSocket; settings: 
   const part = useMemo(() => new THREE.Object3D(), []);
   const composed = useMemo(() => new THREE.Matrix4(), []);
   const drop = useMemo(() => new THREE.Object3D(), []);
+  const remotePoses = useMemo(() => new Map<string, RemotePose>(), []);
   const pose = useMemo<OrientedScenePose>(() => ({ x: 0, y: 0, z: 0, yaw: 0, pitch: 0 }), []);
   const previousById = useMemo(() => new Map<string, NetPrey>(), []);
   const quality = resolvePreyPresentationQuality(settings.graphics.quality);
@@ -87,6 +89,10 @@ export function PreyLayer({ socket, settings }: { socket: RoomSocket; settings: 
     const frame = socket.frameAt(REMOTE_INTERP_DELAY_MS);
     if (!frame) return;
     const current = frame.newer;
+    const activeIds = new Set(current.food.map(actor => actor.id));
+    for (const id of remotePoses.keys()) {
+      if (!activeIds.has(id)) remotePoses.delete(id);
+    }
     const previous = frame.older;
     const reducedMotion = settings.a11y.motion === "reduced";
     const alpha = reducedMotion ? 1 : frame.alpha;
@@ -103,6 +109,10 @@ export function PreyLayer({ socket, settings }: { socket: RoomSocket; settings: 
       const dx = actor.x - prior.x;
       const dy = actor.y - prior.y;
       const dz = actor.z - prior.z;
+      let remote = remotePoses.get(actor.id);
+      if (!remote) { remote = new RemotePose(); remotePoses.set(actor.id, remote); }
+      const rate = TICKS_PER_SECOND / tickSpan;
+      remote.sample(pose, { x: dx * rate, y: dy * rate, z: dz * rate }, frame.extrapolationMs ?? 0, current.tick, performance.now());
       const speed = Math.hypot(dx, dy, dz) * TICKS_PER_SECOND / tickSpan;
       const visual = preyVisualFor(actor.kind, actor.value, actor.r);
       const color = preyColor[actor.kind];
