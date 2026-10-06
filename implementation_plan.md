@@ -106,19 +106,6 @@ Tasks follow these defaults unless the owner changes them before the task starts
 
 ## Open tasks
 
-### ST-243 — [OPS] Release the smooth update as v2.2.0
-
-**Goal:** Ship ST-226 through ST-242.
-
-**Scope**
-- Semantic minor release through `deploy-worker.yml` as `sharktank`.
-- This deploy moves clients to protocol 12.
-- Before release, the owner records the manual rows for smoothness.
-
-**Acceptance:** `v2.2.0` is live as `sharktank`. Protected approval is honored; stop and report if it is pending.
-
----
-
 ### ST-244 — [FEAT] Auto-level pitch and ease keyboard steering
 
 **Goal:** Held pitch drives sharks into the surface or seabed, and keys jump straight to full turn rate.
