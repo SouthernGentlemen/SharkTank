@@ -1,18 +1,18 @@
 import { readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
-import { ROOM_SCHEMA_VERSION } from "../vendor/ModuleReact3Fiber/src/engine/room.js";
-import { REALTIME_PROTOCOL_VERSION } from "../vendor/ModuleReact3Fiber/src/protocol/index.js";
+import { ROOM_SCHEMA_VERSION } from "../src/engine/room.js";
+import { REALTIME_PROTOCOL_VERSION } from "../src/protocol/index.js";
 import {
   resolveSharkAnimation,
   resolveSharkPresentationQuality,
   sharkScaleForLength,
-} from "../vendor/ModuleReact3Fiber/src/client/game/sharkPresentation.js";
+} from "../src/game/game/sharkPresentation.js";
 
 const read = (path: string) => readFileSync(new URL(path, import.meta.url), "utf8");
 
 describe("ST-119 animated shark models", () => {
   it("replaces the single stretched actor primitive with a recognizable composed shark silhouette", () => {
-    const actors = read("../vendor/ModuleReact3Fiber/src/client/game/ActorLayer.tsx");
+    const actors = read("../src/game/game/ActorLayer.tsx");
     for (const refName of [
       "bodyMesh",
       "headMesh",
@@ -31,7 +31,7 @@ describe("ST-119 animated shark models", () => {
   });
 
   it("keeps local prediction, remote interpolation, orientation bank and authoritative length scaling", () => {
-    const actors = read("../vendor/ModuleReact3Fiber/src/client/game/ActorLayer.tsx");
+    const actors = read("../src/game/game/ActorLayer.tsx");
     expect(actors).toContain("LocalPredictor");
     expect(actors).toContain("frameAt(INTERP_DELAY_MS)");
     expect(actors).toContain("interpolateOrientedPose(");
@@ -83,7 +83,7 @@ describe("ST-119 animated shark models", () => {
       intensity: 0,
     });
 
-    const sceneMath = read("../vendor/ModuleReact3Fiber/src/client/game/sceneMath.ts");
+    const sceneMath = read("../src/game/game/sceneMath.ts");
     expect(sceneMath).toContain("const maxBank = reducedMotion ? 0.24 : 0.42");
     expect(sceneMath).not.toContain("if (reducedMotion) return 0;");
   });
@@ -96,7 +96,7 @@ describe("ST-119 animated shark models", () => {
     expect(medium.radialSegments).toBeLessThan(high.radialSegments);
     expect(low.radialSegments).toBeGreaterThanOrEqual(6);
 
-    const actors = read("../vendor/ModuleReact3Fiber/src/client/game/ActorLayer.tsx");
+    const actors = read("../src/game/game/ActorLayer.tsx");
     expect(actors).toContain("<coneGeometry args={[1, 1, 3]} />");
     expect(actors).toContain("resolveSharkPresentationQuality(settings.graphics.quality)");
   });
@@ -104,7 +104,7 @@ describe("ST-119 animated shark models", () => {
   it("keeps shark presentation browser-only with protocol, persistence and package identities unchanged", () => {
     const worker = read("../src/worker/index.ts");
     const packageJson = JSON.parse(read("../package.json")) as { version: string };
-    const actors = read("../vendor/ModuleReact3Fiber/src/client/game/ActorLayer.tsx");
+    const actors = read("../src/game/game/ActorLayer.tsx");
 
     expect(ROOM_SCHEMA_VERSION).toBe(11);
     expect(REALTIME_PROTOCOL_VERSION).toBe(11);

@@ -19,7 +19,7 @@
   "scripts": {
     "local": "node scripts/local.mjs",
     "test": "vitest run",
-    "typecheck": "tsc --noEmit && tsc --noEmit -p vendor/ModuleReact3Fiber/tsconfig.json",
+    "typecheck": "tsc --noEmit",
     "build": "vite build",
     "check:history": "node scripts/check-history.mjs",
     "check": "npm run test:plan-queue && npm run check:implementation-plan && npm run test:release-tagging && npm run test:release-publication && npm run check:release-workflow && npm run test:release-identity && npm run check:platform && npm run typecheck && npm test && npm run build && npm run check:repository-baseline && npm run check:change-contract && npm run test:github-settings && npm run check:history && npm run test:public-secrets && npm run check:public-secrets && npm run check:local-processes && npm run check:local-reset && npm run check:local-readiness && npm run check:dev-command && npm run check:local-http && npm run test:dependency-advisories && npm run check:whitespace",
@@ -56,7 +56,6 @@
   },
   "dependencies": {
     "@react-three/fiber": "^9.7.0",
-    "module-react3fiber": "file:vendor/ModuleReact3Fiber",
     "react": "19.2.8",
     "react-dom": "19.2.8",
     "three": "^0.169.0"

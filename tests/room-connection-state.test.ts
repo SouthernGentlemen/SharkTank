@@ -4,7 +4,7 @@ import {
   UNREACHABLE_ATTEMPTS,
   connectionAfterClose,
   connectionAfterWelcome,
-} from "../vendor/ModuleReact3Fiber/src/client/net/roomConnectionState.js";
+} from "../src/game/net/roomConnectionState.js";
 
 describe("tank connection state", () => {
   it("treats a 1013 room-full close as reachable and retries every five seconds", () => {

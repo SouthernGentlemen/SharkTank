@@ -1,8 +1,8 @@
 import { existsSync, readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
-import { DEFAULT_KEYBINDS } from "../vendor/ModuleReact3Fiber/src/client/settings/SettingsContext.js";
-import { ROOM_SCHEMA_VERSION } from "../vendor/ModuleReact3Fiber/src/engine/index.js";
-import { REALTIME_PROTOCOL_VERSION } from "../vendor/ModuleReact3Fiber/src/protocol/index.js";
+import { DEFAULT_KEYBINDS } from "../src/game/settings/SettingsContext.js";
+import { ROOM_SCHEMA_VERSION } from "../src/engine/index.js";
+import { REALTIME_PROTOCOL_VERSION } from "../src/protocol/index.js";
 
 const read = (path: string) => readFileSync(new URL(path, import.meta.url), "utf8");
 
@@ -12,12 +12,10 @@ describe("full-3D current-state documentation", () => {
   const accessibility = read("../docs/ACCESSIBILITY.md");
   const productAcceptance = read("../docs/PRODUCT-ACCEPTANCE.md");
   const security = read("../SECURITY.md");
-  const moduleReadme = read("../vendor/ModuleReact3Fiber/README.md");
-  const moduleGuide = read("../vendor/ModuleReact3Fiber/CLAUDE.md");
-  const viewport = read("../vendor/ModuleReact3Fiber/src/client/game/GameViewport.tsx");
+  const viewport = read("../src/game/game/GameViewport.tsx");
 
   it("documents the renderer, authority, controls and gameplay that are actually built", () => {
-    const docs = [readme, architecture, accessibility, productAcceptance, security, moduleReadme, moduleGuide].join("\n");
+    const docs = [readme, architecture, accessibility, productAcceptance, security].join("\n");
     for (const text of [
       "React Three Fiber",
       "full X/Y/Z",
@@ -67,7 +65,7 @@ describe("full-3D current-state documentation", () => {
   });
 
   it("keeps retired renderer and planar instructions out of current guidance", () => {
-    const currentGuidance = [readme, architecture, accessibility, moduleReadme, moduleGuide, viewport].join("\n");
+    const currentGuidance = [readme, architecture, accessibility, viewport].join("\n");
     const retiredPhrases = [
       "present production game mounts " + "GameCanvas",
       "Authority is still " + "planar",
@@ -77,7 +75,7 @@ describe("full-3D current-state documentation", () => {
       "On-screen " + "thumbstick + ability pads",
     ];
     for (const phrase of retiredPhrases) expect(currentGuidance).not.toContain(phrase);
-    expect(existsSync(new URL("../vendor/ModuleReact3Fiber/src/client/game/" + "GameCanvas.tsx", import.meta.url))).toBe(false);
+    expect(existsSync(new URL("../src/game/game/" + "GameCanvas.tsx", import.meta.url))).toBe(false);
   });
 
   it("keeps release and protocol identity stable while documentation advances", () => {

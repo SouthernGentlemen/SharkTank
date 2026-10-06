@@ -5,10 +5,10 @@ import {
   createRoom,
   ROOM_SCHEMA_VERSION,
   step,
-} from "../vendor/ModuleReact3Fiber/src/engine/index.js";
-import { REALTIME_PROTOCOL_VERSION } from "../vendor/ModuleReact3Fiber/src/protocol/index.js";
-import { DEFAULT_KEYBINDS } from "../vendor/ModuleReact3Fiber/src/client/settings/SettingsContext.js";
-import { desktopAxesForPressed } from "../vendor/ModuleReact3Fiber/src/client/game/desktopControls.js";
+} from "../src/engine/index.js";
+import { REALTIME_PROTOCOL_VERSION } from "../src/protocol/index.js";
+import { DEFAULT_KEYBINDS } from "../src/game/settings/SettingsContext.js";
+import { desktopAxesForPressed } from "../src/game/game/desktopControls.js";
 import {
   CAMERA_PROJECTION,
   advanceBankRoll,
@@ -16,33 +16,33 @@ import {
   chaseCameraPose,
   makeChaseCameraPose,
   smoothChaseCameraPose,
-} from "../vendor/ModuleReact3Fiber/src/client/game/sceneMath.js";
-import { resolveSharkAnimation } from "../vendor/ModuleReact3Fiber/src/client/game/sharkPresentation.js";
+} from "../src/game/game/sceneMath.js";
+import { resolveSharkAnimation } from "../src/game/game/sharkPresentation.js";
 
 const read = (path: string) => readFileSync(new URL(path, import.meta.url), "utf8");
 
 const worker = read("../src/worker/index.ts");
 const routes = read("../src/worker/routes.ts");
-const app = read("../vendor/ModuleReact3Fiber/src/client/App.tsx");
-const focusTrap = read("../vendor/ModuleReact3Fiber/src/client/a11y/useFocusTrap.ts");
-const input = read("../vendor/ModuleReact3Fiber/src/client/game/useLocalInput.ts");
-const theme = read("../vendor/ModuleReact3Fiber/src/client/ui/theme.css");
-const settings = read("../vendor/ModuleReact3Fiber/src/client/ui/Settings.tsx");
-const protocol = read("../vendor/ModuleReact3Fiber/src/protocol/index.ts");
-const gameViewport = read("../vendor/ModuleReact3Fiber/src/client/game/GameViewport.tsx");
-const gameScreen = read("../vendor/ModuleReact3Fiber/src/client/ui/GameScreen.tsx");
-const help = read("../vendor/ModuleReact3Fiber/src/client/ui/HelpOverlay.tsx");
-const death = read("../vendor/ModuleReact3Fiber/src/client/ui/DeathOverlay.tsx");
-const quickA11y = read("../vendor/ModuleReact3Fiber/src/client/ui/QuickA11y.tsx");
-const touchControls = read("../vendor/ModuleReact3Fiber/src/client/ui/TouchControls.tsx");
-const leaderboard = read("../vendor/ModuleReact3Fiber/src/client/ui/Leaderboard.tsx");
-const depthRadar = read("../vendor/ModuleReact3Fiber/src/client/ui/DepthRadar.tsx");
-const captions = read("../vendor/ModuleReact3Fiber/src/client/ui/Captions.tsx");
-const gameAudio = read("../vendor/ModuleReact3Fiber/src/client/audio/useGameAudio.ts");
-const cameraRig = read("../vendor/ModuleReact3Fiber/src/client/game/CameraRig.tsx");
-const actorLayer = read("../vendor/ModuleReact3Fiber/src/client/game/ActorLayer.tsx");
-const fxLayer = read("../vendor/ModuleReact3Fiber/src/client/game/FxLayer.tsx");
-const worldEnvironment = read("../vendor/ModuleReact3Fiber/src/client/game/WorldEnvironment.tsx");
+const app = read("../src/game/App.tsx");
+const focusTrap = read("../src/game/a11y/useFocusTrap.ts");
+const input = read("../src/game/game/useLocalInput.ts");
+const theme = read("../src/game/ui/theme.css");
+const settings = read("../src/game/ui/Settings.tsx");
+const protocol = read("../src/protocol/index.ts");
+const gameViewport = read("../src/game/game/GameViewport.tsx");
+const gameScreen = read("../src/game/ui/GameScreen.tsx");
+const help = read("../src/game/ui/HelpOverlay.tsx");
+const death = read("../src/game/ui/DeathOverlay.tsx");
+const quickA11y = read("../src/game/ui/QuickA11y.tsx");
+const touchControls = read("../src/game/ui/TouchControls.tsx");
+const leaderboard = read("../src/game/ui/Leaderboard.tsx");
+const depthRadar = read("../src/game/ui/DepthRadar.tsx");
+const captions = read("../src/game/ui/Captions.tsx");
+const gameAudio = read("../src/game/audio/useGameAudio.ts");
+const cameraRig = read("../src/game/game/CameraRig.tsx");
+const actorLayer = read("../src/game/game/ActorLayer.tsx");
+const fxLayer = read("../src/game/game/FxLayer.tsx");
+const worldEnvironment = read("../src/game/game/WorldEnvironment.tsx");
 
 describe("public accessibility contract", () => {
   it("retires public evidence and operator routes while preserving the game accessibility surface", () => {

@@ -1,11 +1,11 @@
 import { readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
-import type { NetPrey, NetSnake, NetState } from "../vendor/ModuleReact3Fiber/src/protocol/index.js";
+import type { NetPrey, NetSnake, NetState } from "../src/protocol/index.js";
 import {
   buildDepthNavigation,
   cueDescription,
   describeRelativeTarget,
-} from "../vendor/ModuleReact3Fiber/src/client/ui/DepthRadar.js";
+} from "../src/game/ui/DepthRadar.js";
 
 const read = (path: string) => readFileSync(new URL(path, import.meta.url), "utf8");
 
@@ -129,7 +129,7 @@ describe("ST-126 depth-aware competitive cues", () => {
     expect(nav.apexSelf).toBe(true);
     expect(nav.cues.some((item) => item.kind === "apex")).toBe(false);
 
-    const radar = read("../vendor/ModuleReact3Fiber/src/client/ui/DepthRadar.tsx");
+    const radar = read("../src/game/ui/DepthRadar.tsx");
     expect(radar).toContain("◆ YOU ARE APEX");
     expect(radar).toContain("ABOVE ↑");
     expect(radar).toContain("BELOW ↓");
@@ -139,11 +139,11 @@ describe("ST-126 depth-aware competitive cues", () => {
   });
 
   it("removes the planar minimap, bounds labels and keeps touch radar clear of edge controls", () => {
-    const screen = read("../vendor/ModuleReact3Fiber/src/client/ui/GameScreen.tsx");
-    const actor = read("../vendor/ModuleReact3Fiber/src/client/game/ActorLayer.tsx");
-    const labels = read("../vendor/ModuleReact3Fiber/src/client/ui/SnakeLabels.tsx");
-    const settings = read("../vendor/ModuleReact3Fiber/src/client/ui/Settings.tsx");
-    const css = read("../vendor/ModuleReact3Fiber/src/client/ui/theme.css");
+    const screen = read("../src/game/ui/GameScreen.tsx");
+    const actor = read("../src/game/game/ActorLayer.tsx");
+    const labels = read("../src/game/ui/SnakeLabels.tsx");
+    const settings = read("../src/game/ui/Settings.tsx");
+    const css = read("../src/game/ui/theme.css");
 
     expect(screen).toContain("<DepthRadar");
     expect(screen).not.toContain("<Minimap");
@@ -159,8 +159,8 @@ describe("ST-126 depth-aware competitive cues", () => {
   });
 
   it("keeps wire identity at 11 while the RoomState persistence schema field is retired", () => {
-    const protocol = read("../vendor/ModuleReact3Fiber/src/protocol/index.ts");
-    const engineTypes = read("../vendor/ModuleReact3Fiber/src/engine/types.ts");
+    const protocol = read("../src/protocol/index.ts");
+    const engineTypes = read("../src/engine/types.ts");
     const pkg = JSON.parse(read("../package.json")) as { version: string };
     expect(protocol).toContain("REALTIME_PROTOCOL_VERSION = 11");
     expect(protocol).toContain("schemaVersion: 11;");

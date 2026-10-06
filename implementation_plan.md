@@ -107,21 +107,6 @@ Tasks follow these defaults unless the owner changes them before the task starts
 
 ## Open tasks
 
-### ST-230 — [REFACTOR] Fold the vendored game package into src
-
-**Goal:** The game lives in a pretend package with its own manifest, tsconfig, docs, licence, `file:` dependency, module aliases and second typecheck.
-
-**Scope**
-- Move `vendor/ModuleReact3Fiber/src/{engine,protocol,client}` to `src/{engine,protocol,game}` and delete the rest of `vendor/`.
-- Collapse the aliases, dependency and typecheck to one, regenerate `package-lock.json` with the pinned Node and npm, and update test paths and docs.
-- Keep the import boundary: the Worker imports only `engine` and `protocol`.
-
-**Acceptance:** `vendor/` is gone, and the build and the Worker bundle are unchanged.
-
-**Validation:** `npm run typecheck`; `npm run build`; `npm test`; `npm run check:repository-baseline`.
-
----
-
 ### ST-231 — [REFACTOR] Replace the snake trail with one shark position
 
 **Goal:** Sharks carry a breadcrumb trail resampled every tick that always yields one point, plus two always-false fields.

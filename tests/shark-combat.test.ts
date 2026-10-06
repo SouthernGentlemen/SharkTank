@@ -10,7 +10,7 @@ import {
   step,
   type Prey,
   type Snake,
-} from "../vendor/ModuleReact3Fiber/src/engine/index.js";
+} from "../src/engine/index.js";
 
 function join(state: ReturnType<typeof createRoom>, id: string, isBot = false): Snake {
   applyAction(state, { type: "join", playerId: id, name: id, isBot });
@@ -239,7 +239,7 @@ describe("ST-122 directional shark combat", () => {
     expect(victim.health).toBeLessThan(100);
     expect(bot.biteCooldownTick).toBeGreaterThan(state.tick);
 
-    const source = readFileSync(new URL("../vendor/ModuleReact3Fiber/src/engine/room.ts", import.meta.url), "utf8");
+    const source = readFileSync(new URL("../src/engine/room.ts", import.meta.url), "utf8");
     expect(source).toContain('applyAction(state, { type: "bite", playerId: s.id })');
     expect(source).not.toContain("botDamage");
     expect(source).not.toContain("botKill");
@@ -271,13 +271,13 @@ describe("ST-122 directional shark combat", () => {
 
   it("removes ranged projectile compatibility from engine, protocol, client and retired persistence", () => {
     const paths = [
-      "../vendor/ModuleReact3Fiber/src/engine/types.ts",
-      "../vendor/ModuleReact3Fiber/src/engine/room.ts",
-      "../vendor/ModuleReact3Fiber/src/protocol/index.ts",
-      "../vendor/ModuleReact3Fiber/src/client/net/useRoomSocket.ts",
-      "../vendor/ModuleReact3Fiber/src/client/game/useLocalInput.ts",
-      "../vendor/ModuleReact3Fiber/src/client/game/FxLayer.tsx",
-      "../vendor/ModuleReact3Fiber/src/client/ui/GameScreen.tsx",
+      "../src/engine/types.ts",
+      "../src/engine/room.ts",
+      "../src/protocol/index.ts",
+      "../src/game/net/useRoomSocket.ts",
+      "../src/game/game/useLocalInput.ts",
+      "../src/game/game/FxLayer.tsx",
+      "../src/game/ui/GameScreen.tsx",
     ];
     for (const path of paths) {
       const source = readFileSync(new URL(path, import.meta.url), "utf8").toLowerCase();

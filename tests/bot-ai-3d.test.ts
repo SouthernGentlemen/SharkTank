@@ -12,7 +12,7 @@ import {
   step,
   type Prey,
   type Snake,
-} from "../vendor/ModuleReact3Fiber/src/engine/index.js";
+} from "../src/engine/index.js";
 
 const read = (path: string) => readFileSync(new URL(path, import.meta.url), "utf8");
 
@@ -73,7 +73,7 @@ describe("ST-121 full-3D bot hunting and evasion", () => {
     expect(BOT_AI_BUDGET.maxTrackedSharks).toBeGreaterThanOrEqual(BOT_AI_BUDGET.targetPopulation);
     expect(PREY_BUDGET.max).toBe(360);
 
-    const engine = read("../vendor/ModuleReact3Fiber/src/engine/room.ts");
+    const engine = read("../src/engine/room.ts");
     expect(engine).toContain(".slice(0, BOT_AI_BUDGET.maxTrackedSharks)");
     expect(engine).toContain("for (const actor of state.food)");
     expect(engine).not.toContain("Math.random(");
@@ -144,7 +144,7 @@ describe("ST-121 full-3D bot hunting and evasion", () => {
     expect(bot.lungeTicks).toBe(9);
     expect(bot.dashCooldownTick).toBe(state.tick + TICKS_PER_SECOND * 2);
 
-    const engine = read("../vendor/ModuleReact3Fiber/src/engine/room.ts");
+    const engine = read("../src/engine/room.ts");
     expect(engine).toContain('applyAction(state, { type: "setBoost", playerId: s.id, on: true })');
     expect(engine).not.toContain("s.lungeTicks = 6");
   });
@@ -167,7 +167,7 @@ describe("ST-121 full-3D bot hunting and evasion", () => {
     expect(Math.abs(hunter.targetYaw)).toBeLessThan(0.25);
     expect(hunter.targetPitch).toBeGreaterThan(0.25);
     expect(hunter.lungeTicks).toBe(9);
-    const engine = read("../vendor/ModuleReact3Fiber/src/engine/room.ts");
+    const engine = read("../src/engine/room.ts");
     expect(engine).not.toContain("botDamage");
     expect(engine).not.toContain("botKill");
   });

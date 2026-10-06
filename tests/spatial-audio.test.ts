@@ -1,7 +1,7 @@
 import { readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
-import { ROOM_SCHEMA_VERSION } from "../vendor/ModuleReact3Fiber/src/engine/index.js";
-import { REALTIME_PROTOCOL_VERSION } from "../vendor/ModuleReact3Fiber/src/protocol/index.js";
+import { ROOM_SCHEMA_VERSION } from "../src/engine/index.js";
+import { REALTIME_PROTOCOL_VERSION } from "../src/protocol/index.js";
 import {
   AUDIO_LIMITS,
   attenuationForDistance,
@@ -10,7 +10,7 @@ import {
   isFreshAudioEvent,
   selectSpatialEmitters,
   spatialMix,
-} from "../vendor/ModuleReact3Fiber/src/client/audio/spatialAudio.js";
+} from "../src/game/audio/spatialAudio.js";
 
 const read = (path: string) => readFileSync(new URL(path, import.meta.url), "utf8");
 
@@ -51,7 +51,7 @@ describe("ST-125 spatial underwater game audio", () => {
   });
 
   it("keeps the browser graph bounded, lifecycle-safe and user-gesture safe", () => {
-    const manager = read("../vendor/ModuleReact3Fiber/src/client/audio/AudioManager.ts");
+    const manager = read("../src/game/audio/AudioManager.ts");
     expect(manager).toContain('panner.panningModel = "HRTF"');
     expect(manager).toContain("AUDIO_LIMITS.maxWorldVoices");
     expect(manager).toContain("AUDIO_LIMITS.listenerUpdateMs");
@@ -63,7 +63,7 @@ describe("ST-125 spatial underwater game audio", () => {
   });
 
   it("drives cues only from existing authoritative snapshot truth", () => {
-    const hook = read("../vendor/ModuleReact3Fiber/src/client/audio/useGameAudio.ts");
+    const hook = read("../src/game/audio/useGameAudio.ts");
     expect(hook).toContain("state.explosions");
     expect(hook).toContain('burst.kind === "bite"');
     expect(hook).toContain("state.round.phase");
@@ -77,13 +77,13 @@ describe("ST-125 spatial underwater game audio", () => {
   });
 
   it("keeps listener orientation tied to the actual chase camera", () => {
-    const camera = read("../vendor/ModuleReact3Fiber/src/client/game/CameraRig.tsx");
+    const camera = read("../src/game/game/CameraRig.tsx");
     expect(camera).toContain("audio.setListener(");
     expect(camera).toContain("current.lookAt.x - current.position.x");
   });
 
   it("keeps music opt-in and state identities unchanged", () => {
-    const settings = read("../vendor/ModuleReact3Fiber/src/client/settings/SettingsContext.tsx");
+    const settings = read("../src/game/settings/SettingsContext.tsx");
     const packageJson = JSON.parse(read("../package.json")) as { version: string };
     expect(settings).toContain("audio: { master: 0.8, sfx: 0.9, music: 0, captions: false }");
     expect(packageJson.version).toBe("2.1.0");

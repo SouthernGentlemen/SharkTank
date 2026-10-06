@@ -8,7 +8,7 @@ import {
   step,
   type Action,
   type RoomState,
-} from "../vendor/ModuleReact3Fiber/src/engine/index.js";
+} from "../src/engine/index.js";
 
 interface GameLogEntry {
   tick: number;

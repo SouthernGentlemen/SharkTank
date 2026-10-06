@@ -4,17 +4,17 @@ import {
   DEFAULT_KEYBINDS,
   normalizeKeybinds,
   rebindKeybinds,
-} from "../vendor/ModuleReact3Fiber/src/client/settings/SettingsContext.js";
+} from "../src/game/settings/SettingsContext.js";
 import {
   advanceCameraLookOffsets,
   cameraLookFromPointer,
   desktopAxesForPressed,
-} from "../vendor/ModuleReact3Fiber/src/client/game/desktopControls.js";
+} from "../src/game/game/desktopControls.js";
 import {
   CAMERA_LOOK_LIMITS,
   chaseCameraPose,
   makeChaseCameraPose,
-} from "../vendor/ModuleReact3Fiber/src/client/game/sceneMath.js";
+} from "../src/game/game/sceneMath.js";
 
 describe("ST-116 desktop full-3D controls", () => {
   it("ships a complete conflict-free keyboard-first default map", () => {
@@ -94,8 +94,8 @@ describe("ST-116 desktop full-3D controls", () => {
   });
 
   it("clears gameplay state across focus loss and uses a real pause dialog", () => {
-    const input = readFileSync(new URL("../vendor/ModuleReact3Fiber/src/client/game/useLocalInput.ts", import.meta.url), "utf8");
-    const screen = readFileSync(new URL("../vendor/ModuleReact3Fiber/src/client/ui/GameScreen.tsx", import.meta.url), "utf8");
+    const input = readFileSync(new URL("../src/game/game/useLocalInput.ts", import.meta.url), "utf8");
+    const screen = readFileSync(new URL("../src/game/ui/GameScreen.tsx", import.meta.url), "utf8");
     expect(input).toContain('window.addEventListener("blur", releaseActiveInput)');
     expect(input).toContain('document.addEventListener("visibilitychange", onVisibility)');
     expect(input).toContain('document.addEventListener("focusin", onFocusIn)');

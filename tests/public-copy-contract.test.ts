@@ -4,7 +4,7 @@ import { describe, expect, it } from "vitest";
 const read = (path: string) => readFileSync(new URL(path, import.meta.url), "utf8");
 const worker = read("../src/worker/index.ts");
 const gameShell = read("../src/client/game-document.tsx");
-const gameMenu = read("../vendor/ModuleReact3Fiber/src/client/ui/MainMenu.tsx");
+const gameMenu = read("../src/game/ui/MainMenu.tsx");
 
 describe("game public copy", () => {
   it("keeps the WizardGang mark and game name on the menu and shell", () => {

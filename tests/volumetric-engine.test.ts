@@ -11,8 +11,8 @@ import {
   step,
   type Action,
   type Snake,
-} from "../vendor/ModuleReact3Fiber/src/engine/index.js";
-import { toNetState } from "../vendor/ModuleReact3Fiber/src/protocol/index.js";
+} from "../src/engine/index.js";
+import { toNetState } from "../src/protocol/index.js";
 
 function insideOcean(
   point: { x: number; y: number; z: number },
@@ -181,9 +181,9 @@ describe("volumetric authoritative engine", () => {
   });
 
   it("keeps authoritative modules framework-agnostic and free of planar actor distance helpers", () => {
-    const roomSource = readFileSync(new URL("../vendor/ModuleReact3Fiber/src/engine/room.ts", import.meta.url), "utf8");
-    const geometrySource = readFileSync(new URL("../vendor/ModuleReact3Fiber/src/engine/geometry3d.ts", import.meta.url), "utf8");
-    const typesSource = readFileSync(new URL("../vendor/ModuleReact3Fiber/src/engine/types.ts", import.meta.url), "utf8");
+    const roomSource = readFileSync(new URL("../src/engine/room.ts", import.meta.url), "utf8");
+    const geometrySource = readFileSync(new URL("../src/engine/geometry3d.ts", import.meta.url), "utf8");
+    const typesSource = readFileSync(new URL("../src/engine/types.ts", import.meta.url), "utf8");
     for (const source of [roomSource, geometrySource, typesSource]) {
       expect(source).not.toContain('from "three"');
       expect(source).not.toContain("@react-three");

@@ -9,25 +9,25 @@ const viteSource = read("../vite.config.ts");
 const wranglerSource = read("../wrangler.jsonc");
 const workerSource = read("../src/worker/index.ts");
 const mainSource = read("../src/client/main.tsx");
-const appSource = read("../vendor/ModuleReact3Fiber/src/client/App.tsx");
-const settingsSource = read("../vendor/ModuleReact3Fiber/src/client/settings/SettingsContext.tsx");
-const menuSource = read("../vendor/ModuleReact3Fiber/src/client/ui/MainMenu.tsx");
+const appSource = read("../src/game/App.tsx");
+const settingsSource = read("../src/game/settings/SettingsContext.tsx");
+const menuSource = read("../src/game/ui/MainMenu.tsx");
 const mountedPresentationSource = [
-  "../vendor/ModuleReact3Fiber/src/client/App.tsx",
-  "../vendor/ModuleReact3Fiber/src/client/game/GameViewport.tsx",
-  "../vendor/ModuleReact3Fiber/src/client/game/Scene.tsx",
-  "../vendor/ModuleReact3Fiber/src/client/settings/SettingsContext.tsx",
-  "../vendor/ModuleReact3Fiber/src/client/ui/Captions.tsx",
-  "../vendor/ModuleReact3Fiber/src/client/ui/Customize.tsx",
-  "../vendor/ModuleReact3Fiber/src/client/ui/GameScreen.tsx",
-  "../vendor/ModuleReact3Fiber/src/client/ui/HelpOverlay.tsx",
-  "../vendor/ModuleReact3Fiber/src/client/ui/Leaderboard.tsx",
-  "../vendor/ModuleReact3Fiber/src/client/ui/MainMenu.tsx",
-  "../vendor/ModuleReact3Fiber/src/client/ui/DepthRadar.tsx",
-  "../vendor/ModuleReact3Fiber/src/client/ui/PauseMenu.tsx",
-  "../vendor/ModuleReact3Fiber/src/client/ui/Settings.tsx",
-  "../vendor/ModuleReact3Fiber/src/client/ui/SnakeLabels.tsx",
-  "../vendor/ModuleReact3Fiber/src/client/ui/TouchControls.tsx",
+  "../src/game/App.tsx",
+  "../src/game/game/GameViewport.tsx",
+  "../src/game/game/Scene.tsx",
+  "../src/game/settings/SettingsContext.tsx",
+  "../src/game/ui/Captions.tsx",
+  "../src/game/ui/Customize.tsx",
+  "../src/game/ui/GameScreen.tsx",
+  "../src/game/ui/HelpOverlay.tsx",
+  "../src/game/ui/Leaderboard.tsx",
+  "../src/game/ui/MainMenu.tsx",
+  "../src/game/ui/DepthRadar.tsx",
+  "../src/game/ui/PauseMenu.tsx",
+  "../src/game/ui/Settings.tsx",
+  "../src/game/ui/SnakeLabels.tsx",
+  "../src/game/ui/TouchControls.tsx",
 ].map(read).join("\n");
 
 describe("React game document", () => {

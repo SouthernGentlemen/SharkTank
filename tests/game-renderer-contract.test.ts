@@ -4,16 +4,16 @@ import { describe, expect, it } from "vitest";
 const read = (path: string) => readFileSync(new URL(path, import.meta.url), "utf8");
 const exists = (path: string) => existsSync(new URL(path, import.meta.url));
 
-const gameScreen = read("../vendor/ModuleReact3Fiber/src/client/ui/GameScreen.tsx");
-const viewport = read("../vendor/ModuleReact3Fiber/src/client/game/GameViewport.tsx");
-const scene = read("../vendor/ModuleReact3Fiber/src/client/game/Scene.tsx");
-const actors = read("../vendor/ModuleReact3Fiber/src/client/game/ActorLayer.tsx");
-const prey = read("../vendor/ModuleReact3Fiber/src/client/game/PreyLayer.tsx");
-const fx = read("../vendor/ModuleReact3Fiber/src/client/game/FxLayer.tsx");
-const world = read("../vendor/ModuleReact3Fiber/src/client/game/WorldEnvironment.tsx");
-const cameraRig = read("../vendor/ModuleReact3Fiber/src/client/game/CameraRig.tsx");
-const sceneMath = read("../vendor/ModuleReact3Fiber/src/client/game/sceneMath.ts");
-const app = read("../vendor/ModuleReact3Fiber/src/client/App.tsx");
+const gameScreen = read("../src/game/ui/GameScreen.tsx");
+const viewport = read("../src/game/game/GameViewport.tsx");
+const scene = read("../src/game/game/Scene.tsx");
+const actors = read("../src/game/game/ActorLayer.tsx");
+const prey = read("../src/game/game/PreyLayer.tsx");
+const fx = read("../src/game/game/FxLayer.tsx");
+const world = read("../src/game/game/WorldEnvironment.tsx");
+const cameraRig = read("../src/game/game/CameraRig.tsx");
+const sceneMath = read("../src/game/game/sceneMath.ts");
+const app = read("../src/game/App.tsx");
 const main = read("../src/client/main.tsx");
 const rendererSources = [viewport, scene, actors, prey, fx, world, cameraRig, sceneMath, app];
 
@@ -44,10 +44,10 @@ describe("R3F-only gameplay renderer", () => {
   });
 
   it("removes the Canvas2D gameplay path and sprite helper", () => {
-    expect(exists("../vendor/ModuleReact3Fiber/src/client/game/GameCanvas.tsx")).toBe(false);
-    expect(exists("../vendor/ModuleReact3Fiber/src/client/game/goofySharkSprite.ts")).toBe(false);
-    expect(exists("../vendor/ModuleReact3Fiber/src/client/index.ts")).toBe(false);
-    expect(main).toContain('import { App } from "module-react3fiber/app";');
+    expect(exists("../src/game/game/GameCanvas.tsx")).toBe(false);
+    expect(exists("../src/game/game/goofySharkSprite.ts")).toBe(false);
+    expect(exists("../src/game/index.ts")).toBe(false);
+    expect(main).toContain('import { App } from "../game/App.js";');
     expect(app).not.toContain("GameCanvas");
     for (const source of rendererSources) {
       expect(source).not.toContain('getContext("2d"');
@@ -64,7 +64,7 @@ describe("R3F-only gameplay renderer", () => {
     expect(fx).toContain('burst.kind === "bite"');
     expect(fx.toLowerCase()).not.toContain("rocket");
     expect(fx).toContain("burst.y");
-    const world = read("../vendor/ModuleReact3Fiber/src/client/game/WorldEnvironment.tsx");
+    const world = read("../src/game/game/WorldEnvironment.tsx");
     expect(world).toContain("frenzyUntilTick");
     expect(world).toContain("state.arenaRadius");
     expect(fx).not.toContain("<ringGeometry");

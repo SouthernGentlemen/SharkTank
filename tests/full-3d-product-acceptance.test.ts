@@ -13,18 +13,18 @@ import {
   step,
   type RoomState,
   type Snake,
-} from "../vendor/ModuleReact3Fiber/src/engine/index.js";
+} from "../src/engine/index.js";
 import {
   REALTIME_PROTOCOL_VERSION,
   toNetState,
-} from "../vendor/ModuleReact3Fiber/src/protocol/index.js";
+} from "../src/protocol/index.js";
 import {
   DEFAULT_KEYBINDS,
-} from "../vendor/ModuleReact3Fiber/src/client/settings/SettingsContext.js";
+} from "../src/game/settings/SettingsContext.js";
 import {
   cameraLookFromPointer,
   desktopAxesForPressed,
-} from "../vendor/ModuleReact3Fiber/src/client/game/desktopControls.js";
+} from "../src/game/game/desktopControls.js";
 import {
   beginStickPointer,
   canUseAbilityPointer,
@@ -32,17 +32,17 @@ import {
   moveStickPointer,
   touchAxesForState,
   touchLayoutForFlightSide,
-} from "../vendor/ModuleReact3Fiber/src/client/game/mobileControls.js";
+} from "../src/game/game/mobileControls.js";
 import {
   resolveClientPerformanceProfile,
   resolveRenderDpr,
-} from "../vendor/ModuleReact3Fiber/src/client/game/performance.js";
+} from "../src/game/game/performance.js";
 import {
   resolveOceanEnvironmentQuality,
-} from "../vendor/ModuleReact3Fiber/src/client/game/oceanArena.js";
+} from "../src/game/game/oceanArena.js";
 import {
   resolveSceneQuality,
-} from "../vendor/ModuleReact3Fiber/src/client/game/sceneMath.js";
+} from "../src/game/game/sceneMath.js";
 
 const read = (path: string) => readFileSync(new URL(path, import.meta.url), "utf8");
 
@@ -61,9 +61,9 @@ function place(shark: Snake, x: number, y: number, z: number, yaw = 0, pitch = 0
 
 describe("ST-131 full-3D product acceptance", () => {
   it("covers menu straight to game plus death, respawn, result and next-round authority", () => {
-    const app = read("../vendor/ModuleReact3Fiber/src/client/App.tsx");
-    const screen = read("../vendor/ModuleReact3Fiber/src/client/ui/GameScreen.tsx");
-    const death = read("../vendor/ModuleReact3Fiber/src/client/ui/DeathOverlay.tsx");
+    const app = read("../src/game/App.tsx");
+    const screen = read("../src/game/ui/GameScreen.tsx");
+    const death = read("../src/game/ui/DeathOverlay.tsx");
 
     expect(app).toContain('type Screen = "menu" | "customize" | "settings" | "game"');
     expect(app).toContain('const SHARKTANK_ROOM = { id: "room-1", name: "SharkTank" } as const;');
@@ -122,12 +122,12 @@ describe("ST-131 full-3D product acceptance", () => {
   });
 
   it("keeps player data on-device and removes client telemetry/storage plumbing", () => {
-    const app = read("../vendor/ModuleReact3Fiber/src/client/App.tsx");
-    const settings = read("../vendor/ModuleReact3Fiber/src/client/settings/SettingsContext.tsx");
-    const menu = read("../vendor/ModuleReact3Fiber/src/client/ui/MainMenu.tsx");
+    const app = read("../src/game/App.tsx");
+    const settings = read("../src/game/settings/SettingsContext.tsx");
+    const menu = read("../src/game/ui/MainMenu.tsx");
     const worker = read("../src/worker/index.ts");
     const room = read("../src/worker/room-do.ts");
-    const protocol = read("../vendor/ModuleReact3Fiber/src/protocol/index.ts");
+    const protocol = read("../src/protocol/index.ts");
 
     expect(settings).toContain('const STORAGE_KEY = "sharktank.player.v1"');
     expect(settings).toContain('const LEGACY_SETTINGS_KEY = "snakeio.settings.v1"');
@@ -179,10 +179,10 @@ describe("ST-131 full-3D product acceptance", () => {
   });
 
   it("keeps low, medium and high graphics plus accessibility modes presentation-only", () => {
-    const settings = read("../vendor/ModuleReact3Fiber/src/client/ui/Settings.tsx");
-    const gameScreen = read("../vendor/ModuleReact3Fiber/src/client/ui/GameScreen.tsx");
-    const viewport = read("../vendor/ModuleReact3Fiber/src/client/game/GameViewport.tsx");
-    const theme = read("../vendor/ModuleReact3Fiber/src/client/ui/theme.css");
+    const settings = read("../src/game/ui/Settings.tsx");
+    const gameScreen = read("../src/game/ui/GameScreen.tsx");
+    const viewport = read("../src/game/game/GameViewport.tsx");
+    const theme = read("../src/game/ui/theme.css");
 
     const qualities = ["low", "medium", "high"] as const;
     const profiles = qualities.map((quality) => ({
