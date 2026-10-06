@@ -8,25 +8,19 @@ The owner played production `v2.0.0-r1` and found it chunky, hard to play and no
 - **A bigger ocean** with coral reefs and many more kinds of fish.
 - **Smooth motion, forgiving controls and generous hit boxes**, mobile first.
 - **Better music**, a clean mobile UI and smoother animation.
-- **Minimal overhead and no telemetry.** The ISO-era evidence and operations machinery is retired completely, along with all dead code.
+- **Minimal overhead and no telemetry.** The server is already reduced to the game surface; remaining dead code is removed as the queue advances.
 
 The queue comes from two code deep dives plus live production measurements taken on 2026-10-02. The permanent empty-queue rule that authorized this plan-only refill states: `The queue is empty. Select no implementation task.` That sentence describes the pre-change state only. Work only the first open task. Keep later tasks and their order unless the owner changes priority. Each task is sized for about ten minutes of focused implementation; CI, review, merge and release approval are extra.
 
 ### What the deep dives found
 
-- **Three of four tanks are unjoinable.** Atlantic, Indian and Arctic (`room-2`–`room-4`) close every WebSocket with 1006, and their Room-backed log routes return HTTP 500; only Pacific (`room-1`) works. The likely cause is the persisted-snapshot bootstrap, which deliberately throws on old or unexpected stored state and leaves the Room object permanently broken. Local acceptance only ever opens `room-1`, so CI never noticed. Rounds reset every five minutes, so persisting them buys nothing.
-- **Most of the server is not the game.** About 6,000 lines serve the retired evidence program:
-  - the 2,491-line Lobby object (billing, receipts, incidents, logs, backups and restore drills, profiles, maintenance);
-  - 1,739 lines of Worker-rendered overview, evidence, admin and downtime pages;
-  - the snapshot schema bootstrap, a daily cron with an R2 copy, operator secrets, and their scripts and tests.
-- **Telemetry runs everywhere.** The client posts every settings change, name, skin and play action. The Room writes player inputs to SQL, reports usage to the Lobby every 30 s and posts round results. The CSP and a per-response nonce exist so Cloudflare can inject its analytics beacon, but no beacon is actually injected on the game, so that allowance is dead.
-- **Dead code outside that stack.**
+- **Dead code remains outside the active game path.**
   - Never imported: the vendored `store` module and the `client/index.ts` entry.
   - Production code used only by tests: render-cost inventories (`estimateSceneRenderCost`, `estimateBaselineSceneRenderCost`, `CLIENT_PERFORMANCE_BUDGETS`) and descriptive lists (`SHARK_ANATOMY`, `PREY_SILHOUETTE`).
   - Never called: `cloneRoom`, `frenzyTicksLeft`, `nextInt`, `isInsideOceanVolume`, `isInsideFrenzyVolume`, `distancePointToSegmentSquared3`, `HealthResponse`, `ErrorResponse` and `roomSocketPath`.
   - The snake-era trail (`path`, `segments`, `sampleTrail`, `SEGMENT_SPACING`, `TAIL_MARGIN`) always yields one point, and `boosting`/`chargeTicks` are always false and zero.
   - The FX layer draws a 1-unit "boundary" ring at the arena centre plus a duplicate Frenzy ring.
-  - The Camera motion setting is read by nothing, and the provenance CSVs only feed their own validator.
+  - The Camera motion setting is read by nothing.
 - **Remote motion freezes most of the time.** Snapshots arrive at 10.1 Hz (median gap 99.4 ms) but the interpolation delay is 45 ms. Replaying measured arrivals through the client's rule leaves remote sharks and fish frozen on about 72% of 60 Hz frames, and the clock drifts (+0.7 ms/s) with no correction. Swim animation follows the same stalled clock.
 - **The wire is heavy for phones.** About 30 KB of JSON per snapshot carries every prey in the tank: about 295 KB/s, roughly 1 GB per hour.
 - **Controls fight the player.**
@@ -76,44 +70,29 @@ On the server, the Worker serves only the game shell, its assets, `/version.json
 - **Releases happen only at the queued checkpoints** (ST-141, ST-224, ST-242, ST-258, ST-267, ST-280, ST-296). Before each, the owner runs the relevant PRODUCT-ACCEPTANCE manual rows on a real phone and a desktop browser, then approves the protected `production` environment.
 - **Validation for every task** is the focused tests named in the task, plus `npm ci`, `npm run check`, `npm run audit:dependencies` and `git diff --check` on the exact head.
 
-### Owner decisions recorded with defaults
+### Current defaults
 
 Tasks follow these defaults unless the owner changes them before the task starts:
 
-1. The one tank is the healthy `room-1` Durable Object, shown as "SharkTank". Other tank ids return 404 (ST-139).
-2. Player name, skin, best score and settings live on the device. Existing server-side profiles are deleted, not carried over (owner confirmed 2026-10-02; ST-142).
-3. Retiring the operations stack removes:
-   - the maintenance switch, admin console, logs and receipts;
-   - backups and restore drills;
-   - the $5 spend hard-stop.
-
-   Production control moves to the Cloudflare dashboard (route toggle, rollback, account billing alerts). The owner accepted this on 2026-10-02 (ST-143–ST-149).
-4. The Lobby Durable Object and everything it stores are deleted. The owner confirmed the deletion on 2026-10-02. Since the owner moved the `sharktank` rename forward (2026-10-05), the `v2.1.0` cut-over deploys a new `sharktank` Worker without `Lobby`, and the stored data goes when `wizardgangprod` is retired at R3 (ST-149, ST-222, ST-224).
-5. Cloudflare cleanup outside the code:
-   - The `OPS_TOKEN` and `OPS_USERNAME` Worker secrets stay on `wizardgangprod` and go when it is retired at R3 after the `v2.1.0` cut-over (ST-224); the new `sharktank` Worker never has them.
-   - Cloudflare Web Analytics is not injected on the game (checked 2026-10-02), so only its dead CSP allowance goes (ST-147).
-   - The old `sharktank/` copies in the shared R2 bucket are a one-time manual dashboard deletion for the owner. Nothing reads them after ST-148.
-6. A bigger ocean: radius 120 (from 82), water column 36 (from 24) and about 480 ambient fish (from 200) (ST-259).
-7. Fish and coral variety:
+1. A bigger ocean: radius 120 (from 82), water column 36 (from 24) and about 480 ambient fish (from 200) (ST-259).
+2. Fish and coral variety:
    - eight school looks (sardine, anchovy, silverside, clownfish, blue tang, yellow tang, angelfish, parrotfish);
    - new tuna, rays, squid and a rare golden fish;
    - brain, branching, plate, fan and tube coral plus kelp (ST-260–ST-266).
-8. Touch play defaults to one-thumb **Simple** steering, with dual-stick as **Advanced**; desktop WASD flight with arrow-key look is unchanged. Portrait play is allowed (ST-249, ST-252).
-9. The wall becomes a non-lethal current (ST-246).
-10. Combat rules (ST-256):
-    - a shark at least 1.5× the victim's length devours it in one bite;
-    - even fights take two bites;
-    - health regenerates at 4 HP/s.
-11. Music is a first-party adaptive score, on by default at 35% once the first tap unlocks audio, with a visible mute (ST-274–ST-277).
-12. Releases are semantic versions at each checkpoint: `v2.0.1`, `v2.1.0` (the `sharktank` cut-over, ST-224), `v2.2.0`, `v2.3.0`, `v2.4.0`, `v2.5.0`, `v2.6.0`.
-13. The release and change-control tooling (controlled commits, protected releases, GitHub settings checks) stays as it is for now (owner, 2026-10-02).
+3. Touch play defaults to one-thumb **Simple** steering, with dual-stick as **Advanced**; desktop WASD flight with arrow-key look is unchanged. Portrait play is allowed (ST-249, ST-252).
+4. The wall becomes a non-lethal current (ST-246).
+5. Combat rules (ST-256):
+   - a shark at least 1.5× the victim's length devours it in one bite;
+   - even fights take two bites;
+   - health regenerates at 4 HP/s.
+6. Music is a first-party adaptive score, on by default at 35% once the first tap unlocks audio, with a visible mute (ST-274–ST-277).
+7. Releases are semantic versions at each checkpoint: `v2.2.0`, `v2.3.0`, `v2.4.0`, `v2.5.0`, `v2.6.0`.
+8. The release and change-control tooling (controlled commits, protected releases, GitHub settings checks) stays as it is for now.
 
 ### Tuning reference
 
 | Knob | Today | Target | Task |
 | --- | --- | --- | --- |
-| Tanks | 4 listed, 3 unjoinable | 1 tank: 8 players + 24 bots | ST-139 |
-| Server footprint | Lobby object, evidence/admin pages, SQL input log, billing, backups, cron, R2 | Room in memory only; Worker serves game, assets, version and socket | ST-142–ST-149 |
 | Remote interpolation | 45 ms delay vs 100 ms snapshots; frozen ~72% of frames | 1.5 × snapshot interval (150 ms), drift-locked, ≤ 120 ms extrapolation | ST-232–ST-234 |
 | Snapshot weight | ~30 KB × 10 Hz ≈ 295 KB/s | ≤ 14 KB typical × 10 Hz | ST-239–ST-240 |
 | Steering send | ≤ 10 Hz, 0.05/0.04 rad deadband | 20 Hz, 0.015 rad, trailing final send | ST-236 |
@@ -130,32 +109,7 @@ Tasks follow these defaults unless the owner changes them before the task starts
 | Growth | +0.18 length per point; flat scale curve | Five tiers reachable in one round; Megalodon ≈ 2.5× spawn scale | ST-268 |
 | Music | Six-note loop on `setInterval`, off by default | Layered adaptive score on the audio clock, on at 35% | ST-274–ST-277 |
 
-### Cross-repository boundary
-
-`wizardgang.ai` (repository `Wizard-Gang/WizardGang`) still points at the old SharkTank:
-
-- a Worker proxy for about fifteen machine paths and about twenty-six redirects into SharkTank paths that already return 404;
-- a SharkTank case study that previews removed rockets and claims ISO-aligned operations;
-- project data whose operations link points at `/evidence/`, which ST-145 deletes.
-
-On 2026-10-02 the owner directed that this SharkTank material be deleted from the website. That work shipped in the website's `v1.3.0` on 2026-10-05. SharkTank adds nothing to replace it.
-
 ## Open tasks
-
-### ST-226 — [DOCS] Retire the ISO-era documents and provenance records
-
-**Goal:** Leave documentation that describes a lean game, not an evidence program.
-
-**Scope**
-- Remove `docs/history/*.csv`, `scripts/check-provenance.mjs` and their npm script and check-chain entries.
-- Rewrite README and ARCHITECTURE as a short guide covering the Worker surface, Room authority, controls, local development and release.
-- Trim SECURITY, PRODUCT-ACCEPTANCE and ACCESSIBILITY to the game, and update the documentation-contract tests.
-
-**Acceptance:** No document describes evidence, receipts, billing, backups, incidents or ISO controls.
-
-**Validation:** `npm test -- tests/full-3d-documentation-contract.test.ts`; `npm run check`.
-
----
 
 ### ST-227 — [REFACTOR] Remove dead engine, protocol and package code
 

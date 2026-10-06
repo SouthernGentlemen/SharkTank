@@ -1,78 +1,70 @@
 # SharkTank
 
-SharkTank is a realtime full-3D multiplayer shark game at `/play/`, backed by authoritative Cloudflare Durable Objects. Production exposes one gameplay tank: `room-1`, displayed as **SharkTank**, with 8 human seats and 24 server-authoritative bots. The same Worker redirects `/` to `/play/` and serves release identity at `/version.json`.
+SharkTank is a realtime full-3D multiplayer shark game served by one Cloudflare Worker. Production has one gameplay tank, `room-1`, displayed as **SharkTank**, with 8 human seats and 24 server-authoritative bots.
 
-## Command map
+## Local development
 
-Use Node.js 26.10.0 from `.node-version` and npm 12.1.0 from `packageManager`. Run `npm ci` before repository validation.
+Use Node.js 26.10.0 from `.node-version` and npm 12.1.0 from `packageManager`.
+
+```sh
+npm ci
+npm run dev -- --no-open
+```
+
+Useful commands:
 
 | Command | Purpose |
 | --- | --- |
-| `npm run dev` | Safe local whole-stack lifecycle: validates local ownership, rebuilds, starts Wrangler, waits for HTTP readiness, and opens the app. Use `npm run dev -- --no-open` for headless use. |
-| `npm run local` | Alias for the same safe local lifecycle. |
-| `npm run dev:worker` | Raw Wrangler-only development path on port 8787. `npm start` delegates here. |
+| `npm run dev` / `npm run local` | Build, start the local Worker, wait for readiness, and optionally open the game. |
+| `npm run dev:worker` | Start Wrangler directly on port 8787. |
 | `npm test` | Run the Vitest suite. |
-| `npm run build` | Build the Vite production output locally. |
-| `npm run check` | Canonical credential-free acceptance gate: plan/change contracts, type checks, tests, build, repository/history/provenance/settings checks, local HTTP acceptance, dependency-policy cases, and whitespace. |
-| `npm run audit:dependencies` | Separate live network advisory gate. CI and release verification require it. |
-| `npm run check:game-surface -- http://127.0.0.1:8787` | Focused local check of the game HTTP and WebSocket surface. |
-| `npm run verify:github-settings` | Read-only comparison of live GitHub merge/ruleset settings with the committed authority. Requires repository-administration read access. |
-| `npm run apply:github-settings` | Explicit bounded mutation of GitHub merge/ruleset settings to the committed authority, followed by a fresh verification. |
-| `npm run check:platform` | Verify the vendored baseline pin and conforming `sharktank` Worker config without provider access. |
+| `npm run build` | Build the Vite client. |
+| `npm run check` | Run the credential-free repository acceptance gate. |
+| `npm run audit:dependencies` | Run the separate live dependency advisory gate. |
+| `npm run check:game-surface -- http://127.0.0.1:8787` | Check the local HTTP and WebSocket game surface. |
 
-## Full-3D game boundary
+## Worker surface
 
-`/play/` has one gameplay renderer: React Three Fiber / Three.js WebGL through `GameViewport` and `Scene`. Gameplay state is full X/Y/Z. Authoritative shark orientation is yaw + pitch; banking/roll is presentation-only. Canvas2D is not a hidden fallback.
+- `/` and `/play` redirect to `/play/`.
+- `/play/` serves the React game document and Vite assets.
+- `/version.json` exposes release identity through the shared wg-edge shell.
+- `/api/health` returns the current health response.
+- `/room/room-1/ws` is the only gameplay WebSocket.
+- Unknown routes return the shared shell 404.
 
-The Room Durable Object owns competitive truth: movement, collisions, prey consumption, scoring, damage, death/respawn, Feeding Frenzy, Apex, and round phase/result/reset. The deterministic engine/protocol remain framework-agnostic and server-safe. Three.js and browser APIs stay inside the client entry.
+The Worker exports only `Room`. Player name, skin, best score, controls, audio and accessibility settings stay in one device-local browser record.
 
-Clients may smooth what the player sees without moving authority. The local shark uses local prediction followed by authoritative X/Y/Z reconciliation. Remote sharks and prey use remote interpolation between server snapshots. Neither path can author score, damage, prey, round state, or authoritative movement.
+## Room authority
 
-Wire state schema 11 and realtime protocol 11 are the current client/server identities. Room simulation remains deterministic from seed, ordered actions, tick state, and RNG state, but gameplay is not persisted: each Room object boot starts a fresh round after clearing legacy Durable Object storage.
+The Room Durable Object owns movement, collisions, prey consumption, score, growth, damage, death/respawn, Feeding Frenzy, Apex and round state. Gameplay runs in memory for the life of the Room object; a new object starts a fresh round.
 
-## Controls and competitive loop
+The deterministic engine and protocol are server-safe. The client uses local prediction for the player's shark and remote interpolation for other sharks and prey, but presentation never writes competitive truth. Wire state schema 11 and realtime protocol 11 are current.
 
-Desktop flight is keyboard-first and jet-style: **W/S pitch**, **A/D yaw**, and the **Arrow keys look** independently around the chase camera. **Space bursts**, **F bites**, and **Escape pauses**. Mouse movement may mirror camera look, but mouse input is not required to steer, climb, dive, or fight.
+## Controls
 
-Mobile uses independent **dual-stick** control: one flight stick maps to pitch/yaw and one look stick maps to chase-camera offsets. The sticks own separate pointers, and bite/burst retain separate simultaneous ability pointers.
+Desktop flight uses **W/S pitch**, **A/D yaw**, and the **Arrow keys look** around the chase camera. **Space bursts**, **F bites**, and **Escape pauses**. Mouse movement may mirror camera look but is not required for play.
 
-Score-relevant fish/prey are authoritative gameplay actors with X/Y/Z position and collision state. Shark combat is directional bite plus burst with bounded size advantage; ordinary body overlap separates/deflects rather than dealing lethal contact damage. There is no ranged core weapon path.
+Mobile uses **dual-stick** control: one stick owns pitch/yaw and the other owns camera look. Bite and burst keep independent simultaneous pointers.
 
-Feeding Frenzy, Apex, five-minute rounds, the result window, and the next-round reset are server-owned.
+Combat is directional bite plus burst. Feeding Frenzy and Apex are server-owned round phases.
 
 ## Accessibility and performance
 
-The WebGL scene is gameplay presentation, not the semantic UI. HUD, leaderboard, settings, dialogs, captions, announcements, projected labels and depth-aware competitive cues remain DOM-first.
+The React Three Fiber / Three.js scene is full X/Y/Z. The WebGL canvas is presentation; the HUD, leaderboard, dialogs, captions, announcements, labels and depth cues remain in the semantic DOM.
 
-Quality scaling may change DPR, antialiasing, particles, water/environment detail, update cadence, model detail and decorative work. It may not remove authoritative actors or competitive cues.
+Reduced motion, high contrast, captions and quality settings may change presentation cost and motion, but they cannot remove authoritative actors or competitive state. See [docs/ACCESSIBILITY.md](docs/ACCESSIBILITY.md) and [docs/PRODUCT-ACCEPTANCE.md](docs/PRODUCT-ACCEPTANCE.md).
 
-See [docs/ACCESSIBILITY.md](docs/ACCESSIBILITY.md), [docs/PRODUCT-ACCEPTANCE.md](docs/PRODUCT-ACCEPTANCE.md), and [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md).
+## Release and controlled delivery
 
-## Operations and security
+[AGENTS.md](AGENTS.md) defines controlled delivery and `implementation_plan.md` is the current/future queue. Ordinary task merges do not create a release.
 
-Public HTTP and WebSocket input is untrusted. Unknown paths return plain-text 404s. The Worker enforces request/message bounds, allowed rooms, origin checks, rate limits, HTTPS redirects, strict response security headers, and server-side authority over simulation and score. Player name, skin, best score and settings stay in one device-local browser record; they are not profile or telemetry writes. Room is the only Durable Object and owns authoritative competitive state only in memory for the lifetime of the object; browser preferences never become competitive authority.
-
-The shared wg-edge shell owns the host guard, `/version.json`, security headers, errors, 404s and its operator gate. The retired evidence/status/spend routes return 404. Billing, backup and scheduled copy internals are removed.
-
-The Worker has no scheduled handler or R2 binding.
-
-## Release and deployment boundary
-
-Ordinary controlled changes do not create tags, GitHub Releases, or production deployments. A normal semantic release advances `package.json` and `package-lock.json` together and resets tracked `releaseRevision` to 0. A same-product release advances `package.json.releaseRevision` exactly once and creates an immutable `vX.Y.Z-rN` revision tag while package and lock product versions remain `X.Y.Z`. An unchanged product version and unchanged revision are a no-op.
-
-The Release workflow verifies exact tag/package/commit identity, runs the canonical checks and advisory gate, publishes the matching GitHub Release, then calls baseline's pinned `deploy-worker.yml` with `secrets: inherit`. The called workflow waits for protected `production` approval, builds the exact tag, deploys `sharktank`, and verifies `/version.json` identity. Production releases deploy `sharktank` through this protected path. Baseline's pinned workflow accepts semantic `vX.Y.Z` tags.
-
-## Controlled work
-
-[AGENTS.md](AGENTS.md) is the delivery contract and `implementation_plan.md` is the permanent current/future queue. Work only the first open task unless the owner changes priority.
-
-The provenance CSVs under `docs/history/` remain validator inputs for imported source lineage, not a changelog or forward history.
+A semantic release advances package and lock versions together. A same-product revision advances `releaseRevision`. The Release workflow verifies the exact accepted commit, publishes the matching GitHub Release, then calls the pinned baseline deployment workflow. Production deployment requires the protected `production` approval and verifies `/version.json`.
 
 ## Repository map
 
 - `src/worker/` — Worker routing and the memory-only Room Durable Object.
-- `src/client/` — Vite-built game document and browser entry.
-- `vendor/ModuleReact3Fiber/src/engine/` — deterministic full-3D authoritative simulation.
-- `vendor/ModuleReact3Fiber/src/protocol/` — schema/protocol 11 HTTP and realtime shapes.
-- `vendor/ModuleReact3Fiber/src/client/` — browser-only R3F renderer, controls, local prediction, remote interpolation, audio and DOM game UI.
-- `scripts/` — local development, validation, release, and deployment tooling.
+- `src/client/` — game document and browser entry.
+- `vendor/ModuleReact3Fiber/src/engine/` — deterministic authoritative simulation.
+- `vendor/ModuleReact3Fiber/src/protocol/` — schema/protocol 11 transport shapes.
+- `vendor/ModuleReact3Fiber/src/client/` — React Three Fiber renderer, controls, prediction, interpolation and audio.
+- `scripts/` — local development, validation and release tooling.
