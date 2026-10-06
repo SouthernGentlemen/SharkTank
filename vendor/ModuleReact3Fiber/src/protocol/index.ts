@@ -1,34 +1,21 @@
 // Wire protocol between the client and the server. Kept JSON-only so the same shapes
-// travel over HTTP health checks and the WebSocket (realtime play)
-// into the Room Durable Object.
+// travel over the WebSocket (realtime play) into the Room Durable Object.
 
 import { clampPitch, normalizeYaw } from "../engine/geometry3d.js";
 import { ROOM_SCHEMA_VERSION } from "../engine/room.js";
 import type { Action, DeathAction, Explosion, OceanVolume, Prey, RoomState, RoundState, ScoreEntry, Snake, Vec3 } from "../engine/types.js";
 export { isFamilyFriendlyName, sanitizeDisplayName } from "./name-policy.js";
 
-// ── HTTP: health ─────────────────────────────────────────────────────────────
-export interface HealthResponse {
-  ok: true;
-  module: "module-react3fiber";
-  time: string;
-}
-
-export interface ErrorResponse {
-  ok: false;
-  error: string;
-}
-
 // ── WebSocket: realtime play (client ⇄ Room DO) ───────────────────────────────
 export const REALTIME_PROTOCOL_VERSION = 11 as const;
 
-export interface OrientationInputAction {
+interface OrientationInputAction {
   type: "setOrientation";
   yaw: number;
   pitch: number;
 }
 
-export type ClientInputAction =
+type ClientInputAction =
   | OrientationInputAction
   | { type: "setBoost"; on: boolean }
   | { type: "bite" }
@@ -39,7 +26,7 @@ export type ClientMessagePayload =
   | { t: "input"; action: ClientInputAction }
   | { t: "ping"; ts: number };
 
-export type ClientMessage = ClientMessagePayload & { v: typeof REALTIME_PROTOCOL_VERSION };
+type ClientMessage = ClientMessagePayload & { v: typeof REALTIME_PROTOCOL_VERSION };
 
 /** A trimmed shark for the wire — one authoritative head/body sample plus orientation. */
 export type NetSnake = Pick<
@@ -57,13 +44,13 @@ export type NetPrey = Pick<
 >;
 
 
-export type NetExplosion = Pick<
+type NetExplosion = Pick<
   Explosion,
   "id" | "x" | "y" | "z" | "tick" | "skin" | "kind"
 >;
 
 /** The per-tick world snapshot broadcast to every connected client. */
-export type NetRoundState = RoundState;
+type NetRoundState = RoundState;
 
 export interface NetState {
   schemaVersion: 11;
@@ -87,10 +74,10 @@ export type ServerMessagePayload =
   | { t: "died"; by: string | null; action: DeathAction | null; tick: number; score: number; respawnInMs: number }
   | { t: "pong"; ts: number };
 
-export type ServerMessage = ServerMessagePayload & { v: typeof REALTIME_PROTOCOL_VERSION };
+type ServerMessage = ServerMessagePayload & { v: typeof REALTIME_PROTOCOL_VERSION };
 
-export type RealtimeParseFailureReason = "stale-schema" | "malformed";
-export type RealtimeParseResult<T> =
+type RealtimeParseFailureReason = "stale-schema" | "malformed";
+type RealtimeParseResult<T> =
   | { ok: true; message: T }
   | { ok: false; reason: RealtimeParseFailureReason };
 
@@ -104,7 +91,7 @@ export function withRealtimeProtocol<T extends { t: string }>(
   return { ...message, v: REALTIME_PROTOCOL_VERSION };
 }
 
-export function normalizeClientInputAction(value: unknown): ClientInputAction | null {
+function normalizeClientInputAction(value: unknown): ClientInputAction | null {
   if (!record(value) || typeof value.type !== "string") return null;
   if (value.type === "setOrientation") {
     if (typeof value.yaw !== "number" || !Number.isFinite(value.yaw)) return null;
@@ -296,16 +283,6 @@ export function toNetState(state: RoomState): NetState {
       kind: burst.kind,
     })),
   };
-}
-
-// ── Endpoint map ───────────────────────────────────────────────────────────────
-export const API = {
-  health: "/api/health",
-} as const;
-
-/** WebSocket path for a given room id, e.g. `/room/room-1/ws`. */
-export function roomSocketPath(roomId: string): string {
-  return `/room/${encodeURIComponent(roomId)}/ws`;
 }
 
 export type { Action, DeathAction, Explosion, OceanVolume, Prey, PreyKind, RoomState, RoundPhase, RoundResult, RoundState, ScoreEntry, Snake, Vec3 } from "../engine/types.js";

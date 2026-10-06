@@ -25,9 +25,3 @@ export function nextRandom(state: number): [value: number, nextState: number] {
   const value = ((r ^ (r >>> 14)) >>> 0) / 4294967296;
   return [value, t];
 }
-
-/** Convenience: draw an integer in [min, max]. Returns [int, nextState]. */
-export function nextInt(state: number, min: number, max: number): [number, number] {
-  const [v, next] = nextRandom(state);
-  return [min + Math.floor(v * (max - min + 1)), next];
-}

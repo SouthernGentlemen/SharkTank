@@ -13,8 +13,9 @@ const fx = read("../vendor/ModuleReact3Fiber/src/client/game/FxLayer.tsx");
 const world = read("../vendor/ModuleReact3Fiber/src/client/game/WorldEnvironment.tsx");
 const cameraRig = read("../vendor/ModuleReact3Fiber/src/client/game/CameraRig.tsx");
 const sceneMath = read("../vendor/ModuleReact3Fiber/src/client/game/sceneMath.ts");
-const clientIndex = read("../vendor/ModuleReact3Fiber/src/client/index.ts");
-const rendererSources = [viewport, scene, actors, prey, fx, world, cameraRig, sceneMath, clientIndex];
+const app = read("../vendor/ModuleReact3Fiber/src/client/App.tsx");
+const main = read("../src/client/main.tsx");
+const rendererSources = [viewport, scene, actors, prey, fx, world, cameraRig, sceneMath, app];
 
 describe("R3F-only gameplay renderer", () => {
   it("mounts one React Three Fiber viewport from the live game screen", () => {
@@ -45,8 +46,9 @@ describe("R3F-only gameplay renderer", () => {
   it("removes the Canvas2D gameplay path and sprite helper", () => {
     expect(exists("../vendor/ModuleReact3Fiber/src/client/game/GameCanvas.tsx")).toBe(false);
     expect(exists("../vendor/ModuleReact3Fiber/src/client/game/goofySharkSprite.ts")).toBe(false);
-    expect(clientIndex).toContain('export { GameViewport } from "./game/GameViewport.js";');
-    expect(clientIndex).not.toContain("GameCanvas");
+    expect(exists("../vendor/ModuleReact3Fiber/src/client/index.ts")).toBe(false);
+    expect(main).toContain('import { App } from "module-react3fiber/app";');
+    expect(app).not.toContain("GameCanvas");
     for (const source of rendererSources) {
       expect(source).not.toContain('getContext("2d"');
       expect(source).not.toContain("CanvasRenderingContext2D");

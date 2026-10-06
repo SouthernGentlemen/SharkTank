@@ -7,7 +7,6 @@ import {
   ROOM_SCHEMA_VERSION,
   applyAction,
   createRoom,
-  isInsideOceanVolume,
   step,
   type Prey,
   type Snake,
@@ -21,6 +20,18 @@ import {
 } from "../vendor/ModuleReact3Fiber/src/client/game/preyPresentation.js";
 
 const read = (path: string) => readFileSync(new URL(path, import.meta.url), "utf8");
+
+function insideOcean(
+  point: { x: number; y: number; z: number },
+  ocean: { radius: number; seabedY: number; surfaceY: number },
+  margin = 0,
+): boolean {
+  const radius = Math.max(0, ocean.radius - margin);
+  return Number.isFinite(point.x) && Number.isFinite(point.y) && Number.isFinite(point.z)
+    && point.x * point.x + point.z * point.z <= radius * radius
+    && point.y >= ocean.seabedY + margin
+    && point.y <= ocean.surfaceY - margin;
+}
 
 function join(state: ReturnType<typeof createRoom>, id: string, isBot = false): Snake {
   applyAction(state, { type: "join", playerId: id, name: id, isBot });
@@ -59,7 +70,7 @@ describe("ST-120 authoritative fish and prey schools", () => {
       expect(PREY_KINDS).toContain(actor.kind);
       expect(Number.isFinite(actor.yaw) && Number.isFinite(actor.pitch)).toBe(true);
       expect(Number.isInteger(actor.school)).toBe(true);
-      expect(isInsideOceanVolume(actor, state.ocean, PREY_BUDGET.boundaryMargin - 0.01)).toBe(true);
+      expect(insideOcean(actor, state.ocean, PREY_BUDGET.boundaryMargin - 0.01)).toBe(true);
     }
   });
 
@@ -79,7 +90,7 @@ describe("ST-120 authoritative fish and prey schools", () => {
       const old = before.get(actor.id);
       return old && Math.hypot(actor.x - old.x, actor.y - old.y, actor.z - old.z) > 1;
     })).toBe(true);
-    expect(first.food.every((actor) => isInsideOceanVolume(actor, first.ocean, PREY_BUDGET.boundaryMargin - 0.01))).toBe(true);
+    expect(first.food.every((actor) => insideOcean(actor, first.ocean, PREY_BUDGET.boundaryMargin - 0.01))).toBe(true);
   });
 
   it("keeps consumption, score and growth authoritative in the engine", () => {
@@ -118,7 +129,7 @@ describe("ST-120 authoritative fish and prey schools", () => {
     expect(drops.length).toBeGreaterThanOrEqual(14);
     expect(drops.length).toBeLessThanOrEqual(28);
     expect(drops.every((actor) => actor.kind === "carcass" && actor.school === -1)).toBe(true);
-    expect(drops.every((actor) => isInsideOceanVolume(actor, state.ocean))).toBe(true);
+    expect(drops.every((actor) => insideOcean(actor, state.ocean))).toBe(true);
   });
 
   it("keeps authoritative volumetric prey consumable by the bot planner", () => {

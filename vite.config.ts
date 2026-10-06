@@ -22,9 +22,7 @@ export default defineConfig({
   resolve: {
     alias: {
       "module-react3fiber/app": sub("client/App.tsx"),
-      "module-react3fiber/client": sub("client/index.ts"),
       "module-react3fiber/engine": sub("engine/index.ts"),
-      "module-react3fiber/store": sub("store/index.ts"),
       "module-react3fiber/protocol": sub("protocol/index.ts"),
     },
   },

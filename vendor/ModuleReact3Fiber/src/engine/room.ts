@@ -97,7 +97,7 @@ export const FRENZY_RULES = {
   bonusChumEvery: 3,
 } as const;
 
-export interface FrenzyVolume {
+interface FrenzyVolume {
   center: Vec3;
   radius: number;
   halfHeight: number;
@@ -190,7 +190,7 @@ const BOT_NAMES = [
   "Molar", "Anchor", "Squall", "Chowder", "Flotsam", "Bubbles", "Undertow", "Cutlass",
 ];
 
-export interface CreateRoomOptions {
+interface CreateRoomOptions {
   id?: string;
   seed?: string;
   oceanRadius?: number;
@@ -552,7 +552,7 @@ export function spawnBots(state: RoomState, n: number): void {
 }
 
 // ── Feeding Frenzy ───────────────────────────────────────────────────────────────
-export interface FrenzyTiming {
+interface FrenzyTiming {
   active: boolean;
   startTick: number | null;
   endTick: number;
@@ -569,13 +569,6 @@ export function frenzyVolumeFor(ocean: OceanVolume): FrenzyVolume {
     radius: Math.max(2, ocean.radius * FRENZY_RULES.volumeRadiusShare),
     halfHeight: Math.min(desiredHalfHeight, maxHalfHeight),
   };
-}
-
-export function isInsideFrenzyVolume(point: Vec3, ocean: OceanVolume, margin = 0): boolean {
-  const volume = frenzyVolumeFor(ocean);
-  const radius = Math.max(0, volume.radius + margin);
-  return horizontalRadiusSquared(point) <= radius * radius
-    && Math.abs(point.y - volume.center.y) <= volume.halfHeight + margin;
 }
 
 /** Derive active/start/end/remaining state only from authoritative snapshot ticks. */
@@ -595,10 +588,6 @@ export function isFrenzy(state: { tick: number; frenzyUntilTick?: number }): boo
   return frenzyTiming(state).active;
 }
 
-/** Ticks left in the current frenzy (0 when none is running). */
-export function frenzyTicksLeft(state: { tick: number; frenzyUntilTick?: number }): number {
-  return frenzyTiming(state).remainingTicks;
-}
 
 /** Deterministic, vertically stratified chum shower inside the authoritative volume. */
 function dropChum(state: RoomState): void {
@@ -1316,13 +1305,4 @@ function botPhase(id: string): number {
 /** Leaderboard rows, highest score first. */
 export function leaderboard(state: RoomState, limit = 10): ScoreEntry[] {
   return scoreEntries(state).slice(0, limit);
-}
-
-export function playerCount(state: RoomState): number {
-  return Object.values(state.snakes).filter((s) => !s.isBot).length;
-}
-
-/** Deep clone a snapshot (structured, JSON-safe). Handy for React state updates. */
-export function cloneRoom(state: RoomState): RoomState {
-  return JSON.parse(JSON.stringify(state)) as RoomState;
 }

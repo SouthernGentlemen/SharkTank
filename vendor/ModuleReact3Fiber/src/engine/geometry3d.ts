@@ -34,9 +34,6 @@ export function clampPitch(value: number): number {
   return Math.max(-MAX_PITCH, Math.min(MAX_PITCH, value));
 }
 
-export function isFiniteVec3(value: Vec3): boolean {
-  return Number.isFinite(value.x) && Number.isFinite(value.y) && Number.isFinite(value.z);
-}
 
 export function forwardFromYawPitch(
   yaw: number,
@@ -67,14 +64,6 @@ export function horizontalRadiusSquared(point: Pick<Vec3, "x" | "z">): number {
   return point.x * point.x + point.z * point.z;
 }
 
-export function isInsideOceanVolume(point: Vec3, ocean: OceanVolume, margin = 0): boolean {
-  if (!isFiniteVec3(point)) return false;
-  const radius = Math.max(0, ocean.radius - margin);
-  return horizontalRadiusSquared(point) <= radius * radius
-    && point.y >= ocean.seabedY + margin
-    && point.y <= ocean.surfaceY - margin;
-}
-
 export function clampToOceanVolume(
   point: Vec3,
   ocean: OceanVolume,
@@ -100,18 +89,6 @@ export function clampToOceanVolume(
   out.y = y;
   out.z = z;
   return out;
-}
-
-export function distancePointToSegmentSquared3(point: Vec3, a: Vec3, b: Vec3): number {
-  const dx = b.x - a.x;
-  const dy = b.y - a.y;
-  const dz = b.z - a.z;
-  const lengthSq = dx * dx + dy * dy + dz * dz;
-  const t = lengthSq > EPSILON
-    ? Math.max(0, Math.min(1, ((point.x - a.x) * dx + (point.y - a.y) * dy + (point.z - a.z) * dz) / lengthSq))
-    : 0;
-  const nearest = { x: a.x + dx * t, y: a.y + dy * t, z: a.z + dz * t };
-  return distanceSquared3(point, nearest);
 }
 
 export function yawPitchToward(from: Vec3, to: Vec3): { yaw: number; pitch: number } {

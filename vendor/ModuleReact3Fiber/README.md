@@ -1,15 +1,14 @@
 # ModuleReact3Fiber
 
-First-party deterministic full-3D game engine, protocol, server-safe store utilities, and React Three Fiber client vendored into SharkTank.
+First-party deterministic full-3D game engine, realtime protocol, and React Three Fiber client vendored into SharkTank.
 
 ## Current use
 
 - `src/engine/` contains pure deterministic full X/Y/Z simulation over serializable `RoomState`. Seeded RNG state stays in the live state so deterministic runs can be compared without persisting gameplay.
 - `src/protocol/` defines wire state schema 11 and realtime protocol 11 HTTP/WebSocket shapes shared by the Worker and browser client.
-- `src/store/` provides the server-safe `BlobStore` abstraction and JSON helpers.
 - `src/client/` contains the browser-only React Three Fiber game client, DOM UI, controls, local prediction, remote interpolation and presentation audio.
 
-The SharkTank Worker imports only the server-safe engine, store and protocol entry points. Browser code imports the client entry. Keep that boundary intact so React/Three code does not enter the Worker bundle.
+The SharkTank Worker imports only the server-safe engine and protocol entry points. Browser code imports `App` directly from tracked client source. Keep that boundary intact so React/Three code does not enter the Worker bundle.
 
 ## Gameplay boundary
 
@@ -22,6 +21,4 @@ The client renders one R3F `GameViewport` / `Scene`. Local prediction and remote
 | Import | Contents | Server-safe? |
 | --- | --- | --- |
 | `module-react3fiber/engine` | deterministic full-3D engine core, types, rules and RNG | Yes |
-| `module-react3fiber/store` | `BlobStore`, `JsonStore`, and `MemoryBlobStore` | Yes |
-| `module-react3fiber/protocol` | API paths plus schema/protocol 11 request/response types | Yes |
-| `module-react3fiber/client` | `App`, `GameScreen`, `GameViewport`, `Scene`, controls and browser presentation | No |
+| `module-react3fiber/protocol` | Schema/protocol 11 realtime transport types and parsers | Yes |

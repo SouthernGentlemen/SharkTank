@@ -18,7 +18,7 @@ git diff --check HEAD^
 
 The focused product test covers the device-local player record, menu/tank/game lifecycle, death and respawn, score updates, round reset, desktop/mobile input math, quality modes, accessibility presentation hooks, room capacity, prey bounds and Feeding Frenzy.
 
-The local HTTP gate checks the root redirect, `/play/`, `/version.json`, `/api/health`, static assets, shared 404 handling and a Room WebSocket hello/welcome exchange.
+The local HTTP gate checks the root redirect, `/play/`, `/version.json`, static assets, shared 404 handling and a Room WebSocket hello/welcome exchange.
 
 ## Real-browser desktop acceptance
 
@@ -65,9 +65,8 @@ Spot-check the exact candidate environment:
 - `/` redirects to `/play/`.
 - `/play/` loads the built game and first-party assets.
 - `/version.json` matches the candidate release identity.
-- `/api/health` returns the current health contract.
 - `/room/room-1/ws` accepts protocol 11 WebSocket play.
-- Unknown application paths return the shared 404.
+- Unknown application paths, including the retired `/api/health`, return the shared 404.
 
 Do not use production credentials for local acceptance.
 

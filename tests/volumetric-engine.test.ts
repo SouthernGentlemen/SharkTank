@@ -5,7 +5,6 @@ import {
   applyAction,
   createRoom,
   forwardFromYawPitch,
-  isInsideOceanVolume,
   MAX_PITCH,
   normalizeYaw,
   spawnBots,
@@ -14,6 +13,18 @@ import {
   type Snake,
 } from "../vendor/ModuleReact3Fiber/src/engine/index.js";
 import { toNetState } from "../vendor/ModuleReact3Fiber/src/protocol/index.js";
+
+function insideOcean(
+  point: { x: number; y: number; z: number },
+  ocean: { radius: number; seabedY: number; surfaceY: number },
+  margin = 0,
+): boolean {
+  const radius = Math.max(0, ocean.radius - margin);
+  return Number.isFinite(point.x) && Number.isFinite(point.y) && Number.isFinite(point.z)
+    && point.x * point.x + point.z * point.z <= radius * radius
+    && point.y >= ocean.seabedY + margin
+    && point.y <= ocean.surfaceY - margin;
+}
 
 function join(state: ReturnType<typeof createRoom>, id: string): Snake {
   applyAction(state, { type: "join", playerId: id, name: id });
@@ -33,7 +44,7 @@ describe("volumetric authoritative engine", () => {
     expect(toNetState(state).schemaVersion).toBe(11);
     expect(state.ocean.surfaceY).toBeGreaterThan(state.ocean.seabedY);
     expect(state.food.some((food) => Math.abs(food.y) > 0.1)).toBe(true);
-    expect(state.food.every((food) => isInsideOceanVolume(food, state.ocean))).toBe(true);
+    expect(state.food.every((food) => insideOcean(food, state.ocean))).toBe(true);
 
     const sharks = ["a", "b", "c", "d"].map((id) => join(state, id));
     expect(new Set(sharks.map((shark) => shark.segments[0].y.toFixed(4))).size).toBeGreaterThan(1);
