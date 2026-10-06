@@ -163,6 +163,7 @@ export function ActorLayer({
 
     const frame = socket.frameAt(REMOTE_INTERP_DELAY_MS);
     if (!frame) {
+      predictor.reset();
       followRef.current.active = false;
       return;
     }
@@ -197,6 +198,8 @@ export function ActorLayer({
         }, nowMs, socket.dashPressedAtRef.current)
       : null;
 
+    const localRenderPosition = predicted ? predictor.renderPosition() : null;
+
     const labels = labelBuffer;
     const wantLabels = Boolean(settings.a11y.colorblindLabels && labelsRef);
     const updateLabels = wantLabels
@@ -222,7 +225,7 @@ export function ActorLayer({
       let yaw: number;
       let pitch: number;
       if (usePrediction) {
-        position.set(predicted.position.x, predicted.position.y, predicted.position.z);
+        position.set(localRenderPosition!.x, localRenderPosition!.y, localRenderPosition!.z);
         yaw = predicted.yaw;
         pitch = predicted.pitch;
       } else {
@@ -432,9 +435,9 @@ export function ActorLayer({
     const interpolatedMe = state.sharks.find((shark) => shark.id === socket.youId && shark.alive);
     if (predicted) {
       followRef.current.active = true;
-      followRef.current.position.x = predicted.position.x;
-      followRef.current.position.y = predicted.position.y;
-      followRef.current.position.z = predicted.position.z;
+      followRef.current.position.x = localRenderPosition!.x;
+      followRef.current.position.y = localRenderPosition!.y;
+      followRef.current.position.z = localRenderPosition!.z;
       followRef.current.yaw = predicted.yaw;
       followRef.current.pitch = predicted.pitch;
     } else if (interpolatedMe?.position) {

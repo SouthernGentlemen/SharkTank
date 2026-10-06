@@ -3,6 +3,8 @@ import { readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
 import {
   MAX_PITCH,
+  MOVE,
+  TICKS_PER_SECOND,
   PREY_BUDGET,
   applyAction,
   createRoom,
@@ -258,6 +260,55 @@ describe("ST-122 realtime combat protocol", () => {
     expect(a).toEqual(b);
     predictor.reset();
     expect(predictor.step(auth, input, 0.016, 0, world, 96, 32)?.position).toEqual(auth.position);
+  });
+
+  it("blends 6-unit and 12-unit corrections without frame-sized local jumps", () => {
+    const state = createRoom({ seed: "visual-correction" });
+    const shark = join(state, "pilot");
+    place(shark, 0, 0, 0);
+    shark.yaw = shark.targetYaw = 0;
+    shark.pitch = shark.targetPitch = 0;
+    const auth = toClientShark(toNetState(state).snakes.find((s) => s.id === shark.id)!);
+    const input = { targetYaw: 0, targetPitch: 0, boosting: false };
+    for (const error of [6, 12]) {
+      const predictor = new LocalPredictor();
+      predictor.step(auth, input, 0, 0);
+      const corrected = { ...auth, position: { x: 0, y: error, z: 0 } };
+      predictor.step(corrected, input, 0, 0);
+      let previous = predictor.renderPosition();
+      expect(previous).toEqual(auth.position);
+      for (let frame = 1; frame <= 120; frame += 1) {
+        corrected.position.x += MOVE.BASE_SPEED * TICKS_PER_SECOND / 60;
+        predictor.step(corrected, input, 1 / 60, 0);
+        const rendered = predictor.renderPosition();
+        expect(Math.hypot(rendered.x - previous.x, rendered.y - previous.y, rendered.z - previous.z), `error ${error}, frame ${frame}`).toBeLessThan(error === 6 ? 1 : 1.3);
+        previous = rendered;
+      }
+      expect(previous.y).toBeCloseTo(error, 1);
+      expect(corrected.position.y).toBe(error);
+    }
+  });
+
+  it("clears local visual corrections on death, reconnect, identity changes and tick regression", () => {
+    const state = createRoom({ seed: "visual-reset" });
+    const shark = join(state, "pilot");
+    place(shark, 0, 0, 0);
+    const auth = toClientShark(toNetState(state).snakes.find((s) => s.id === shark.id)!);
+    const input = { targetYaw: auth.yaw, targetPitch: auth.pitch, boosting: false };
+    const world = { seabedY: -20, surfaceY: 20, tick: 10, frenzyUntilTick: 0 };
+    for (const reset of ["death", "reconnect", "identity", "tick", "large"] as const) {
+      const predictor = new LocalPredictor();
+      predictor.step(auth, input, 0, 0, world);
+      const corrected = { ...auth, position: { x: 0, y: 10, z: 0 } };
+      predictor.step(corrected, input, 0, 0, world);
+      expect(predictor.renderPosition().y).toBe(0);
+      if (reset === "death") predictor.step({ ...corrected, alive: false }, input, 0, 0, world);
+      if (reset === "reconnect") predictor.step(null, input, 0, 0, world);
+      const next = { ...corrected, id: reset === "identity" ? "new-pilot" : auth.id,
+        position: { x: 0, y: reset === "large" ? 30 : 10, z: 0 } };
+      predictor.step(next, input, 0, 0, { ...world, tick: reset === "tick" ? 0 : 10 });
+      expect(predictor.renderPosition()).toEqual(next.position);
+    }
   });
 
   it("interpolates remote X/Y/Z and pitch while taking the shortest yaw path across ±π", () => {

@@ -1,3 +1,4 @@
+import { readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
 import {
   MAX_PITCH,
@@ -23,6 +24,15 @@ import {
 } from "../src/game/game/sceneMath.js";
 
 describe("ST-115 shark swimming and chase camera", () => {
+  it("follows the same corrected visual position used to draw the local shark", () => {
+    const actor = readFileSync(new URL("../src/game/game/ActorLayer.tsx", import.meta.url), "utf8");
+    expect(actor).toContain("position.set(localRenderPosition!.x, localRenderPosition!.y, localRenderPosition!.z)");
+    for (const axis of ["x", "y", "z"]) {
+      expect(actor).toContain(`followRef.current.position.${axis} = localRenderPosition!.${axis}`);
+    }
+    expect(actor).toMatch(/if \(!frame\) \{\s+predictor.reset\(\)/);
+  });
+
   it("applies configurable camera-relative yaw/pitch steering inside safe pitch limits", () => {
     const steered = applyCameraRelativeSteering(
       Math.PI / 2, 0.2, 1, 0.5, 0.1, { turnRate: 2, pitchRate: 1 },
