@@ -13,6 +13,8 @@ import {
 import {
   CAMERA_PROJECTION,
   advanceBankRoll,
+  snapshotYawRate,
+  smoothYawRate,
   applyCameraRelativeSteering,
   cameraFovForSpeed,
   chaseCameraPose,
@@ -71,6 +73,28 @@ describe("ST-115 shark swimming and chase camera", () => {
     const reducedBank = advanceBankRoll(0.3, 3, 1 / 60, true);
     expect(Math.abs(reducedBank)).toBeGreaterThan(0);
     expect(Math.abs(reducedBank)).toBeLessThanOrEqual(0.24);
+  });
+
+  it("smooths stepped 10 Hz snapshot yaw without frame-sized rate spikes", () => {
+    expect(snapshotYawRate(Math.PI - 0.1, -Math.PI + 0.1, 10, 12)).toBeCloseTo(2);
+    expect(snapshotYawRate(0, 1, 12, 12)).toBe(0);
+    let rate = 0;
+    let roll = 0;
+    for (let frame = 0; frame < 180; frame += 1) {
+      const pair = Math.floor(frame / 6);
+      const target = snapshotYawRate(pair * 0.12, (pair + 1) * 0.12, pair * 2, (pair + 1) * 2);
+      rate = smoothYawRate(rate, target, 1 / 60);
+      expect(rate).toBeGreaterThanOrEqual(0);
+      expect(rate).toBeLessThanOrEqual(1.2 + 1e-12);
+      const next = advanceBankRoll(roll, rate, 1 / 60);
+      expect(Math.abs(next - roll)).toBeLessThan(0.01);
+      roll = next;
+    }
+    for (let frame = 0; frame < 180; frame += 1) {
+      rate = smoothYawRate(rate, 0, 1 / 60);
+      roll = advanceBankRoll(roll, rate, 1 / 60);
+    }
+    expect(Math.abs(roll)).toBeLessThan(0.002);
   });
 
   it("keeps the chase camera readable through pitch/turn, scales distance, and bounds it to water", () => {

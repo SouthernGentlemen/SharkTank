@@ -1,4 +1,4 @@
-import { clampPitch, lerpYawShortest, normalizeYaw } from "../../engine/index.js";
+import { TICKS_PER_SECOND, shortestYawDelta, clampPitch, lerpYawShortest, normalizeYaw } from "../../engine/index.js";
 
 export type SceneQuality = "low" | "medium" | "high";
 
@@ -156,6 +156,17 @@ export function forwardFromYawPitch(
   out.y = Math.sin(safePitch);
   out.z = Math.sin(safeYaw) * cosPitch;
   return out;
+}
+
+/** Authoritative snapshot yaw delta in radians per second, including wraparound. */
+export function snapshotYawRate(olderYaw: number, newerYaw: number, olderTick: number, newerTick: number): number {
+  const span = newerTick - olderTick;
+  return span > 0 ? shortestYawDelta(olderYaw, newerYaw) * TICKS_PER_SECOND / span : 0;
+}
+
+export function smoothYawRate(current: number, target: number, dt: number): number {
+  const step = Math.max(0, Math.min(0.05, Number.isFinite(dt) ? dt : 0));
+  return current + (target - current) * (1 - Math.exp(-8 * step));
 }
 
 export function advanceBankRoll(

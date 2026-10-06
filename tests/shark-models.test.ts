@@ -40,9 +40,9 @@ describe("ST-119 animated shark models", () => {
     expect(sharkScaleForLength(64)).toBeCloseTo(Math.min(2.5, 0.72 + Math.sqrt(64) * 0.12));
   });
 
-  it("derives deterministic swim animation from existing tick, speed, boost and pitch state", () => {
+  it("derives deterministic swim animation from continuous seconds, speed, boost and pitch state", () => {
     const base = {
-      tick: 42,
+      seconds: 42 / 20,
       actorId: "shark-alpha",
       speed: 11,
       baseSpeed: 11,
@@ -59,6 +59,13 @@ describe("ST-119 animated shark models", () => {
       boosting: true,
     });
     expect(cruiseAgain).toEqual(cruise);
+    let last = cruise;
+    for (let frame = 1; frame <= 60; frame += 1) {
+      const next = resolveSharkAnimation({ ...base, seconds: base.seconds + frame / 60 });
+      expect(next).not.toEqual(last);
+      last = next;
+    }
+    expect(read("../src/game/game/ActorLayer.tsx")).toContain("seconds: clock.elapsedTime");
     expect(boosted.intensity).toBeGreaterThan(cruise.intensity);
     expect(Math.abs(boosted.tailYaw)).toBeLessThanOrEqual(0.5);
     expect(Math.abs(boosted.pectoralSweep)).toBeLessThanOrEqual(0.22);
@@ -66,7 +73,7 @@ describe("ST-119 animated shark models", () => {
 
   it("keeps reduced motion playable by suppressing decorative flex while bank remains an orientation cue", () => {
     const reduced = resolveSharkAnimation({
-      tick: 42,
+      seconds: 42 / 20,
       actorId: "shark-alpha",
       speed: 28,
       baseSpeed: 11,

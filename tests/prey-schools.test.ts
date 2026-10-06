@@ -177,10 +177,17 @@ describe("ST-120 authoritative fish and prey schools", () => {
   });
 
   it("keeps swimming animation presentation-only, reduced-motion-safe and recognizable on low quality", () => {
-    const full = resolvePreyAnimation({ tick: 42.5, id: "fish-1", speed: 4, reducedMotion: false });
-    expect(resolvePreyAnimation({ tick: 42.5, id: "fish-1", speed: 4, reducedMotion: false })).toEqual(full);
+    const full = resolvePreyAnimation({ seconds: 42.5 / 20, id: "fish-1", speed: 4, reducedMotion: false });
+    expect(resolvePreyAnimation({ seconds: 42.5 / 20, id: "fish-1", speed: 4, reducedMotion: false })).toEqual(full);
     expect(Math.abs(full.tailYaw)).toBeGreaterThan(0);
-    expect(resolvePreyAnimation({ tick: 42.5, id: "fish-1", speed: 4, reducedMotion: true })).toEqual({ bodyYaw: 0, tailYaw: 0 });
+    let last = full;
+    for (let frame = 1; frame <= 60; frame += 1) {
+      const next = resolvePreyAnimation({ seconds: 42.5 / 20 + frame / 60, id: "fish-1", speed: 4, reducedMotion: false });
+      expect(next).not.toEqual(last);
+      last = next;
+    }
+    expect(readFileSync(new URL("../src/game/game/PreyLayer.tsx", import.meta.url), "utf8")).toContain("seconds: clock.elapsedTime");
+    expect(resolvePreyAnimation({ seconds: 42.5 / 20, id: "fish-1", speed: 4, reducedMotion: true })).toEqual({ bodyYaw: 0, tailYaw: 0 });
 
     const low = resolvePreyPresentationQuality("low");
     const high = resolvePreyPresentationQuality("high");

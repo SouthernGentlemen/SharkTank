@@ -1,3 +1,4 @@
+import { TICKS_PER_SECOND } from "../../engine/index.js";
 import type { PreyKind } from "../../engine/index.js";
 import type { SceneQuality } from "./sceneMath.js";
 
@@ -50,19 +51,19 @@ function hash(value: string): number {
 }
 
 export function resolvePreyAnimation({
-  tick,
+  seconds,
   id,
   speed,
   reducedMotion,
 }: {
-  tick: number;
+  seconds: number;
   id: string;
   speed: number;
   reducedMotion: boolean;
 }): { bodyYaw: number; tailYaw: number } {
   if (reducedMotion) return { bodyYaw: 0, tailYaw: 0 };
   const speedFactor = Math.max(0.6, Math.min(2.1, speed / 2.4));
-  const phase = tick * (0.26 + speedFactor * 0.075) + (hash(id) % 6283) / 1000;
+  const phase = seconds * TICKS_PER_SECOND * (0.26 + speedFactor * 0.075) + (hash(id) % 6283) / 1000;
   const amplitude = Math.min(0.52, 0.2 + speedFactor * 0.09);
   return {
     bodyYaw: Math.sin(phase) * amplitude * 0.16,
