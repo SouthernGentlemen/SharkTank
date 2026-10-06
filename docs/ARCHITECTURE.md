@@ -81,3 +81,5 @@ Release identity is package version + immutable annotated tag + GitHub Release +
 ## WG-ARCH-001 project-specific boundaries
 
 SharkTank uses Node.js 26.10.0, npm 12.1.0, React 19, React Three Fiber 9, Three.js and Cloudflare Room Durable Objects. Server authority, exact-head CI, immutable release tags and protected production deployment remain repository requirements.
+
+Remote sharks, prey and effects share a 150 ms interpolation delay, derived from the protocol’s 100 ms broadcast cadence. Snapshot bracketing uses authoritative ticks on the client clock.

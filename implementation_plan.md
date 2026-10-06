@@ -88,7 +88,7 @@ Tasks follow these defaults unless the owner changes them before the task starts
 
 | Knob | Today | Target | Task |
 | --- | --- | --- | --- |
-| Remote interpolation | 45 ms delay vs 100 ms snapshots; frozen ~72% of frames | 1.5 × snapshot interval (150 ms), drift-locked, ≤ 120 ms extrapolation | ST-233–ST-235 |
+| Remote interpolation | 150 ms shared delay vs 100 ms snapshots; drift correction and extrapolation queued | 1.5 × snapshot interval (150 ms), drift-locked, ≤ 120 ms extrapolation | ST-233–ST-235 |
 | Snapshot weight | ~30 KB × 10 Hz ≈ 295 KB/s | ≤ 14 KB typical × 10 Hz | ST-240–ST-241 |
 | Steering send | ≤ 10 Hz, 0.05/0.04 rad deadband | 20 Hz, 0.015 rad, trailing final send | ST-237 |
 | Pitch on release | Held | Auto-levels at ~1.2 rad/s | ST-244 |
@@ -105,21 +105,6 @@ Tasks follow these defaults unless the owner changes them before the task starts
 | Music | Six-note loop on `setInterval`, off by default | Layered adaptive score on the audio clock, on at 35% | ST-275–ST-278 |
 
 ## Open tasks
-
-### ST-233 — [FIX] Stop remote sharks and fish freezing between snapshots
-
-**Goal:** The 45 ms interpolation delay is shorter than the 100 ms snapshot interval, so remote actors freeze on about 72% of frames.
-
-**Scope**
-- Export the broadcast cadence once from the protocol and use it in the Room.
-- Move snapshot bracketing into a pure `snapshotTimeline` module.
-- Replace the three local 45 ms delays with one `REMOTE_INTERP_DELAY_MS = max(90, round(1.5 × snapshot interval))`.
-
-**Acceptance:** 10 Hz arrivals with ±25 ms jitter clamp fewer than 2% of 60 Hz frames (test).
-
-**Validation:** `npm test -- tests/game-renderer-contract.test.ts tests/shark-models.test.ts` plus the timeline test.
-
----
 
 ### ST-234 — [FIX] Keep the interpolation clock locked to the server tick rate
 

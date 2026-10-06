@@ -69,6 +69,6 @@ describe("R3F-only gameplay renderer", () => {
     expect(world).toContain("state.arenaRadius");
     expect(fx).not.toContain("<ringGeometry");
     expect(actors).toContain("colorblindLabels");
-    expect(actors).toContain("frameAt(INTERP_DELAY_MS)");
+    expect(actors).toContain("frameAt(REMOTE_INTERP_DELAY_MS)");
   });
 });

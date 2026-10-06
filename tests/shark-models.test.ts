@@ -33,7 +33,7 @@ describe("ST-119 animated shark models", () => {
   it("keeps local prediction, remote interpolation, orientation bank and authoritative length scaling", () => {
     const actors = read("../src/game/game/ActorLayer.tsx");
     expect(actors).toContain("LocalPredictor");
-    expect(actors).toContain("frameAt(INTERP_DELAY_MS)");
+    expect(actors).toContain("frameAt(REMOTE_INTERP_DELAY_MS)");
     expect(actors).toContain("interpolateOrientedPose(");
     expect(actors).toContain("root.rotation.set(motion.roll, -yaw, pitch)");
     expect(actors).toContain("sharkScaleForLength(shark.length)");

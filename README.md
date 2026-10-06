@@ -69,3 +69,5 @@ A semantic release advances package and lock versions together. A same-product r
 - `src/protocol/` — schema/protocol 11 transport shapes.
 - `src/game/` — React Three Fiber renderer, controls, prediction, interpolation and audio.
 - `scripts/` — local development, validation and release tooling.
+
+Remote sharks, prey and effects share a 150 ms interpolation delay, derived from the protocol’s 100 ms broadcast cadence. Snapshot bracketing uses authoritative ticks on the client clock.

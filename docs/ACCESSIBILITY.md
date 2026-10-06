@@ -28,3 +28,5 @@ The repository does not currently include a real-browser automation harness. Aut
 - Real WebGL rendering on the target browser/device.
 
 Use [PRODUCT-ACCEPTANCE.md](PRODUCT-ACCEPTANCE.md) for the complete release-facing procedure.
+
+Remote sharks, prey and effects share a 150 ms interpolation delay, derived from the protocol’s 100 ms broadcast cadence. Snapshot bracketing uses authoritative ticks on the client clock.

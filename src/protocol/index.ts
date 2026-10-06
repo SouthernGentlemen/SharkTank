@@ -7,6 +7,8 @@ import type { Action, DeathAction, Explosion, OceanVolume, Prey, RoomState, Roun
 export { isFamilyFriendlyName, sanitizeDisplayName } from "./name-policy.js";
 
 // ── WebSocket: realtime play (client ⇄ Room DO) ───────────────────────────────
+export const STATE_BROADCAST_EVERY = 2; // 20 Hz simulation, 10 Hz snapshots.
+
 export const REALTIME_PROTOCOL_VERSION = 11 as const;
 
 interface OrientationInputAction {

@@ -18,6 +18,8 @@ git diff --check HEAD^
 
 The focused product test covers the device-local player record, menu/tank/game lifecycle, death and respawn, score updates, round reset, desktop/mobile input math, quality modes, accessibility presentation hooks, room capacity, prey bounds and Feeding Frenzy.
 
+The snapshot timeline test replays 10 Hz arrivals with ±25 ms jitter at 60 Hz and requires fewer than 2% clamped frames after startup.
+
 The local HTTP gate checks the root redirect, `/play/`, `/version.json`, static assets, shared 404 handling and a Room WebSocket hello/welcome exchange.
 
 ## Real-browser desktop acceptance

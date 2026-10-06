@@ -1,3 +1,4 @@
+import { REMOTE_INTERP_DELAY_MS } from "../net/snapshotTimeline.js";
 import { useFrame } from "@react-three/fiber";
 import { useMemo, useRef } from "react";
 import * as THREE from "three";
@@ -8,7 +9,7 @@ import { cadenceDue, resolveClientPerformanceProfile } from "./performance.js";
 import { resolveSceneQuality } from "./sceneMath.js";
 
 const MAX_BURST_PARTICLES = 512;
-const INTERP_DELAY_MS = 45;
+
 const EXPLOSION_RENDER_TICKS = 24;
 
 const WHITE = new THREE.Color("#ffffff");
@@ -44,7 +45,7 @@ export function FxLayer({
     const bursts = burstMesh.current;
     if (!bursts) return;
 
-    const frame = socket.frameAt(INTERP_DELAY_MS);
+    const frame = socket.frameAt(REMOTE_INTERP_DELAY_MS);
     if (!frame) return;
     const state = frame.newer;
     const reducedMotion = settings.a11y.motion === "reduced";

@@ -1,3 +1,4 @@
+import { REMOTE_INTERP_DELAY_MS } from "../net/snapshotTimeline.js";
 import { useFrame } from "@react-three/fiber";
 import { useMemo, useRef } from "react";
 import * as THREE from "three";
@@ -13,7 +14,7 @@ import {
 } from "./preyPresentation.js";
 import { interpolateOrientedPose, type OrientedScenePose } from "./sceneMath.js";
 
-const INTERP_DELAY_MS = 45;
+
 const BAIT_COLOR = new THREE.Color("#7ee7ff");
 const REEF_COLOR = new THREE.Color("#ffd166");
 const CHUM_COLOR = new THREE.Color("#ff9b54");
@@ -83,7 +84,7 @@ export function PreyLayer({ socket, settings }: { socket: RoomSocket; settings: 
     const drops = dropMesh.current;
     if (!body || !head || !tail || !drops) return;
 
-    const frame = socket.frameAt(INTERP_DELAY_MS);
+    const frame = socket.frameAt(REMOTE_INTERP_DELAY_MS);
     if (!frame) return;
     const current = frame.newer;
     const previous = frame.older;
