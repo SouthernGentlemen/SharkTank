@@ -3,7 +3,7 @@
 
 import { clampPitch, normalizeYaw } from "../engine/geometry3d.js";
 import { ROOM_SCHEMA_VERSION } from "../engine/room.js";
-import type { Action, DeathAction, Explosion, OceanVolume, Prey, RoomState, RoundState, ScoreEntry, Snake, Vec3 } from "../engine/types.js";
+import type { Action, DeathAction, Explosion, OceanVolume, Prey, RoomState, RoundState, ScoreEntry, Shark, Vec3 } from "../engine/types.js";
 export { isFamilyFriendlyName, sanitizeDisplayName } from "./name-policy.js";
 
 // ── WebSocket: realtime play (client ⇄ Room DO) ───────────────────────────────
@@ -29,8 +29,8 @@ export type ClientMessagePayload =
 type ClientMessage = ClientMessagePayload & { v: typeof REALTIME_PROTOCOL_VERSION };
 
 /** A trimmed shark for the wire — one authoritative head/body sample plus orientation. */
-export type NetSnake = Pick<
-  Snake,
+export type NetShark = Pick<
+  Shark,
   "id" | "name" | "skin" | "yaw" | "pitch" | "length" | "lungeTicks" | "dashCooldownTick" | "health" | "biteCooldownTick" | "score" | "alive"
 > & { segments: Vec3[]; boosting: boolean; chargeTicks: number };
 
@@ -58,7 +58,7 @@ export interface NetState {
   arenaRadius: number;
   seabedY: number;
   surfaceY: number;
-  snakes: NetSnake[];
+  snakes: NetShark[];
   food: NetPrey[];
   explosions: NetExplosion[];
   /** Tick the running Feeding Frenzy ends at; 0 or past when none is running. */
@@ -244,7 +244,7 @@ export function toNetState(state: RoomState): NetState {
           }
         : null,
     },
-    snakes: Object.values(state.snakes).map((s) => ({
+    snakes: Object.values(state.sharks).map((s) => ({
       id: s.id,
       name: s.name,
       skin: s.skin,
@@ -285,4 +285,4 @@ export function toNetState(state: RoomState): NetState {
   };
 }
 
-export type { Action, DeathAction, Explosion, OceanVolume, Prey, PreyKind, RoomState, RoundPhase, RoundResult, RoundState, ScoreEntry, Snake, Vec3 } from "../engine/types.js";
+export type { Action, DeathAction, Explosion, OceanVolume, Prey, PreyKind, RoomState, RoundPhase, RoundResult, RoundState, ScoreEntry, Shark, Vec3 } from "../engine/types.js";

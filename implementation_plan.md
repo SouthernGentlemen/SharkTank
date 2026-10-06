@@ -106,18 +106,6 @@ Tasks follow these defaults unless the owner changes them before the task starts
 
 ## Open tasks
 
-### ST-232 — [REFACTOR] Rename snake-era names to sharks
-
-**Goal:** Sharks are still called snakes throughout the code.
-
-**Scope:** Rename `Snake`, `snakes`, `SnakeLabels` and `snake-label` to `Shark`, `sharks`, `SharkLabels` and `shark-label` in the engine and client. The wire key changes in ST-240.
-
-**Acceptance:** No snake naming remains outside the wire adapter.
-
-**Validation:** `npm run typecheck`; `npm test`.
-
----
-
 ### ST-233 — [FIX] Stop remote sharks and fish freezing between snapshots
 
 **Goal:** The 45 ms interpolation delay is shorter than the 100 ms snapshot interval, so remote actors freeze on about 72% of frames.

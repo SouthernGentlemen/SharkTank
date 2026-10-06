@@ -8,7 +8,7 @@ import {
   shortestYawDelta,
   swimSpeedForLungeTicks,
 } from "../../engine/index.js";
-import type { ClientSnake } from "../net/clientState.js";
+import type { ClientShark } from "../net/clientState.js";
 import type { RoomSocket } from "../net/useRoomSocket.js";
 import type { Settings } from "../settings/SettingsContext.js";
 import type { CameraFollowTarget } from "./CameraRig.js";
@@ -76,7 +76,7 @@ function commitInstances(meshes: readonly THREE.InstancedMesh[], count: number):
   }
 }
 
-export interface SnakeLabel {
+export interface SharkLabel {
   id: string;
   name: string;
   x: number;
@@ -96,7 +96,7 @@ export function ActorLayer({
 }: {
   socket: RoomSocket;
   settings: Settings;
-  labelsRef?: React.MutableRefObject<SnakeLabel[]>;
+  labelsRef?: React.MutableRefObject<SharkLabel[]>;
   inputRef?: React.MutableRefObject<LocalInput>;
   followRef: React.MutableRefObject<CameraFollowTarget>;
 }) {
@@ -122,9 +122,9 @@ export function ActorLayer({
   const cameraForward = useMemo(() => new THREE.Vector3(), []);
   const toLabel = useMemo(() => new THREE.Vector3(), []);
   const tempColor = useMemo(() => new THREE.Color(), []);
-  const prevById = useMemo(() => new Map<string, ClientSnake>(), []);
+  const prevById = useMemo(() => new Map<string, ClientShark>(), []);
   const motionById = useMemo(() => new Map<string, { yaw: number; roll: number }>(), []);
-  const labelBuffer = useMemo<SnakeLabel[]>(() => [], []);
+  const labelBuffer = useMemo<SharkLabel[]>(() => [], []);
   const lastLabelPassAt = useRef(-Infinity);
   const performanceProfile = resolveClientPerformanceProfile(settings.graphics.quality);
 
@@ -170,10 +170,10 @@ export function ActorLayer({
     let apexVisible = false;
 
     prevById.clear();
-    for (const shark of previous.snakes) prevById.set(shark.id, shark);
+    for (const shark of previous.sharks) prevById.set(shark.id, shark);
 
     const nowMs = performance.now();
-    const authoritativeMe = socket.stateRef.current?.snakes.find((shark) => shark.id === socket.youId) ?? null;
+    const authoritativeMe = socket.stateRef.current?.sharks.find((shark) => shark.id === socket.youId) ?? null;
     const staleness = Math.max(0, (nowMs - socket.newestAtRef.current) / 1000);
     const predicted = inputRef
       ? predictor.step(authoritativeMe, inputRef.current, dt, staleness, {
@@ -196,7 +196,7 @@ export function ActorLayer({
     let sharkCount = 0;
     let eyeCount = 0;
 
-    for (const shark of state.snakes) {
+    for (const shark of state.sharks) {
       const isMe = shark.id === socket.youId;
       const usePrediction = isMe && predicted != null;
       if (!usePrediction && (!shark.alive || !shark.position)) continue;
@@ -406,7 +406,7 @@ export function ActorLayer({
       labelsRef.current = [];
     }
 
-    const interpolatedMe = state.snakes.find((shark) => shark.id === socket.youId && shark.alive);
+    const interpolatedMe = state.sharks.find((shark) => shark.id === socket.youId && shark.alive);
     if (predicted) {
       followRef.current.active = true;
       followRef.current.position.x = predicted.position.x;

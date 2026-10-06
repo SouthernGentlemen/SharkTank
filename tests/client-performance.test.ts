@@ -10,7 +10,7 @@ import {
   createRoom,
   normalizeYaw,
   step,
-  type Snake,
+  type Shark,
 } from "../src/engine/index.js";
 import {
   REALTIME_PROTOCOL_VERSION,
@@ -25,12 +25,12 @@ import {
 
 const read = (path: string) => readFileSync(new URL(path, import.meta.url), "utf8");
 
-function join(state: ReturnType<typeof createRoom>, id: string): Snake {
+function join(state: ReturnType<typeof createRoom>, id: string): Shark {
   applyAction(state, { type: "join", playerId: id, name: id, isBot: true });
-  return state.snakes[id];
+  return state.sharks[id];
 }
 
-function place(shark: Snake, x: number, y: number, z: number): void {
+function place(shark: Shark, x: number, y: number, z: number): void {
   const point = { x, y, z };
   shark.position = { ...point };
 }
@@ -59,7 +59,7 @@ function populateRepresentativeRoom() {
     pitch: -0.45 + (index % 18) * 0.05,
     school: index % PREY_BUDGET.schools,
   }));
-  state.snakes = {};
+  state.sharks = {};
   for (let index = 0; index < 32; index += 1) {
     const shark = join(state, `shark-${index.toString().padStart(2, "0")}`);
     place(shark, index * 1.23 - 18, (index % 20) * 0.91 - 9, index * -1.11 + 17);

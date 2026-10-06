@@ -158,7 +158,7 @@ export function useLocalInput(
       previousFrameAt = frameAt;
 
       if (!orientationInitialized.current) {
-        const me = stateRef.current?.snakes.find((snake) => snake.id === youId);
+        const me = stateRef.current?.sharks.find((shark) => shark.id === youId);
         if (me) {
           yawRef.current = me.yaw;
           pitchRef.current = me.pitch;

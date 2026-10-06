@@ -55,7 +55,7 @@ export class Room {
       if (this.full()) return this.close(ws, 1013, "room full");
       session.name = sanitizeDisplayName(msg.name); session.skin = SKINS.some((s) => s.id === msg.skin) ? msg.skin : "cyan"; session.joined = true;
       applyAction(this.room, { type: "join", playerId: session.id, name: session.name, skin: session.skin });
-      session.wasAlive = this.room.snakes[session.id]?.alive ?? false;
+      session.wasAlive = this.room.sharks[session.id]?.alive ?? false;
       this.send(ws, { t: "welcome", youId: session.id, roomId: this.roomId, state: toNetState(this.room) }); return;
     }
     if (msg.t === "ping") { this.send(ws, { t: "pong", ts: msg.ts }); return; }
@@ -78,11 +78,11 @@ export class Room {
     step(this.room);
     for (const session of this.sessions.values()) {
       if (!session.joined) continue;
-      const snake = this.room.snakes[session.id], alive = snake?.alive ?? false;
-      if (session.wasAlive && !alive && snake) {
-        const death = snake.lastDeath;
-        const killer = death?.killerId ? this.room.snakes[death.killerId]?.name ?? death.killerId : null;
-        this.send(session.ws, { t: "died", by: killer, action: death?.action ?? null, tick: death?.tick ?? this.room.tick, score: snake.score, respawnInMs: Math.max(0, (snake.respawnTick - this.room.tick) * (1000 / TICKS_PER_SECOND)) });
+      const shark = this.room.sharks[session.id], alive = shark?.alive ?? false;
+      if (session.wasAlive && !alive && shark) {
+        const death = shark.lastDeath;
+        const killer = death?.killerId ? this.room.sharks[death.killerId]?.name ?? death.killerId : null;
+        this.send(session.ws, { t: "died", by: killer, action: death?.action ?? null, tick: death?.tick ?? this.room.tick, score: shark.score, respawnInMs: Math.max(0, (shark.respawnTick - this.room.tick) * (1000 / TICKS_PER_SECOND)) });
       }
       session.wasAlive = alive;
     }

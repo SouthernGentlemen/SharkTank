@@ -97,7 +97,7 @@ export function useRoomSocket(
     const state = toClientState(wireState);
     stateRef.current = state;
     const currentPlayerId = youIdRef.current;
-    if (currentPlayerId && state.snakes.some((shark) => shark.id === currentPlayerId && shark.alive)) {
+    if (currentPlayerId && state.sharks.some((shark) => shark.id === currentPlayerId && shark.alive)) {
       setDeath(null);
     }
     const now = performance.now();

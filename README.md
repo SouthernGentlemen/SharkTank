@@ -37,7 +37,7 @@ The Worker exports only `Room`. Player name, skin, best score, controls, audio a
 
 The Room Durable Object owns movement, collisions, prey consumption, score, growth, damage, death/respawn, Feeding Frenzy, Apex and round state. Gameplay runs in memory for the life of the Room object; a new object starts a fresh round.
 
-The deterministic engine and protocol are server-safe. The client uses local prediction for the player's shark and remote interpolation for other sharks and prey, but presentation never writes competitive truth. Sharks use one authoritative `position`; client snapshots and prediction use the same single-position model. Protocol 11 keeps `segments: [position]` for living sharks (empty for dead sharks) and the legacy `boosting: false` / `chargeTicks: 0` fields until the queued protocol update.
+The deterministic engine and protocol are server-safe. The client uses local prediction for the player's shark and remote interpolation for other sharks and prey, but presentation never writes competitive truth. Sharks use one authoritative `position`; client snapshots and prediction use the same single-position model. Engine and client state use `Shark` / `sharks`; the wire adapters retain protocol 11’s `snakes` key until ST-240. Protocol 11 keeps `segments: [position]` for living sharks (empty for dead sharks) and the legacy `boosting: false` / `chargeTicks: 0` fields until the queued protocol update.
 
 Wire state schema 11 and realtime protocol 11 are current.
 

@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import type { NetPrey } from "../../protocol/index.js";
-import type { ClientSnake } from "../net/clientState.js";
+import type { ClientShark } from "../net/clientState.js";
 import { audio, SFX_CAPTION, type Sfx } from "./AudioManager.js";
 import {
   AUDIO_LIMITS,
@@ -19,7 +19,7 @@ export interface Caption {
   id: number;
 }
 
-function headOf(shark: ClientSnake): AudioPoint | null {
+function headOf(shark: ClientShark): AudioPoint | null {
   const head = shark.position;
   return head ? { x: head.x, y: head.y, z: head.z } : null;
 }
@@ -126,7 +126,7 @@ export function useGameAudio(socket: RoomSocket, settings: Settings): Caption | 
       const state = socket.stateRef.current;
       if (!state) return;
 
-      const me = state.snakes.find((shark) => shark.id === socket.youId) ?? null;
+      const me = state.sharks.find((shark) => shark.id === socket.youId) ?? null;
       const first = lastTick.current === null || state.tick < (lastTick.current ?? 0);
       lastTick.current = state.tick;
 
@@ -224,7 +224,7 @@ export function useGameAudio(socket: RoomSocket, settings: Settings): Caption | 
         nextSharkCueAt.current = now + AUDIO_LIMITS.sharkCueMs;
         const nearby = selectSpatialEmitters(
           listener.position,
-          state.snakes
+          state.sharks
             .filter((shark) => shark.alive && shark.id !== socket.youId)
             .flatMap((shark) => {
               const position = headOf(shark);
@@ -286,7 +286,7 @@ export function useGameAudio(socket: RoomSocket, settings: Settings): Caption | 
 
       if (state.round.phase === "apex" && state.round.apexId && now >= nextApexCueAt.current) {
         nextApexCueAt.current = now + AUDIO_LIMITS.apexCueMs;
-        const apex = state.snakes.find((shark) => shark.id === state.round.apexId);
+        const apex = state.sharks.find((shark) => shark.id === state.round.apexId);
         const apexHead = apex ? headOf(apex) : null;
         if (apexHead) {
           const captionAllowed = now - lastDirectionalCaptionAt.current >= AUDIO_LIMITS.captionRepeatMs;

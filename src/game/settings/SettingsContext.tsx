@@ -101,7 +101,7 @@ export interface Settings {
     contrast: "normal" | "high";
     motion: "full" | "reduced";
     fontScale: number; // 0.9..1.6
-    colorblindLabels: boolean; // show skin name labels above snakes
+    colorblindLabels: boolean; // show skin name labels above sharks
   };
 }
 

@@ -2,7 +2,7 @@ import { Canvas } from "@react-three/fiber";
 import { useEffect, useRef, useState } from "react";
 import type { RoomSocket } from "../net/useRoomSocket.js";
 import { keyLabel, type Settings } from "../settings/SettingsContext.js";
-import { Scene, type SnakeLabel } from "./Scene.js";
+import { Scene, type SharkLabel } from "./Scene.js";
 import { resolveRenderDpr } from "./performance.js";
 import { CAMERA_PROJECTION, resolveSceneQuality } from "./sceneMath.js";
 import type { TwinStickState } from "./mobileControls.js";
@@ -12,7 +12,7 @@ export interface GameViewportProps {
   socket: RoomSocket;
   settings: Settings;
   inputEnabled: boolean;
-  labelsRef?: React.MutableRefObject<SnakeLabel[]>;
+  labelsRef?: React.MutableRefObject<SharkLabel[]>;
   touchInputRef?: React.MutableRefObject<TwinStickState>;
   touchControls?: boolean;
 }

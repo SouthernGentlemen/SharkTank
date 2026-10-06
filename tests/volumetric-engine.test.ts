@@ -10,7 +10,7 @@ import {
   spawnBots,
   step,
   type Action,
-  type Snake,
+  type Shark,
 } from "../src/engine/index.js";
 import { toNetState } from "../src/protocol/index.js";
 
@@ -26,12 +26,12 @@ function insideOcean(
     && point.y <= ocean.surfaceY - margin;
 }
 
-function join(state: ReturnType<typeof createRoom>, id: string): Snake {
+function join(state: ReturnType<typeof createRoom>, id: string): Shark {
   applyAction(state, { type: "join", playerId: id, name: id });
-  return state.snakes[id];
+  return state.sharks[id];
 }
 
-function place(shark: Snake, x: number, y: number, z: number): void {
+function place(shark: Shark, x: number, y: number, z: number): void {
   const point = { x, y, z };
   shark.position = { ...point };
 }

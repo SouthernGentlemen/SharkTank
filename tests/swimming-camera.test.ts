@@ -50,7 +50,7 @@ describe("ST-115 shark swimming and chase camera", () => {
     const state = createRoom({ seed: "st-115-flight", oceanRadius: 100, seabedY: -30, surfaceY: 30 });
     state.food = [];
     applyAction(state, { type: "join", playerId: "pilot", name: "Pilot" });
-    const shark = state.snakes.pilot;
+    const shark = state.sharks.pilot;
     shark.position = { x: 0, y: 0, z: 0 };
     shark.yaw = shark.targetYaw = 0;
     shark.pitch = shark.targetPitch = 0;

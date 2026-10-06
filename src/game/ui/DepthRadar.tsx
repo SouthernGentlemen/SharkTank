@@ -117,7 +117,7 @@ export function buildDepthNavigation(
   youId: string | null,
   compact = false,
 ): DepthNavigationState {
-  const me = state?.snakes.find((shark) => shark.id === youId && shark.alive);
+  const me = state?.sharks.find((shark) => shark.id === youId && shark.alive);
   const head = me?.position;
   if (!state || !me || !head) return { depth: 0, apexSelf: false, cues: [] };
 
@@ -128,7 +128,7 @@ export function buildDepthNavigation(
   if (apexId === me.id) {
     apexSelf = true;
   } else if (apexId) {
-    const apex = state.snakes.find((shark) => shark.id === apexId && shark.alive && shark.position);
+    const apex = state.sharks.find((shark) => shark.id === apexId && shark.alive && shark.position);
     if (apex?.position) {
       cues.push(cue(apex.id, "apex", apex.name, "Apex target", head, me.yaw, apex.position));
     }
@@ -146,7 +146,7 @@ export function buildDepthNavigation(
     ));
   }
 
-  const rivals = state.snakes
+  const rivals = state.sharks
     .filter((shark) => shark.id !== me.id && shark.id !== apexId && shark.alive && shark.position)
     .map((shark) => ({
       shark,

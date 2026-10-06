@@ -1,7 +1,7 @@
 import { readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
 import type { NetPrey } from "../src/protocol/index.js";
-import type { ClientSnake, ClientState } from "../src/game/net/clientState.js";
+import type { ClientShark, ClientState } from "../src/game/net/clientState.js";
 import {
   buildDepthNavigation,
   cueDescription,
@@ -10,7 +10,7 @@ import {
 
 const read = (path: string) => readFileSync(new URL(path, import.meta.url), "utf8");
 
-function shark(id: string, x: number, y: number, z: number, overrides: Partial<ClientSnake> = {}): ClientSnake {
+function shark(id: string, x: number, y: number, z: number, overrides: Partial<ClientShark> = {}): ClientShark {
   return {
     id,
     name: id,
@@ -40,7 +40,7 @@ function state(): ClientState {
     arenaRadius: 120,
     seabedY: -60,
     surfaceY: 20,
-    snakes: [shark("you", 0, -8, 0)],
+    sharks: [shark("you", 0, -8, 0)],
     food: [],
     explosions: [],
     frenzyUntilTick: 0,
@@ -80,7 +80,7 @@ describe("ST-126 depth-aware competitive cues", () => {
 
   it("derives Apex, Frenzy, rival and prey cues only from authoritative snapshot truth", () => {
     const snapshot = state();
-    snapshot.snakes.push(
+    snapshot.sharks.push(
       shark("Apex", -34, 10, 0, { length: 15, score: 90 }),
       shark("Hunter", 12, -15, 8, { length: 13 }),
     );
@@ -104,7 +104,7 @@ describe("ST-126 depth-aware competitive cues", () => {
     const snapshot = state();
     snapshot.round.phase = "apex";
     snapshot.round.apexId = "apex";
-    snapshot.snakes.push(
+    snapshot.sharks.push(
       shark("apex", -45, 6, 0, { score: 100 }),
       shark("rival-1", 8, 0, 8, { length: 14 }),
       shark("rival-2", 14, -18, 2, { length: 12 }),
@@ -140,7 +140,7 @@ describe("ST-126 depth-aware competitive cues", () => {
   it("removes the planar minimap, bounds labels and keeps touch radar clear of edge controls", () => {
     const screen = read("../src/game/ui/GameScreen.tsx");
     const actor = read("../src/game/game/ActorLayer.tsx");
-    const labels = read("../src/game/ui/SnakeLabels.tsx");
+    const labels = read("../src/game/ui/SharkLabels.tsx");
     const settings = read("../src/game/ui/Settings.tsx");
     const css = read("../src/game/ui/theme.css");
 

@@ -85,8 +85,8 @@ describe("full-3D accessibility re-proof", () => {
     });
     applyAction(state, { type: "setBoost", playerId: "pilot", on: true });
     applyAction(state, { type: "bite", playerId: "pilot" });
-    expect(state.snakes.pilot.targetYaw).toBeCloseTo(0.35);
-    expect(state.snakes.pilot.targetPitch).toBeCloseTo(0.25);
+    expect(state.sharks.pilot.targetYaw).toBeCloseTo(0.35);
+    expect(state.sharks.pilot.targetPitch).toBeCloseTo(0.25);
 
     state.tick = state.round.apexStartTick - 1;
     step(state);
