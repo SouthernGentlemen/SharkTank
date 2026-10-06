@@ -75,3 +75,5 @@ Do not use production credentials for local acceptance.
 ## Recording results
 
 Record the environment and PASS/FAIL for desktop lifecycle, controls, quality modes, accessibility modes, zoom/reflow, screen reader, physical multi-touch, rotation/safe area and Feeding Frenzy readability. Any failure blocks release acceptance until corrected.
+
+Late-snapshot tests cover 120 ms of continuous shark and prey motion during a 200 ms gap, holding beyond the cap, and continuous recovery when authoritative packets resume.

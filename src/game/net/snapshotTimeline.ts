@@ -9,6 +9,7 @@ export const REMOTE_INTERP_DELAY_MS = Math.max(90, Math.round(1.5 * STATE_BROADC
 export interface InterpFrame {
   older: ClientState;
   newer: ClientState;
+  extrapolationMs?: number;
   alpha: number; // 0 at `older`, 1 at `newer`
 }
 
@@ -25,7 +26,10 @@ export function bracketSnapshots(
     return { older: buffer[0].state, newer: buffer[0].state, alpha: 0 };
   }
   if (renderTime >= buffer[n - 1].state.tick * TICK_MS) {
-    return { older: buffer[n - 1].state, newer: buffer[n - 1].state, alpha: 1 };
+    const newest = buffer[n - 1].state;
+    const extra = Math.min(120, renderTime - newest.tick * TICK_MS);
+    if (extra <= 0) return { older: newest, newer: newest, alpha: 1 };
+    return { older: buffer[Math.max(0, n - 2)].state, newer: newest, alpha: 1, extrapolationMs: extra };
   }
   let i = n - 2;
   while (i > 0 && buffer[i].state.tick * TICK_MS > renderTime) i -= 1;

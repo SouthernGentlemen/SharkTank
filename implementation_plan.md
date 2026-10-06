@@ -88,7 +88,7 @@ Tasks follow these defaults unless the owner changes them before the task starts
 
 | Knob | Today | Target | Task |
 | --- | --- | --- | --- |
-| Remote interpolation | 150 ms shared delay, rate estimation and bounded clock correction; extrapolation queued | 1.5 × snapshot interval (150 ms), drift-locked, ≤ 120 ms extrapolation | ST-233–ST-235 |
+| Remote interpolation | 150 ms shared delay, rate estimation, bounded clock correction and ≤ 120 ms extrapolation | 1.5 × snapshot interval (150 ms), drift-locked, ≤ 120 ms extrapolation | ST-233–ST-235 |
 | Snapshot weight | ~30 KB × 10 Hz ≈ 295 KB/s | ≤ 14 KB typical × 10 Hz | ST-240–ST-241 |
 | Steering send | ≤ 10 Hz, 0.05/0.04 rad deadband | 20 Hz, 0.015 rad, trailing final send | ST-237 |
 | Pitch on release | Held | Auto-levels at ~1.2 rad/s | ST-244 |
@@ -105,18 +105,6 @@ Tasks follow these defaults unless the owner changes them before the task starts
 | Music | Six-note loop on `setInterval`, off by default | Layered adaptive score on the audio clock, on at 35% | ST-275–ST-278 |
 
 ## Open tasks
-
-### ST-235 — [FEAT] Extrapolate remote actors briefly when a snapshot is late
-
-**Goal:** A late packet should not freeze the world.
-
-**Scope:** Past the newest snapshot, extrapolate sharks along yaw and pitch at their dash-derived speed and prey along their last velocity for at most 120 ms, then hold. Blend back without a backwards jump.
-
-**Acceptance:** A 200 ms gap produces 120 ms of continuous motion and no backwards jump (test).
-
-**Validation:** Timeline and actor-pose tests.
-
----
 
 ### ST-236 — [FIX] Drive animation and banking from continuous client time
 
