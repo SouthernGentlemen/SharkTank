@@ -94,7 +94,7 @@ Tasks follow these defaults unless the owner changes them before the task starts
 | Pitch on release | Auto-levels at ~1.2 rad/s by default; optional held pitch | Auto-levels at ~1.2 rad/s | ST-244 |
 | Surface and seabed | Shared proportional pitch limit over the final 3 units | Proportional glide band (3 units) | ST-245 |
 | Shark overlap | Positional push, headings kept | Positional push, headings kept | ST-246 |
-| Wall | Death on contact | Inward current from 4 units inside, no death | ST-247 |
+| Wall | Inward current over the final 4 units, clamped 0.5 units inside | Inward current from 4 units inside, no death | ST-247 |
 | Eating | Body centre, radius 1.2 + prey r, 2 chomps/tick | Mouth, 1.2 + 0.55 × scale + prey r, swept, 4 chomps/tick | ST-255 |
 | Biting | Centre-to-centre ≤ 3.4 (+0.8), 50° cone | Mouth to victim body surface ≤ 1.8 + 0.3 × scale, 65° cone | ST-256 |
 | Damage | 34–42 per bite, ≥ 3 bites, no regen | Devour at ≥ 1.5× length; 50 (60 burst) even; 20 nibble; 4 HP/s regen | ST-257 |
@@ -105,21 +105,6 @@ Tasks follow these defaults unless the owner changes them before the task starts
 | Music | Six-note loop on `setInterval`, off by default | Layered adaptive score on the audio clock, on at 35% | ST-275–ST-278 |
 
 ## Open tasks
-
-### ST-247 — [FEAT] Replace the lethal arena wall with a soft returning current
-
-**Goal:** Touching the wall kills.
-
-**Scope**
-- From 4 units inside the wall, turn the heading inward with growing strength and clamp 0.5 units inside it. Never kill.
-- Mirror the clamp in prediction. Delete the `boundary` death action and its copy; nothing stored still needs it.
-- Update docs and contract tests.
-
-**Acceptance:** Swimming straight at the wall turns the shark back without death (test).
-
-**Validation:** `npm test -- tests/full-3d-authority-acceptance.test.ts tests/full-3d-product-acceptance.test.ts tests/bot-ai-3d.test.ts tests/full-3d-documentation-contract.test.ts`.
-
----
 
 ### ST-248 — [FEAT] Frame the chase camera closer and higher
 

@@ -84,8 +84,17 @@ describe("ST-131 full-3D product acceptance", () => {
     pilot.invulnTick = 0;
     place(pilot, state.ocean.radius - 0.1, 0, 0);
     step(state);
+    expect(pilot.alive).toBe(true);
+    expect(pilot.lastDeath).toBeNull();
+
+    const attacker = join(state, "attacker");
+    place(attacker, 0, 0, 0);
+    place(pilot, 2, 0, 0);
+    attacker.yaw = 0;
+    attacker.pitch = 0;
+    pilot.health = 1;
+    applyAction(state, { type: "bite", playerId: attacker.id });
     expect(pilot.alive).toBe(false);
-    expect(pilot.lastDeath?.action).toBe("boundary");
 
     while (state.tick < pilot.respawnTick) step(state);
     applyAction(state, { type: "respawn", playerId: pilot.id });

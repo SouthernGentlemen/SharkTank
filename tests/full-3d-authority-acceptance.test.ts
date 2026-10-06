@@ -103,7 +103,7 @@ describe("ST-129 full-3D authority acceptance wall", () => {
     )).toBe(true);
   });
 
-  it("keeps prey, burst, bite, scoring, death, respawn and boundary death server-owned and deterministic", () => {
+  it("keeps prey, burst, bite, scoring, death, respawn and returning current server-owned and deterministic", () => {
     const run = () => {
       const state = createRoom({ id: "st-129-core", seed: "st-129-core" });
       const attacker = join(state, "attacker");
@@ -164,8 +164,9 @@ describe("ST-129 full-3D authority acceptance wall", () => {
       boundary.invulnTick = 0;
       place(boundary, state.ocean.radius - 0.1, 0, 0, 0, 0);
       step(state);
-      expect(boundary.alive).toBe(false);
-      expect(boundary.lastDeath?.action).toBe("boundary");
+      expect(boundary.alive).toBe(true);
+      expect(boundary.lastDeath).toBeNull();
+      expect(Math.hypot(boundary.position.x, boundary.position.z)).toBeLessThanOrEqual(state.ocean.radius - 0.5);
 
       return JSON.stringify({
         tick: state.tick,
@@ -279,8 +280,11 @@ describe("ST-129 full-3D authority acceptance wall", () => {
     });
 
     pilot.invulnTick = 0;
-    place(pilot, state.ocean.radius - 0.1, 0, 0, 0, 0);
-    step(state);
+    const attacker = join(state, "attacker");
+    place(attacker, 0, 0, 0, 0, 0);
+    place(pilot, 2, 0, 0, 0, 0);
+    pilot.health = 1;
+    applyAction(state, { type: "bite", playerId: attacker.id });
     expect(pilot.alive).toBe(false);
     expect(welcomeState(state, pilot.id).sharks.find((item) => item.id === pilot.id)?.alive).toBe(false);
 

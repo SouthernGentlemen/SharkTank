@@ -30,6 +30,8 @@ describe("full-3D current-state documentation", () => {
       "schema 11",
       "protocol 12",
       "DOM",
+      "non-lethal returning current",
+      "0.5 units inside",
     ]) expect(docs).toContain(text);
 
     expect(DEFAULT_KEYBINDS).toMatchObject({

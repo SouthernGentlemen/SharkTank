@@ -16,7 +16,7 @@ export type { ConnectionStatus } from "./roomConnectionState.js";
 
 export interface DeathInfo {
   by: string | null;
-  action: "bite" | "boundary" | "retire" | null;
+  action: "bite" | "retire" | null;
   tick: number;
   score: number;
   respawnInMs: number;

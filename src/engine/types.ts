@@ -15,7 +15,7 @@ export interface OceanVolume {
   surfaceY: number;
 }
 
-export type DeathAction = "bite" | "boundary" | "retire";
+export type DeathAction = "bite" | "retire";
 
 export interface DeathRecord {
   killerId: string | null;
