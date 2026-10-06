@@ -1,8 +1,6 @@
 import type { PreyKind } from "../../engine/index.js";
 import type { SceneQuality } from "./sceneMath.js";
 
-export const PREY_SILHOUETTE = ["body", "head", "tail"] as const;
-
 const QUALITY = {
   low: { radialSegments: 6, verticalSegments: 4 },
   medium: { radialSegments: 8, verticalSegments: 6 },

@@ -91,16 +91,4 @@ describe("ST-125 spatial underwater game audio", () => {
     expect(REALTIME_PROTOCOL_VERSION).toBe(11);
   });
 
-  it("keeps delivered 3D work closed when the current-only queue is exhausted", () => {
-    const plan = read("../implementation_plan.md");
-    expect(plan).not.toContain("### ST-125");
-    expect(plan).not.toContain("### ST-126");
-    expect(plan).not.toContain("### ST-127");
-    expect(plan).not.toContain("### ST-128");
-    expect(plan).not.toContain("### ST-129");
-    expect(plan).not.toContain("### ST-130");
-    expect(plan).not.toContain("### ST-131");
-    expect(plan).not.toContain("### ST-132");
-    expect(plan).toContain("The queue is empty. Select no implementation task.");
-  });
 });

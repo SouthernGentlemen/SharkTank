@@ -15,9 +15,7 @@ The queue comes from two code deep dives plus live production measurements taken
 ### What the deep dives found
 
 - **Dead code remains outside the active game path.**
-  - Production code used only by tests: render-cost inventories (`estimateSceneRenderCost`, `estimateBaselineSceneRenderCost`, `CLIENT_PERFORMANCE_BUDGETS`) and descriptive lists (`SHARK_ANATOMY`, `PREY_SILHOUETTE`).
   - The snake-era trail (`path`, `segments`, `sampleTrail`, `SEGMENT_SPACING`, `TAIL_MARGIN`) always yields one point, and `boosting`/`chargeTicks` are always false and zero.
-  - The FX layer draws a 1-unit "boundary" ring at the arena centre plus a duplicate Frenzy ring.
   - The Camera motion setting is read by nothing.
 - **Remote motion freezes most of the time.** Snapshots arrive at 10.1 Hz (median gap 99.4 ms) but the interpolation delay is 45 ms. Replaying measured arrivals through the client's rule leaves remote sharks and fish frozen on about 72% of 60 Hz frames, and the clock drifts (+0.7 ms/s) with no correction. Swim animation follows the same stalled clock.
 - **The wire is heavy for phones.** About 30 KB of JSON per snapshot carries every prey in the tank: about 295 KB/s, roughly 1 GB per hour.
@@ -108,21 +106,6 @@ Tasks follow these defaults unless the owner changes them before the task starts
 | Music | Six-note loop on `setInterval`, off by default | Layered adaptive score on the audio clock, on at 35% | ST-275–ST-278 |
 
 ## Open tasks
-
-### ST-229 — [REFACTOR] Remove dead rendering and test-only code from the client
-
-**Goal:** Production modules carry rendering leftovers and code that exists only for tests.
-
-**Scope**
-- Remove the FX layer's unscaled boundary ring and duplicate Frenzy ring.
-- Remove `estimateSceneRenderCost`, `estimateBaselineSceneRenderCost`, `CLIENT_PERFORMANCE_BUDGETS`, `SHARK_ANATOMY` and `PREY_SILHOUETTE`, and rewrite their tests to assert real behavior instead.
-- Remove the five test assertions that pin `implementation_plan.md` to past queue states (in `client-performance`, `depth-navigation`, `full-3d-documentation-contract`, `full-3d-product-acceptance` and `spatial-audio`). The plan checks already enforce queue validity, and these pins break every plan fill.
-
-**Acceptance:** Rendering is unchanged apart from the two missing stray rings.
-
-**Validation:** `npm test -- tests/client-performance.test.ts tests/shark-models.test.ts tests/prey-schools.test.ts tests/game-renderer-contract.test.ts`.
-
----
 
 ### ST-230 — [REFACTOR] Fold the vendored game package into src
 

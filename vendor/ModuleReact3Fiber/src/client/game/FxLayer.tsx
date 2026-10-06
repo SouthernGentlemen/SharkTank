@@ -4,22 +4,17 @@ import * as THREE from "three";
 import { SKINS } from "../../engine/index.js";
 import type { RoomSocket } from "../net/useRoomSocket.js";
 import type { Settings } from "../settings/SettingsContext.js";
-import type { CameraFollowTarget } from "./CameraRig.js";
 import { cadenceDue, resolveClientPerformanceProfile } from "./performance.js";
 import { resolveSceneQuality } from "./sceneMath.js";
 
 const MAX_BURST_PARTICLES = 512;
 const INTERP_DELAY_MS = 45;
 const EXPLOSION_RENDER_TICKS = 24;
-const EDGE_WARNING_RANGE = 14;
 
 const WHITE = new THREE.Color("#ffffff");
 const FOOD_CYAN = new THREE.Color("#22e6ff");
 const FOOD_YELLOW = new THREE.Color("#ffd54a");
 const FOOD_RICH = new THREE.Color("#ff8a1f");
-const BOUNDARY_SAFE = new THREE.Color("#22e6ff");
-const BOUNDARY_DANGER = new THREE.Color("#ff6b6b");
-const FRENZY_COLOR = new THREE.Color("#ff8a1f");
 const skinBody = new Map(SKINS.map((skin) => [skin.id, new THREE.Color(skin.color)]));
 
 function hash(value: string): number {
@@ -34,25 +29,18 @@ function hash(value: string): number {
 export function FxLayer({
   socket,
   settings,
-  followRef,
 }: {
   socket: RoomSocket;
   settings: Settings;
-  followRef: React.MutableRefObject<CameraFollowTarget>;
 }) {
   const burstMesh = useRef<THREE.InstancedMesh>(null);
-  const boundaryRef = useRef<THREE.Mesh>(null);
-  const boundaryMaterialRef = useRef<THREE.MeshBasicMaterial>(null);
-  const frenzyRef = useRef<THREE.Mesh>(null);
-  const frenzyMaterialRef = useRef<THREE.MeshBasicMaterial>(null);
   const dummy = useMemo(() => new THREE.Object3D(), []);
-  const tempColor = useMemo(() => new THREE.Color(), []);
   const seedCache = useMemo(() => new Map<string, number>(), []);
   const quality = resolveSceneQuality(settings.graphics.quality);
   const performanceProfile = resolveClientPerformanceProfile(settings.graphics.quality);
   const lastBurstPassAt = useRef(-Infinity);
 
-  useFrame(({ clock }, dt) => {
+  useFrame(({ clock }) => {
     const bursts = burstMesh.current;
     if (!bursts) return;
 
@@ -61,7 +49,6 @@ export function FxLayer({
     const state = frame.newer;
     const reducedMotion = settings.a11y.motion === "reduced";
     const alpha = reducedMotion ? 1 : frame.alpha;
-
 
     const nowMs = clock.elapsedTime * 1000;
     if (cadenceDue(lastBurstPassAt.current, nowMs, performanceProfile.effectUpdateMs)) {
@@ -105,57 +92,12 @@ export function FxLayer({
       bursts.instanceMatrix.needsUpdate = true;
       if (bursts.instanceColor) bursts.instanceColor.needsUpdate = true;
     }
-
-    if (boundaryMaterialRef.current && followRef.current.active) {
-      const local = followRef.current.position;
-      const margin = state.arenaRadius - Math.hypot(local.x, local.z);
-      const danger = Math.max(0, Math.min(1, 1 - margin / EDGE_WARNING_RANGE));
-      boundaryMaterialRef.current.color.copy(tempColor.copy(BOUNDARY_SAFE).lerp(BOUNDARY_DANGER, danger));
-      boundaryMaterialRef.current.opacity = 0.58 + danger * 0.42;
-    }
-
-    const frenzyOn = state.frenzyUntilTick > state.tick;
-    if (frenzyRef.current) {
-      frenzyRef.current.visible = frenzyOn;
-      if (frenzyOn && !reducedMotion) frenzyRef.current.rotation.z += dt * 0.24;
-    }
-    if (frenzyMaterialRef.current) {
-      frenzyMaterialRef.current.opacity = frenzyOn
-        ? reducedMotion ? 0.14 : 0.1 + Math.sin(performance.now() / 260) * 0.04
-        : 0;
-    }
   });
 
   return (
-    <>
-      <mesh ref={frenzyRef} rotation={[-Math.PI / 2, 0, 0]} position={[0, 0.025, 0]} visible={false}>
-        <ringGeometry args={[8, 22, quality.ringSegments]} />
-        <meshBasicMaterial
-          ref={frenzyMaterialRef}
-          color={FRENZY_COLOR}
-          transparent
-          opacity={0}
-          depthWrite={false}
-          side={THREE.DoubleSide}
-        />
-      </mesh>
-
-      <mesh ref={boundaryRef} rotation={[-Math.PI / 2, 0, 0]} position={[0, 0.04, 0]}>
-        <ringGeometry args={[0.965, 1, quality.ringSegments]} />
-        <meshBasicMaterial
-          ref={boundaryMaterialRef}
-          color={BOUNDARY_SAFE}
-          transparent
-          opacity={0.62}
-          side={THREE.DoubleSide}
-        />
-      </mesh>
-
-
-      <instancedMesh ref={burstMesh} args={[undefined, undefined, MAX_BURST_PARTICLES]} frustumCulled={false}>
-        <icosahedronGeometry args={[1, 0]} />
-        <meshBasicMaterial toneMapped={false} />
-      </instancedMesh>
-    </>
+    <instancedMesh ref={burstMesh} args={[undefined, undefined, MAX_BURST_PARTICLES]} frustumCulled={false}>
+      <icosahedronGeometry args={[1, 0]} />
+      <meshBasicMaterial toneMapped={false} />
+    </instancedMesh>
   );
 }

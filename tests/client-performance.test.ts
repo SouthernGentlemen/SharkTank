@@ -18,10 +18,7 @@ import {
   withRealtimeProtocol,
 } from "../vendor/ModuleReact3Fiber/src/protocol/index.js";
 import {
-  CLIENT_PERFORMANCE_BUDGETS,
   cadenceDue,
-  estimateBaselineSceneRenderCost,
-  estimateSceneRenderCost,
   resolveClientPerformanceProfile,
   resolveRenderDpr,
 } from "../vendor/ModuleReact3Fiber/src/client/game/performance.js";
@@ -51,7 +48,7 @@ function populateRepresentativeRoom() {
     seabedY: -12,
     surfaceY: 12,
   });
-  state.food = Array.from({ length: CLIENT_PERFORMANCE_BUDGETS.maxPrey }, (_, index) => ({
+  state.food = Array.from({ length: PREY_BUDGET.max }, (_, index) => ({
     id: `prey-${index}`,
     kind: index % 9 === 0 ? "reef" as const : "bait" as const,
     x: ((index * 17) % 160) / 1.37 - 58,
@@ -64,7 +61,7 @@ function populateRepresentativeRoom() {
     school: index % PREY_BUDGET.schools,
   }));
   state.snakes = {};
-  for (let index = 0; index < CLIENT_PERFORMANCE_BUDGETS.maxSharks; index += 1) {
+  for (let index = 0; index < 32; index += 1) {
     const shark = join(state, `shark-${index.toString().padStart(2, "0")}`);
     place(shark, index * 1.23 - 18, (index % 20) * 0.91 - 9, index * -1.11 + 17);
     shark.yaw = shark.targetYaw = normalizeYaw(index * 0.379123);
@@ -109,23 +106,13 @@ describe("ST-127 3D client performance contracts", () => {
     expect(viewport).not.toContain("getContext(\"2d\")");
   });
 
-  it("reduces the maximum scene mesh/material inventory by batching repeated environment props", () => {
-    const baselineHigh = estimateBaselineSceneRenderCost("high");
-    const hardenedHigh = estimateSceneRenderCost("high");
-    expect(baselineHigh).toEqual({ drawCalls: 74, geometries: 74, materials: 74 });
-    expect(hardenedHigh).toEqual({ drawCalls: 55, geometries: 55, materials: 55 });
-    expect(hardenedHigh.drawCalls).toBeLessThan(baselineHigh.drawCalls);
-
-    for (const quality of ["low", "medium", "high"] as const) {
-      const before = estimateBaselineSceneRenderCost(quality);
-      const after = estimateSceneRenderCost(quality);
-      expect(after.drawCalls).toBeLessThan(before.drawCalls);
-      expect(after.geometries).toBe(after.drawCalls);
-      expect(after.materials).toBe(after.drawCalls);
-    }
-
+  it("batches repeated environment props and keeps FX limited to burst particles", () => {
     const world = read("../vendor/ModuleReact3Fiber/src/client/game/WorldEnvironment.tsx");
     const prey = read("../vendor/ModuleReact3Fiber/src/client/game/PreyLayer.tsx");
+    const fx = read("../vendor/ModuleReact3Fiber/src/client/game/FxLayer.tsx");
+    expect(fx.match(/<instancedMesh\b/g)).toHaveLength(1);
+    expect(fx).not.toContain("<ringGeometry");
+    expect(world).toContain("frenzyVolumeRef");
     expect(world).toContain("boundaryMarkerRef");
     expect(world).toContain("reefBaseRef");
     expect(world).toContain("lightShaftRef");
@@ -138,18 +125,18 @@ describe("ST-127 3D client performance contracts", () => {
     const state = populateRepresentativeRoom();
     const message = withRealtimeProtocol({ t: "state" as const, state: toNetState(state) });
     const snapshotBytes = bytes(message);
-    const measuredBytesPerSecond = snapshotBytes * CLIENT_PERFORMANCE_BUDGETS.networkSnapshotHz;
+    const measuredBytesPerSecond = snapshotBytes * (TICKS_PER_SECOND / 2);
 
-    expect(message.state.snakes).toHaveLength(CLIENT_PERFORMANCE_BUDGETS.maxSharks);
-    expect(message.state.food).toHaveLength(CLIENT_PERFORMANCE_BUDGETS.maxPrey);
-    expect(snapshotBytes).toBeLessThanOrEqual(CLIENT_PERFORMANCE_BUDGETS.maxSnapshotBytes);
-    expect(measuredBytesPerSecond).toBeLessThanOrEqual(CLIENT_PERFORMANCE_BUDGETS.maxSnapshotBytesPerSecond);
+    expect(message.state.snakes).toHaveLength(32);
+    expect(message.state.food).toHaveLength(PREY_BUDGET.max);
+    expect(snapshotBytes).toBeLessThanOrEqual(60_000);
+    expect(measuredBytesPerSecond).toBeLessThanOrEqual(600_000);
 
     const roomDo = read("../src/worker/room-do.ts");
     expect(roomDo).toContain("STATE_BROADCAST_EVERY = 2");
-    expect(CLIENT_PERFORMANCE_BUDGETS.networkSnapshotHz).toBe(10);
+    expect(TICKS_PER_SECOND / 2).toBe(10);
     console.info(
-      `ST-127 network fixture: ${snapshotBytes} bytes/snapshot × ${CLIENT_PERFORMANCE_BUDGETS.networkSnapshotHz} snapshots/s = ${measuredBytesPerSecond} bytes/s max representative stream`,
+      `ST-127 network fixture: ${snapshotBytes} bytes/snapshot × ${TICKS_PER_SECOND / 2} snapshots/s = ${measuredBytesPerSecond} bytes/s max representative stream`,
     );
   });
 
@@ -194,7 +181,6 @@ describe("ST-127 3D client performance contracts", () => {
     const fx = read("../vendor/ModuleReact3Fiber/src/client/game/FxLayer.tsx");
     const audio = read("../vendor/ModuleReact3Fiber/src/client/audio/AudioManager.ts");
     const radar = read("../vendor/ModuleReact3Fiber/src/client/ui/DepthRadar.tsx");
-    const plan = read("../implementation_plan.md");
     const pkg = JSON.parse(read("../package.json")) as { version: string };
 
     expect(actor).toContain("performanceProfile.labelUpdateMs");
@@ -207,11 +193,5 @@ describe("ST-127 3D client performance contracts", () => {
     expect(pkg.version).toBe("2.1.0");
     expect(ROOM_SCHEMA_VERSION).toBe(11);
     expect(REALTIME_PROTOCOL_VERSION).toBe(11);
-    expect(plan).not.toContain("### ST-127");
-    expect(plan).not.toContain("### ST-128");
-    expect(plan).not.toContain("### ST-129");
-    expect(plan).not.toContain("### ST-131");
-    expect(plan).not.toContain("### ST-132");
-    expect(plan).toContain("The queue is empty. Select no implementation task.");
   });
 });
