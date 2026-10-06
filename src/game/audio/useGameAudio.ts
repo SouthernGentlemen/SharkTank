@@ -8,6 +8,7 @@ import {
   directionCaption,
   emitterCapForQuality,
   isFreshAudioEvent,
+  isPreyConsumeCandidate,
   selectSpatialEmitters,
   type AudioPoint,
 } from "./spatialAudio.js";
@@ -174,7 +175,7 @@ export function useGameAudio(socket: RoomSocket, settings: Settings): Caption | 
       if (!first && !frenzyChanged && !roundChanged && state.round.phase !== "result") {
         let emitted = 0;
         for (const [preyId, previousPrey] of lastFood.current) {
-          if (nextFood.has(preyId)) continue;
+          if (nextFood.has(preyId) || !isPreyConsumeCandidate(previousPrey, state.sharks)) continue;
           cue.current("preyConsume", {
             position: preyPoint(previousPrey),
             range: 30,

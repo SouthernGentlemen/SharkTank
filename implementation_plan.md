@@ -89,7 +89,7 @@ Tasks follow these defaults unless the owner changes them before the task starts
 | Knob | Today | Target | Task |
 | --- | --- | --- | --- |
 | Remote interpolation | 150 ms shared delay, rate estimation, bounded clock correction and ≤ 120 ms extrapolation | 1.5 × snapshot interval (150 ms), drift-locked, ≤ 120 ms extrapolation | ST-233–ST-235 |
-| Snapshot weight | ≤ 16 KB ambient full room; ≤ 25 KB cap-and-effects stress fixture | ≤ 14 KB typical × 10 Hz | ST-241 |
+| Snapshot weight | ≤ 14 KB typical per-session; ≤ 25 KB unfiltered stress fixture | ≤ 14 KB typical × 10 Hz | ST-241 |
 | Steering send | ≤ 20 Hz, 0.015 rad deadband, trailing final send | 20 Hz, 0.015 rad, trailing final send | ST-237 |
 | Pitch on release | Held | Auto-levels at ~1.2 rad/s | ST-244 |
 | Surface and seabed | Pitch snapped to 0 | Proportional glide band (3 units) | ST-245 |
@@ -105,21 +105,6 @@ Tasks follow these defaults unless the owner changes them before the task starts
 | Music | Six-note loop on `setInterval`, off by default | Layered adaptive score on the audio clock, on at 35% | ST-275–ST-278 |
 
 ## Open tasks
-
-### ST-241 — [PERF] Cull prey snapshots to each player's surroundings
-
-**Goal:** Every player receives every fish in the tank.
-
-**Scope**
-- Per-session `welcome` and `state` snapshots carry all sharks, effects and round state, but only prey within 72 units of that player's shark (the tank centre while dead).
-- Fog far drops from 150–230 units to at most 70, so culled prey never pop in.
-- The eat cue counts only prey that vanished within 12 units of a shark mouth.
-
-**Acceptance:** A typical snapshot is at most 14 KB, and the eat cue is unaffected by culling (tests).
-
-**Validation:** `npm test -- tests/client-performance.test.ts tests/realtime-3d-network.test.ts tests/spatial-audio.test.ts tests/ocean-arena.test.ts`.
-
----
 
 ### ST-242 — [PERF] Pick quality automatically and lower resolution under load
 

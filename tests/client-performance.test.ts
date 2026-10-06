@@ -10,6 +10,7 @@ import {
   createRoom,
   normalizeYaw,
   step,
+  spawnBots,
   type Shark,
 } from "../src/engine/index.js";
 import {
@@ -195,4 +196,21 @@ describe("ST-127 3D client performance contracts", () => {
     expect(ROOM_SCHEMA_VERSION).toBe(11);
     expect(REALTIME_PROTOCOL_VERSION).toBe(12);
   });
+});
+
+
+it("ST-241 typical per-session snapshots fit within 14 KB", () => {
+  const room = createRoom({ seed: "full-room-protocol-12" });
+  spawnBots(room, 24);
+  for (let i = 0; i < 8; i++) {
+    const id = `p-00000000-00${i}`;
+    applyAction(room, { type: "join", playerId: id, name: "Player" });
+  }
+  for (const shark of Object.values(room.sharks).filter((shark) => !shark.isBot)) {
+    for (const t of ["welcome", "state"] as const) {
+      const message = withRealtimeProtocol({ t, youId: shark.id, roomId: "room-1", state: toNetState(room, shark.id) });
+      expect(message.state.sharks).toHaveLength(32);
+      expect(bytes(message)).toBeLessThanOrEqual(14_000);
+    }
+  }
 });

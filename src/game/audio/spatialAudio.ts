@@ -1,3 +1,5 @@
+import { sharkScaleForLength } from "../game/sharkPresentation.js";
+
 export interface AudioPoint {
   x: number;
   y: number;
@@ -135,4 +137,21 @@ export function isFreshAudioEvent(
     && Number.isFinite(currentTick)
     && eventTick <= currentTick
     && currentTick - eventTick <= Math.max(0, maxAgeTicks);
+}
+
+/** A disappearance is an eat cue only near a living shark's visible mouth. */
+export function isPreyConsumeCandidate(prey: AudioPoint, sharks: readonly {
+  position: AudioPoint; yaw: number; pitch: number; length: number; alive: boolean;
+}[]): boolean {
+  return sharks.some((shark) => {
+    if (!shark.alive) return false;
+    const reach = 2.6 * sharkScaleForLength(shark.length);
+    const horizontal = Math.cos(shark.pitch) * reach;
+    const mouth = {
+      x: shark.position.x + Math.cos(shark.yaw) * horizontal,
+      y: shark.position.y + Math.sin(shark.pitch) * reach,
+      z: shark.position.z + Math.sin(shark.yaw) * horizontal,
+    };
+    return audioDistance(prey, mouth) <= 12;
+  });
 }
