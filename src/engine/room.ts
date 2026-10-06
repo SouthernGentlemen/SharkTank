@@ -5,6 +5,8 @@
 
 import {
   clampPitch,
+  returningCurrentYaw,
+  clampToCurrent,
   glidePitch,
   clampToOceanVolume,
   distance3,
@@ -813,6 +815,7 @@ export function step(state: RoomState): RoomState {
 
 function moveShark(state: RoomState, s: Shark): void {
   s.yaw = rotateYawToward(s.yaw, s.targetYaw, TURN_RATE);
+  s.yaw = returningCurrentYaw(s.yaw, s.position, state.ocean.radius, 1 / TICKS_PER_SECOND);
   s.pitch = glidePitch(moveToward(s.pitch, s.targetPitch, PITCH_RATE), s.position.y, state.ocean);
 
   let speed = swimSpeedForLungeTicks(s.lungeTicks);
@@ -828,11 +831,11 @@ function moveShark(state: RoomState, s: Shark): void {
   const forward = forwardFromYawPitch(s.yaw, s.pitch);
   const rawY = head.y + forward.y * speed;
   const y = Math.max(state.ocean.seabedY, Math.min(state.ocean.surfaceY, rawY));
-  s.position = {
+  s.position = clampToCurrent({
     x: head.x + forward.x * speed,
     y,
     z: head.z + forward.z * speed,
-  };
+  }, state.ocean);
 }
 
 function eat(state: RoomState, s: Shark): void {
@@ -926,12 +929,6 @@ function resolveBite(state: RoomState, attacker: Shark): void {
 
 function resolveSharkCollisions(state: RoomState): void {
   const living = Object.values(state.sharks).filter((shark) => shark.alive);
-  const radiusSq = state.ocean.radius * state.ocean.radius;
-  for (const shark of living) {
-    const head = shark.position;
-    if (shark.alive && horizontalRadiusSquared(head) >= radiusSq) killShark(state, shark, null, "boundary");
-  }
-
   for (let i = 0; i < living.length; i += 1) {
     const a = living[i];
     if (!a.alive) continue;
@@ -950,7 +947,7 @@ function resolveSharkCollisions(state: RoomState): void {
         ? { x: (headB.x - headA.x) / distance, y: (headB.y - headA.y) / distance, z: (headB.z - headA.z) / distance }
         : { x: 0, y: 0, z: 1 };
       const overlap = radiusA + radiusB - distance;
-      const push = (point: Vec3, amount: number): Vec3 => clampToOceanVolume({
+      const push = (point: Vec3, amount: number): Vec3 => clampToCurrent({
         x: point.x + normal.x * amount,
         y: point.y + normal.y * amount,
         z: point.z + normal.z * amount,

@@ -244,7 +244,7 @@ export function parseRealtimeServerMessage(value: unknown): RealtimeParseResult<
   }
   if (value.t === "died") {
     if ((value.by !== null && typeof value.by !== "string")
-      || (value.action !== null && value.action !== "bite" && value.action !== "boundary" && value.action !== "retire")
+      || (value.action !== null && value.action !== "bite" && value.action !== "retire")
       || typeof value.tick !== "number" || !Number.isFinite(value.tick)
       || typeof value.score !== "number" || !Number.isFinite(value.score)
       || typeof value.respawnInMs !== "number" || !Number.isFinite(value.respawnInMs)) {

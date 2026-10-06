@@ -7,6 +7,7 @@ import {
   TICKS_PER_SECOND,
   applyAction,
   createRoom,
+  returningCurrentYaw,
   step,
   type Prey,
   type Shark,
@@ -214,7 +215,9 @@ describe("ST-122 directional shark combat", () => {
     const b = join(state, "b");
     place(a, ax, ay, az, Math.PI / 2);
     place(b, bx, by, bz, Math.PI / 2);
-    // Same forward displacement preserves the fixture's contact normal.
+    const expectedYaw = new Map([a, b].map((shark) => [shark.id,
+      returningCurrentYaw(shark.yaw, shark.position, state.ocean.radius, 1 / TICKS_PER_SECOND)]));
+    // Only the current may change heading; collision separation preserves it.
     step(state);
     const combinedRadius = 1.4 + (Math.sqrt(a.length) + Math.sqrt(b.length)) * 0.075;
     expect(Math.hypot(a.position.x - b.position.x, a.position.y - b.position.y, a.position.z - b.position.z))
@@ -222,11 +225,11 @@ describe("ST-122 directional shark combat", () => {
     for (const shark of [a, b]) {
       expect(shark.alive).toBe(true);
       expect(shark.health).toBe(100);
-      expect(shark.yaw).toBeCloseTo(Math.PI / 2);
+      expect(shark.yaw).toBeCloseTo(expectedYaw.get(shark.id)!);
       expect(shark.targetYaw).toBe(Math.PI / 2);
       expect(shark.pitch).toBe(0);
       expect(shark.targetPitch).toBe(0);
-      expect(Math.hypot(shark.position.x, shark.position.z)).toBeLessThanOrEqual(state.ocean.radius);
+      expect(Math.hypot(shark.position.x, shark.position.z)).toBeLessThanOrEqual(state.ocean.radius - 0.5 + 1e-9);
       expect(shark.position.y).toBeGreaterThanOrEqual(state.ocean.seabedY);
       expect(shark.position.y).toBeLessThanOrEqual(state.ocean.surfaceY);
     }

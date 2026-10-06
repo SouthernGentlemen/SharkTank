@@ -194,6 +194,7 @@ export function ActorLayer({
           seabedY: state.seabedY,
           surfaceY: state.surfaceY,
           tick: socket.stateRef.current?.tick ?? state.tick,
+          arenaRadius: state.arenaRadius,
           frenzyUntilTick: socket.stateRef.current?.frenzyUntilTick ?? state.frenzyUntilTick,
         }, nowMs, socket.dashPressedAtRef.current)
       : null;

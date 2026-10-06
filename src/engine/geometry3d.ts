@@ -110,3 +110,16 @@ export function yawPitchToward(from: Vec3, to: Vec3): { yaw: number; pitch: numb
     pitch: clampPitch(Math.atan2(dy, horizontal)),
   };
 }
+
+/** Non-lethal radial current, strengthening over the last four units. */
+export function returningCurrentYaw(yaw: number, point: Vec3, radius: number, dt: number): number {
+  const distance = Math.hypot(point.x, point.z);
+  const strength = Math.max(0, Math.min(1, (distance - (radius - 4)) / 4));
+  if (strength === 0 || distance === 0) return yaw;
+  return rotateYawToward(yaw, Math.atan2(-point.z, -point.x), 12 * strength * Math.max(0, dt));
+}
+
+/** Keep the radial wall margin without changing the vertical glide bounds. */
+export function clampToCurrent(point: Vec3, ocean: OceanVolume): Vec3 {
+  return clampToOceanVolume(point, { ...ocean, radius: Math.max(0, ocean.radius - 0.5) });
+}

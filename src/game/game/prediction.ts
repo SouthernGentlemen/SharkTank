@@ -8,13 +8,15 @@ import {
   TICKS_PER_SECOND,
   clampPitch,
   glidePitch,
+  returningCurrentYaw,
+  clampToCurrent,
   distance3,
   forwardFromYawPitch,
   moveToward,
   rotateYawToward,
   swimSpeedForLungeTicks,
 } from "../../engine/index.js";
-import type { Vec3 } from "../../engine/index.js";
+import type { OceanVolume, Vec3 } from "../../engine/index.js";
 import type { ClientShark } from "../net/clientState.js";
 import type { LocalInput } from "./useLocalInput.js";
 
@@ -34,6 +36,7 @@ export interface PredictionResult {
 }
 
 export interface PredictionWorld {
+  arenaRadius?: number;
   seabedY: number;
   surfaceY: number;
   tick: number;
@@ -41,6 +44,7 @@ export interface PredictionWorld {
 }
 
 export class LocalPredictor {
+  private ocean: OceanVolume | null = null;
   private head: Vec3 = { x: 0, y: 0, z: 0 };
   private visualOffset: Vec3 = { x: 0, y: 0, z: 0 };
   private yaw = 0;
@@ -53,6 +57,7 @@ export class LocalPredictor {
   private sharkId: string | null = null;
 
   reset(): void {
+    this.ocean = null;
     this.visualOffset = { x: 0, y: 0, z: 0 };
     this.alive = false;
     this.pendingAt = null;
@@ -84,6 +89,7 @@ export class LocalPredictor {
       return null;
     }
     if (auth.id !== this.sharkId || (world && world.tick < this.lastTick)) this.reset();
+    this.ocean = world?.arenaRadius === undefined ? null : { radius: world.arenaRadius, seabedY: world.seabedY, surfaceY: world.surfaceY };
     this.lastTick = world?.tick ?? this.lastTick;
     if (!this.alive) {
       this.seed(auth);
@@ -108,6 +114,7 @@ export class LocalPredictor {
 
     const frameStep = Math.min(dt, 0.05);
     this.yaw = rotateYawToward(this.yaw, input.targetYaw, TURN * frameStep);
+    if (world?.arenaRadius !== undefined) this.yaw = returningCurrentYaw(this.yaw, this.head, world.arenaRadius, frameStep);
     this.pitch = clampPitch(moveToward(this.pitch, input.targetPitch, PITCH * frameStep));
     if (world) this.pitch = glidePitch(this.pitch, this.head.y, world);
     const frenzyMultiplier = world && world.frenzyUntilTick > world.tick ? MOVE.FRENZY_SPEED : 1;
@@ -123,6 +130,8 @@ export class LocalPredictor {
       next.y = boundedY;
     }
 
+    if (this.ocean) Object.assign(next, clampToCurrent(next, this.ocean));
+
     const authSpeed = swimSpeedForLungeTicks(auth.lungeTicks) * TICKS_PER_SECOND * frenzyMultiplier;
     const authForward = forwardFromYawPitch(auth.yaw, auth.pitch);
     const authNow: Vec3 = {
@@ -130,6 +139,7 @@ export class LocalPredictor {
       y: auth.position.y + authForward.y * authSpeed * staleness,
       z: auth.position.z + authForward.z * authSpeed * staleness,
     };
+    if (world?.arenaRadius !== undefined) Object.assign(authNow, clampToCurrent(authNow, { radius: world.arenaRadius, ...world }));
     // Decay presentation independently of simulation reconciliation. Preserve ordinary
     // movement while cancelling only the correction applied on this frame.
     const decay = Math.pow(0.5, Math.max(0, dt) / VISUAL_HALF_LIFE);
@@ -151,18 +161,19 @@ export class LocalPredictor {
       next.z += (authNow.z - next.z) * correction;
     }
 
-    this.head = next;
+    this.head = world?.arenaRadius === undefined ? next : clampToCurrent(next, { radius: world.arenaRadius, ...world });
     this.preserveVisualPosition(beforeCorrection, error);
     return this.build();
   }
 
   /** Shared presentation position for the local mesh, labels and camera target. */
   renderPosition(): Vec3 {
-    return {
+    const position = {
       x: this.head.x + this.visualOffset.x,
       y: this.head.y + this.visualOffset.y,
       z: this.head.z + this.visualOffset.z,
     };
+    return this.ocean ? clampToCurrent(position, this.ocean) : position;
   }
 
   private preserveVisualPosition(before: Vec3, error: number): void {

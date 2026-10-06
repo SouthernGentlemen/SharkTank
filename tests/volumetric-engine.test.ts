@@ -76,7 +76,7 @@ describe("volumetric authoritative engine", () => {
     expect(shark.position.y).toBeLessThan(climbedY);
   });
 
-  it("enforces radial death plus surface and seabed clamps", () => {
+  it("enforces the returning current plus surface and seabed clamps", () => {
     const state = createRoom({ seed: "bounds", oceanRadius: 20, seabedY: -4, surfaceY: 4 });
     state.food = [];
     const shark = join(state, "bounds");
@@ -100,7 +100,8 @@ describe("volumetric authoritative engine", () => {
     shark.yaw = shark.targetYaw = 0;
     shark.pitch = shark.targetPitch = 0;
     step(state);
-    expect(shark.alive).toBe(false);
+    expect(shark.alive).toBe(true);
+    expect(Math.hypot(shark.position.x, shark.position.z)).toBeLessThanOrEqual(state.ocean.radius - 0.5);
   });
 
   it("uses vertical separation for prey and shark collision geometry", () => {

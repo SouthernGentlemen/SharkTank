@@ -26,11 +26,9 @@ export function DeathOverlay({
 
   const cause = death.action === "bite"
     ? death.by ? `Bitten by ${death.by}.` : "Defeated by a bite."
-    : death.action === "boundary"
-      ? "You crossed the arena boundary."
-      : death.action === "retire"
-        ? "This shark retired from the round."
-        : "Shark eliminated.";
+    : death.action === "retire"
+      ? "This shark retired from the round."
+      : "Shark eliminated.";
 
   useEffect(() => {
     announce(`${cause} Final score ${death.score} points.`, "assertive");
