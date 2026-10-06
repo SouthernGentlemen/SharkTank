@@ -55,7 +55,7 @@ On the server, the Worker serves only the game shell, its assets, `/version.json
   - No telemetry, analytics, audit logs, usage metering or persisted game state.
   - After ST-149 the only Durable Object is `Room`.
   - Nothing new may add a server write, a log stream or a tracking request.
-- **One protocol change.** ST-239 moves the wire to protocol 12. Its prey species table covers every planned species, so later fish tasks need no protocol change. With nothing persisted after ST-144, there is no stored schema to migrate.
+- **One protocol change.** ST-240 moves the wire to protocol 12. Its prey species table covers every planned species, so later fish tasks need no protocol change. With nothing persisted after ST-144, there is no stored schema to migrate.
 - **Determinism stays intact.** Engine rule changes stay seeded and testable, and update the determinism tests in the same task.
 - **Docs and contract tests move with behavior.** README, ARCHITECTURE, ACCESSIBILITY and PRODUCT-ACCEPTANCE describe current behavior and are updated in the same commit as the change. A test is never deleted without replacing its behavior proof, unless the feature it covered is deleted too.
 - **Removals are complete.** A task that removes a feature also removes its routes, styles, settings, copy, scripts, tests and docs in the same commit.
@@ -65,25 +65,25 @@ On the server, the Worker serves only the game shell, its assets, `/version.json
   - Nothing flashes faster than three times per second.
 - **Mobile budgets are respected.** No React state updates per frame. Repeated actors, coral and particles stay instanced and quality-bounded. Touch targets are at least 48 px and safe-area aware.
 - **No new runtime dependencies.** React 19, React Three Fiber 9 and Three remain the stack. Audio is first-party Web Audio synthesis, and any visual asset is first-party and committed locally.
-- **Releases happen only at the queued checkpoints** (ST-141, ST-224, ST-242, ST-258, ST-267, ST-280, ST-296). Before each, the owner runs the relevant PRODUCT-ACCEPTANCE manual rows on a real phone and a desktop browser, then approves the protected `production` environment.
+- **Releases happen only at the queued checkpoints** (ST-141, ST-224, ST-243, ST-259, ST-268, ST-281, ST-297). Before each, the owner runs the relevant PRODUCT-ACCEPTANCE manual rows on a real phone and a desktop browser, then approves the protected `production` environment.
 - **Validation for every task** is the focused tests named in the task, plus `npm ci`, `npm run check`, `npm run audit:dependencies` and `git diff --check` on the exact head.
 
 ### Current defaults
 
 Tasks follow these defaults unless the owner changes them before the task starts:
 
-1. A bigger ocean: radius 120 (from 82), water column 36 (from 24) and about 480 ambient fish (from 200) (ST-259).
+1. A bigger ocean: radius 120 (from 82), water column 36 (from 24) and about 480 ambient fish (from 200) (ST-260).
 2. Fish and coral variety:
    - eight school looks (sardine, anchovy, silverside, clownfish, blue tang, yellow tang, angelfish, parrotfish);
    - new tuna, rays, squid and a rare golden fish;
-   - brain, branching, plate, fan and tube coral plus kelp (ST-260–ST-266).
-3. Touch play defaults to one-thumb **Simple** steering, with dual-stick as **Advanced**; desktop WASD flight with arrow-key look is unchanged. Portrait play is allowed (ST-249, ST-252).
-4. The wall becomes a non-lethal current (ST-246).
-5. Combat rules (ST-256):
+   - brain, branching, plate, fan and tube coral plus kelp (ST-261–ST-267).
+3. Touch play defaults to one-thumb **Simple** steering, with dual-stick as **Advanced**; desktop WASD flight with arrow-key look is unchanged. Portrait play is allowed (ST-250, ST-253).
+4. The wall becomes a non-lethal current (ST-247).
+5. Combat rules (ST-257):
    - a shark at least 1.5× the victim's length devours it in one bite;
    - even fights take two bites;
    - health regenerates at 4 HP/s.
-6. Music is a first-party adaptive score, on by default at 35% once the first tap unlocks audio, with a visible mute (ST-274–ST-277).
+6. Music is a first-party adaptive score, on by default at 35% once the first tap unlocks audio, with a visible mute (ST-275–ST-278).
 7. Releases are semantic versions at each checkpoint: `v2.2.0`, `v2.3.0`, `v2.4.0`, `v2.5.0`, `v2.6.0`.
 8. The release and change-control tooling (controlled commits, protected releases, GitHub settings checks) stays as it is for now.
 
@@ -91,25 +91,25 @@ Tasks follow these defaults unless the owner changes them before the task starts
 
 | Knob | Today | Target | Task |
 | --- | --- | --- | --- |
-| Remote interpolation | 45 ms delay vs 100 ms snapshots; frozen ~72% of frames | 1.5 × snapshot interval (150 ms), drift-locked, ≤ 120 ms extrapolation | ST-232–ST-234 |
-| Snapshot weight | ~30 KB × 10 Hz ≈ 295 KB/s | ≤ 14 KB typical × 10 Hz | ST-239–ST-240 |
-| Steering send | ≤ 10 Hz, 0.05/0.04 rad deadband | 20 Hz, 0.015 rad, trailing final send | ST-236 |
-| Pitch on release | Held | Auto-levels at ~1.2 rad/s | ST-243 |
-| Surface and seabed | Pitch snapped to 0 | Proportional glide band (3 units) | ST-244 |
-| Shark overlap | Instant heading snap | Positional push, headings kept | ST-245 |
-| Wall | Death on contact | Inward current from 4 units inside, no death | ST-246 |
-| Eating | Body centre, radius 1.2 + prey r, 2 chomps/tick | Mouth, 1.2 + 0.55 × scale + prey r, swept, 4 chomps/tick | ST-254 |
-| Biting | Centre-to-centre ≤ 3.4 (+0.8), 50° cone | Mouth to victim body surface ≤ 1.8 + 0.3 × scale, 65° cone | ST-255 |
-| Damage | 34–42 per bite, ≥ 3 bites, no regen | Devour at ≥ 1.5× length; 50 (60 burst) even; 20 nibble; 4 HP/s regen | ST-256 |
-| Ocean | Radius 82, column 24, ~200 fish | Radius 120, column 36, ~480 fish | ST-259 |
-| Fish | 2 looks | 8 school looks + tuna, squid, rays, golden fish | ST-262–ST-266 |
-| Coral | 3 rock clusters outside the wall | Reef sites of brain, branching, plate, fan and tube coral plus kelp | ST-260–ST-261 |
-| Growth | +0.18 length per point; flat scale curve | Five tiers reachable in one round; Megalodon ≈ 2.5× spawn scale | ST-268 |
-| Music | Six-note loop on `setInterval`, off by default | Layered adaptive score on the audio clock, on at 35% | ST-274–ST-277 |
+| Remote interpolation | 45 ms delay vs 100 ms snapshots; frozen ~72% of frames | 1.5 × snapshot interval (150 ms), drift-locked, ≤ 120 ms extrapolation | ST-233–ST-235 |
+| Snapshot weight | ~30 KB × 10 Hz ≈ 295 KB/s | ≤ 14 KB typical × 10 Hz | ST-240–ST-241 |
+| Steering send | ≤ 10 Hz, 0.05/0.04 rad deadband | 20 Hz, 0.015 rad, trailing final send | ST-237 |
+| Pitch on release | Held | Auto-levels at ~1.2 rad/s | ST-244 |
+| Surface and seabed | Pitch snapped to 0 | Proportional glide band (3 units) | ST-245 |
+| Shark overlap | Instant heading snap | Positional push, headings kept | ST-246 |
+| Wall | Death on contact | Inward current from 4 units inside, no death | ST-247 |
+| Eating | Body centre, radius 1.2 + prey r, 2 chomps/tick | Mouth, 1.2 + 0.55 × scale + prey r, swept, 4 chomps/tick | ST-255 |
+| Biting | Centre-to-centre ≤ 3.4 (+0.8), 50° cone | Mouth to victim body surface ≤ 1.8 + 0.3 × scale, 65° cone | ST-256 |
+| Damage | 34–42 per bite, ≥ 3 bites, no regen | Devour at ≥ 1.5× length; 50 (60 burst) even; 20 nibble; 4 HP/s regen | ST-257 |
+| Ocean | Radius 82, column 24, ~200 fish | Radius 120, column 36, ~480 fish | ST-260 |
+| Fish | 2 looks | 8 school looks + tuna, squid, rays, golden fish | ST-263–ST-267 |
+| Coral | 3 rock clusters outside the wall | Reef sites of brain, branching, plate, fan and tube coral plus kelp | ST-261–ST-262 |
+| Growth | +0.18 length per point; flat scale curve | Five tiers reachable in one round; Megalodon ≈ 2.5× spawn scale | ST-269 |
+| Music | Six-note loop on `setInterval`, off by default | Layered adaptive score on the audio clock, on at 35% | ST-275–ST-278 |
 
 ## Open tasks
 
-### ST-228 — [REFACTOR] Remove dead rendering and test-only code from the client
+### ST-229 — [REFACTOR] Remove dead rendering and test-only code from the client
 
 **Goal:** Production modules carry rendering leftovers and code that exists only for tests.
 
@@ -124,7 +124,7 @@ Tasks follow these defaults unless the owner changes them before the task starts
 
 ---
 
-### ST-229 — [REFACTOR] Fold the vendored game package into src
+### ST-230 — [REFACTOR] Fold the vendored game package into src
 
 **Goal:** The game lives in a pretend package with its own manifest, tsconfig, docs, licence, `file:` dependency, module aliases and second typecheck.
 
@@ -139,13 +139,13 @@ Tasks follow these defaults unless the owner changes them before the task starts
 
 ---
 
-### ST-230 — [REFACTOR] Replace the snake trail with one shark position
+### ST-231 — [REFACTOR] Replace the snake trail with one shark position
 
 **Goal:** Sharks carry a breadcrumb trail resampled every tick that always yields one point, plus two always-false fields.
 
 **Scope**
 - In the engine, replace `path`, `segments`, `sampleTrail`, `segmentCount`, `SEGMENT_SPACING` and `TAIL_MARGIN` with a single `position`, and delete `boosting` and `chargeTicks`.
-- Prediction, actors, radar and audio read `position`. The wire still sends `segments: [position]` until ST-239.
+- Prediction, actors, radar and audio read `position`. The wire still sends `segments: [position]` until ST-240.
 
 **Acceptance:** Movement, eating, combat and determinism tests pass unchanged.
 
@@ -153,11 +153,11 @@ Tasks follow these defaults unless the owner changes them before the task starts
 
 ---
 
-### ST-231 — [REFACTOR] Rename snake-era names to sharks
+### ST-232 — [REFACTOR] Rename snake-era names to sharks
 
 **Goal:** Sharks are still called snakes throughout the code.
 
-**Scope:** Rename `Snake`, `snakes`, `SnakeLabels` and `snake-label` to `Shark`, `sharks`, `SharkLabels` and `shark-label` in the engine and client. The wire key changes in ST-239.
+**Scope:** Rename `Snake`, `snakes`, `SnakeLabels` and `snake-label` to `Shark`, `sharks`, `SharkLabels` and `shark-label` in the engine and client. The wire key changes in ST-240.
 
 **Acceptance:** No snake naming remains outside the wire adapter.
 
@@ -165,7 +165,7 @@ Tasks follow these defaults unless the owner changes them before the task starts
 
 ---
 
-### ST-232 — [FIX] Stop remote sharks and fish freezing between snapshots
+### ST-233 — [FIX] Stop remote sharks and fish freezing between snapshots
 
 **Goal:** The 45 ms interpolation delay is shorter than the 100 ms snapshot interval, so remote actors freeze on about 72% of frames.
 
@@ -180,7 +180,7 @@ Tasks follow these defaults unless the owner changes them before the task starts
 
 ---
 
-### ST-233 — [FIX] Keep the interpolation clock locked to the server tick rate
+### ST-234 — [FIX] Keep the interpolation clock locked to the server tick rate
 
 **Goal:** The tick-to-client clock is fixed at the first packet and drifts over a session.
 
@@ -192,7 +192,7 @@ Tasks follow these defaults unless the owner changes them before the task starts
 
 ---
 
-### ST-234 — [FEAT] Extrapolate remote actors briefly when a snapshot is late
+### ST-235 — [FEAT] Extrapolate remote actors briefly when a snapshot is late
 
 **Goal:** A late packet should not freeze the world.
 
@@ -204,7 +204,7 @@ Tasks follow these defaults unless the owner changes them before the task starts
 
 ---
 
-### ST-235 — [FIX] Drive animation and banking from continuous client time
+### ST-236 — [FIX] Drive animation and banking from continuous client time
 
 **Goal:** Swim phases use the stalled server tick, and remote banking spikes on snapshot steps.
 
@@ -219,7 +219,7 @@ Tasks follow these defaults unless the owner changes them before the task starts
 
 ---
 
-### ST-236 — [PERF] Send steering intent at 20 Hz with a trailing final update
+### ST-237 — [PERF] Send steering intent at 20 Hz with a trailing final update
 
 **Goal:** The Room steers from stale, coarse targets.
 
@@ -231,7 +231,7 @@ Tasks follow these defaults unless the owner changes them before the task starts
 
 ---
 
-### ST-237 — [FEAT] Predict the dash locally the instant it is pressed
+### ST-238 — [FEAT] Predict the dash locally the instant it is pressed
 
 **Goal:** The local dash waits one round trip before it moves.
 
@@ -243,7 +243,7 @@ Tasks follow these defaults unless the owner changes them before the task starts
 
 ---
 
-### ST-238 — [FIX] Blend reconciliation corrections instead of snapping the camera
+### ST-239 — [FIX] Blend reconciliation corrections instead of snapping the camera
 
 **Goal:** Large corrections teleport the local shark and the camera.
 
@@ -255,7 +255,7 @@ Tasks follow these defaults unless the owner changes them before the task starts
 
 ---
 
-### ST-239 — [API] Pack snapshots into compact realtime protocol 12
+### ST-240 — [API] Pack snapshots into compact realtime protocol 12
 
 **Goal:** Prey objects with long ids and repeated keys make up most of every snapshot.
 
@@ -276,7 +276,7 @@ Tasks follow these defaults unless the owner changes them before the task starts
 
 ---
 
-### ST-240 — [PERF] Cull prey snapshots to each player's surroundings
+### ST-241 — [PERF] Cull prey snapshots to each player's surroundings
 
 **Goal:** Every player receives every fish in the tank.
 
@@ -291,7 +291,7 @@ Tasks follow these defaults unless the owner changes them before the task starts
 
 ---
 
-### ST-241 — [PERF] Pick quality automatically and lower resolution under load
+### ST-242 — [PERF] Pick quality automatically and lower resolution under load
 
 **Goal:** Phones default to High quality and never adapt.
 
@@ -305,9 +305,9 @@ Tasks follow these defaults unless the owner changes them before the task starts
 
 ---
 
-### ST-242 — [OPS] Release the smooth update as v2.2.0
+### ST-243 — [OPS] Release the smooth update as v2.2.0
 
-**Goal:** Ship ST-226 through ST-241.
+**Goal:** Ship ST-226 through ST-242.
 
 **Scope**
 - Semantic minor release through `deploy-worker.yml` as `sharktank`.
@@ -318,7 +318,7 @@ Tasks follow these defaults unless the owner changes them before the task starts
 
 ---
 
-### ST-243 — [FEAT] Auto-level pitch and ease keyboard steering
+### ST-244 — [FEAT] Auto-level pitch and ease keyboard steering
 
 **Goal:** Held pitch drives sharks into the surface or seabed, and keys jump straight to full turn rate.
 
@@ -333,7 +333,7 @@ Tasks follow these defaults unless the owner changes them before the task starts
 
 ---
 
-### ST-244 — [FIX] Glide along the surface and seabed instead of snapping pitch
+### ST-245 — [FIX] Glide along the surface and seabed instead of snapping pitch
 
 **Goal:** Pitch snaps to zero on contact while the client keeps requesting it, which jitters.
 
@@ -345,7 +345,7 @@ Tasks follow these defaults unless the owner changes them before the task starts
 
 ---
 
-### ST-245 — [FIX] Separate overlapping sharks softly instead of snapping headings
+### ST-246 — [FIX] Separate overlapping sharks softly instead of snapping headings
 
 **Goal:** Overlap rewrites both sharks' headings instantly.
 
@@ -357,7 +357,7 @@ Tasks follow these defaults unless the owner changes them before the task starts
 
 ---
 
-### ST-246 — [FEAT] Replace the lethal arena wall with a soft returning current
+### ST-247 — [FEAT] Replace the lethal arena wall with a soft returning current
 
 **Goal:** Touching the wall kills.
 
@@ -372,7 +372,7 @@ Tasks follow these defaults unless the owner changes them before the task starts
 
 ---
 
-### ST-247 — [FEAT] Frame the chase camera closer and higher
+### ST-248 — [FEAT] Frame the chase camera closer and higher
 
 **Goal:** The local shark reads as a small silhouette seen from directly behind.
 
@@ -384,7 +384,7 @@ Tasks follow these defaults unless the owner changes them before the task starts
 
 ---
 
-### ST-248 — [FEAT] Add gentle aim assist toward prey and bite targets
+### ST-249 — [FEAT] Add gentle aim assist toward prey and bite targets
 
 **Goal:** Lining up a moving fish in 3D by thumb is hard.
 
@@ -396,7 +396,7 @@ Tasks follow these defaults unless the owner changes them before the task starts
 
 ---
 
-### ST-249 — [FEAT] Make one-thumb Simple steering the touch default
+### ST-250 — [FEAT] Make one-thumb Simple steering the touch default
 
 **Goal:** Two-stick 3D flight is demanding for casual phone players.
 
@@ -411,7 +411,7 @@ Tasks follow these defaults unless the owner changes them before the task starts
 
 ---
 
-### ST-250 — [FEAT] Map the Simple stick's vertical axis to a climb or dive angle
+### ST-251 — [FEAT] Map the Simple stick's vertical axis to a climb or dive angle
 
 **Goal:** Push up to climb, let go to level.
 
@@ -423,7 +423,7 @@ Tasks follow these defaults unless the owner changes them before the task starts
 
 ---
 
-### ST-251 — [FEAT] Move Bite and Dash into the thumb arc with cooldown rings
+### ST-252 — [FEAT] Move Bite and Dash into the thumb arc with cooldown rings
 
 **Goal:** On touch, the ability buttons sit over the leaderboard and out of reach.
 
@@ -438,7 +438,7 @@ Tasks follow these defaults unless the owner changes them before the task starts
 
 ---
 
-### ST-252 — [FEAT] Allow portrait play with a portrait control layout
+### ST-253 — [FEAT] Allow portrait play with a portrait control layout
 
 **Goal:** Portrait currently shows no controls at all.
 
@@ -453,7 +453,7 @@ Tasks follow these defaults unless the owner changes them before the task starts
 
 ---
 
-### ST-253 — [REFACTOR] Share one size curve and mouth and body geometry between engine and renderer
+### ST-254 — [REFACTOR] Share one size curve and mouth and body geometry between engine and renderer
 
 **Goal:** Hit boxes and visuals must agree on how big a shark is and where its mouth is.
 
@@ -468,7 +468,7 @@ Tasks follow these defaults unless the owner changes them before the task starts
 
 ---
 
-### ST-254 — [FEAT] Eat from the mouth with a size-scaled, swept radius
+### ST-255 — [FEAT] Eat from the mouth with a size-scaled, swept radius
 
 **Goal:** Prey the snout visibly touches is not eaten, and dashes can pass fish between ticks.
 
@@ -480,7 +480,7 @@ Tasks follow these defaults unless the owner changes them before the task starts
 
 ---
 
-### ST-255 — [FEAT] Land bites anywhere on the victim's body with a wider cone
+### ST-256 — [FEAT] Land bites anywhere on the victim's body with a wider cone
 
 **Goal:** A bite that visibly lands on a tail misses.
 
@@ -495,7 +495,7 @@ Tasks follow these defaults unless the owner changes them before the task starts
 
 ---
 
-### ST-256 — [FEAT] Devour much smaller sharks in one bite and regenerate health
+### ST-257 — [FEAT] Devour much smaller sharks in one bite and regenerate health
 
 **Goal:** Every kill needs three or more bites and health never recovers.
 
@@ -513,7 +513,7 @@ Tasks follow these defaults unless the owner changes them before the task starts
 
 ---
 
-### ST-257 — [FEAT] Mark which sharks you can eat and which can eat you
+### ST-258 — [FEAT] Mark which sharks you can eat and which can eat you
 
 **Goal:** Make the size rule readable at a glance.
 
@@ -525,9 +525,9 @@ Tasks follow these defaults unless the owner changes them before the task starts
 
 ---
 
-### ST-258 — [OPS] Release the controls and combat update as v2.3.0
+### ST-259 — [OPS] Release the controls and combat update as v2.3.0
 
-**Goal:** Ship ST-243 through ST-257.
+**Goal:** Ship ST-244 through ST-258.
 
 **Scope:** Semantic minor release after the owner records the manual rows: landscape and portrait, Simple and Dual, thumb-arc abilities, keyboard easing and the new combat.
 
@@ -535,7 +535,7 @@ Tasks follow these defaults unless the owner changes them before the task starts
 
 ---
 
-### ST-259 — [FEAT] Make the tank bigger with one shared ocean constant
+### ST-260 — [FEAT] Make the tank bigger with one shared ocean constant
 
 **Goal:** The ocean is small, and its size is defined in five places.
 
@@ -544,13 +544,13 @@ Tasks follow these defaults unless the owner changes them before the task starts
 - Scale the prey budget: about 480 ambient fish, a cap of 720, 8 spawns per tick, 24 schools and 60 Frenzy chum.
 - Bots, spawning, Frenzy volume and fog keep working at the new size.
 
-**Acceptance:** Tests use the shared constant; at full population the per-player snapshot still meets the ST-240 budget.
+**Acceptance:** Tests use the shared constant; at full population the per-player snapshot still meets the ST-241 budget.
 
 **Validation:** `npm test -- tests/ocean-arena.test.ts tests/volumetric-engine.test.ts tests/swimming-camera.test.ts tests/bot-ai-3d.test.ts tests/feeding-frenzy-3d.test.ts tests/client-performance.test.ts`.
 
 ---
 
-### ST-260 — [FEAT] Grow coral reefs across the seabed
+### ST-261 — [FEAT] Grow coral reefs across the seabed
 
 **Goal:** The only reefs are three rock clusters outside the wall.
 
@@ -566,7 +566,7 @@ Tasks follow these defaults unless the owner changes them before the task starts
 
 ---
 
-### ST-261 — [FEAT] Sway the kelp and vary coral colour and size
+### ST-262 — [FEAT] Sway the kelp and vary coral colour and size
 
 **Goal:** Reefs should look alive, not stamped.
 
@@ -578,7 +578,7 @@ Tasks follow these defaults unless the owner changes them before the task starts
 
 ---
 
-### ST-262 — [FEAT] Keep reef fish schooling around the coral
+### ST-263 — [FEAT] Keep reef fish schooling around the coral
 
 **Goal:** Tie the reef fish to the reefs so coral matters.
 
@@ -590,7 +590,7 @@ Tasks follow these defaults unless the owner changes them before the task starts
 
 ---
 
-### ST-263 — [FEAT] Give every school its own species look
+### ST-264 — [FEAT] Give every school its own species look
 
 **Goal:** Only two fish looks exist.
 
@@ -607,7 +607,7 @@ Tasks follow these defaults unless the owner changes them before the task starts
 
 ---
 
-### ST-264 — [FEAT] Add tuna schools and gliding rays
+### ST-265 — [FEAT] Add tuna schools and gliding rays
 
 **Goal:** Give hunters bigger, faster and rarer prey.
 
@@ -622,7 +622,7 @@ Tasks follow these defaults unless the owner changes them before the task starts
 
 ---
 
-### ST-265 — [FEAT] Add darting squid and a rare golden fish
+### ST-266 — [FEAT] Add darting squid and a rare golden fish
 
 **Goal:** Create chase moments.
 
@@ -636,7 +636,7 @@ Tasks follow these defaults unless the owner changes them before the task starts
 
 ---
 
-### ST-266 — [FEAT] Model tuna, squid, rays and the golden fish
+### ST-267 — [FEAT] Model tuna, squid, rays and the golden fish
 
 **Goal:** Every new species should read at a glance.
 
@@ -652,9 +652,9 @@ Tasks follow these defaults unless the owner changes them before the task starts
 
 ---
 
-### ST-267 — [OPS] Release the bigger ocean update as v2.4.0
+### ST-268 — [OPS] Release the bigger ocean update as v2.4.0
 
-**Goal:** Ship ST-259 through ST-266.
+**Goal:** Ship ST-260 through ST-267.
 
 **Scope:** Semantic minor release after the owner records the manual rows for the bigger ocean, reefs, species readability and frame budgets on a real phone.
 
@@ -662,7 +662,7 @@ Tasks follow these defaults unless the owner changes them before the task starts
 
 ---
 
-### ST-268 — [FEAT] Grow through five named tiers within a round
+### ST-269 — [FEAT] Grow through five named tiers within a round
 
 **Goal:** Growth is invisible and has no milestones.
 
@@ -676,7 +676,7 @@ Tasks follow these defaults unless the owner changes them before the task starts
 
 ---
 
-### ST-269 — [FEAT] Give smaller sharks a turning edge over bigger ones
+### ST-270 — [FEAT] Give smaller sharks a turning edge over bigger ones
 
 **Goal:** Give small sharks counterplay against hunters.
 
@@ -688,7 +688,7 @@ Tasks follow these defaults unless the owner changes them before the task starts
 
 ---
 
-### ST-270 — [FEAT] Seed prey near human sharks and greet each spawn with a school
+### ST-271 — [FEAT] Seed prey near human sharks and greet each spawn with a school
 
 **Goal:** Food should always be nearby.
 
@@ -700,7 +700,7 @@ Tasks follow these defaults unless the owner changes them before the task starts
 
 ---
 
-### ST-271 — [FEAT] Stop bots farming fresh spawns
+### ST-272 — [FEAT] Stop bots farming fresh spawns
 
 **Goal:** Keep the size ladder climbable for people.
 
@@ -712,7 +712,7 @@ Tasks follow these defaults unless the owner changes them before the task starts
 
 ---
 
-### ST-272 — [FEAT] Celebrate every tier-up with an evolution moment
+### ST-273 — [FEAT] Celebrate every tier-up with an evolution moment
 
 **Goal:** Make growth feel like progress.
 
@@ -724,7 +724,7 @@ Tasks follow these defaults unless the owner changes them before the task starts
 
 ---
 
-### ST-273 — [FEAT] Count eat streaks and float score gains
+### ST-274 — [FEAT] Count eat streaks and float score gains
 
 **Goal:** Make eating feel great.
 
@@ -736,11 +736,11 @@ Tasks follow these defaults unless the owner changes them before the task starts
 
 ---
 
-### ST-274 — [REFACTOR] Schedule music on the audio clock with lookahead
+### ST-275 — [REFACTOR] Schedule music on the audio clock with lookahead
 
 **Goal:** Music notes come from `setInterval`, which jitters on phones.
 
-**Scope:** A timer wakes about every 25 ms and schedules notes up to 100 ms ahead on `AudioContext.currentTime`. The melody is unchanged until ST-275.
+**Scope:** A timer wakes about every 25 ms and schedules notes up to 100 ms ahead on `AudioContext.currentTime`. The melody is unchanged until ST-276.
 
 **Acceptance:** Fake-clock scheduler tests pass; start, stop and visibility handling are unchanged.
 
@@ -748,7 +748,7 @@ Tasks follow these defaults unless the owner changes them before the task starts
 
 ---
 
-### ST-275 — [FEAT] Compose a layered underwater score with pads and bass
+### ST-276 — [FEAT] Compose a layered underwater score with pads and bass
 
 **Goal:** Replace the six-note loop.
 
@@ -760,7 +760,7 @@ Tasks follow these defaults unless the owner changes them before the task starts
 
 ---
 
-### ST-276 — [FEAT] Add percussion and a lead motif to the score
+### ST-277 — [FEAT] Add percussion and a lead motif to the score
 
 **Goal:** Give the score layers that can carry intensity.
 
@@ -772,7 +772,7 @@ Tasks follow these defaults unless the owner changes them before the task starts
 
 ---
 
-### ST-277 — [FEAT] Drive music intensity from gameplay and turn music on by default
+### ST-278 — [FEAT] Drive music intensity from gameplay and turn music on by default
 
 **Goal:** Music should rise with danger, Frenzy and Apex, and players should actually hear it.
 
@@ -795,7 +795,7 @@ Tasks follow these defaults unless the owner changes them before the task starts
 
 ---
 
-### ST-278 — [FEAT] Route audio through an underwater reverb and limiter bus
+### ST-279 — [FEAT] Route audio through an underwater reverb and limiter bus
 
 **Goal:** Make everything sound underwater, without clipping.
 
@@ -807,7 +807,7 @@ Tasks follow these defaults unless the owner changes them before the task starts
 
 ---
 
-### ST-279 — [FEAT] Replace harsh beeps and droning cues with crunches, whooshes, plucks and a swim layer
+### ST-280 — [FEAT] Replace harsh beeps and droning cues with crunches, whooshes, plucks and a swim layer
 
 **Goal:** SFX are square and saw chirps, and the swim and presence cues drone about once a second.
 
@@ -822,9 +822,9 @@ Tasks follow these defaults unless the owner changes them before the task starts
 
 ---
 
-### ST-280 — [OPS] Release the growth and music update as v2.5.0
+### ST-281 — [OPS] Release the growth and music update as v2.5.0
 
-**Goal:** Ship ST-268 through ST-279.
+**Goal:** Ship ST-269 through ST-280.
 
 **Scope:** Semantic minor release after the owner records the manual rows for tiers, streaks, bot fairness and audio on a real phone and a desktop browser.
 
@@ -832,7 +832,7 @@ Tasks follow these defaults unless the owner changes them before the task starts
 
 ---
 
-### ST-281 — [FEAT] Replace the HUD cards with one compact top bar and status chips
+### ST-282 — [FEAT] Replace the HUD cards with one compact top bar and status chips
 
 **Goal:** Five cards and a two-line Frenzy banner cover the top of a phone.
 
@@ -844,7 +844,7 @@ Tasks follow these defaults unless the owner changes them before the task starts
 
 ---
 
-### ST-282 — [FEAT] Collapse the leaderboard to the top three plus you
+### ST-283 — [FEAT] Collapse the leaderboard to the top three plus you
 
 **Goal:** A ten-row board is too much for a phone.
 
@@ -856,7 +856,7 @@ Tasks follow these defaults unless the owner changes them before the task starts
 
 ---
 
-### ST-283 — [FEAT] Point to off-screen threats, Apex, Frenzy and golden fish from the screen edge
+### ST-284 — [FEAT] Point to off-screen threats, Apex, Frenzy and golden fish from the screen edge
 
 **Goal:** In a bigger ocean, players need direction at a glance rather than in a text list.
 
@@ -875,7 +875,7 @@ Tasks follow these defaults unless the owner changes them before the task starts
 
 ---
 
-### ST-284 — [FEAT] Shrink name tags and fade them with distance
+### ST-285 — [FEAT] Shrink name tags and fade them with distance
 
 **Goal:** 136 px name pills overlap the HUD.
 
@@ -887,7 +887,7 @@ Tasks follow these defaults unless the owner changes them before the task starts
 
 ---
 
-### ST-285 — [FEAT] Rebuild the death and round-result cards
+### ST-286 — [FEAT] Rebuild the death and round-result cards
 
 **Goal:** Make deaths quick to recover from and round ends worth celebrating.
 
@@ -902,7 +902,7 @@ Tasks follow these defaults unless the owner changes them before the task starts
 
 ---
 
-### ST-286 — [FEAT] Refresh the main menu with an inline name and live skin preview
+### ST-287 — [FEAT] Refresh the main menu with an inline name and live skin preview
 
 **Goal:** Make the first screen about the game, not a form.
 
@@ -914,7 +914,7 @@ Tasks follow these defaults unless the owner changes them before the task starts
 
 ---
 
-### ST-287 — [FEAT] Coach the first thirty seconds with one-time hints
+### ST-288 — [FEAT] Coach the first thirty seconds with one-time hints
 
 **Goal:** Teach new players without a tutorial screen.
 
@@ -926,7 +926,7 @@ Tasks follow these defaults unless the owner changes them before the task starts
 
 ---
 
-### ST-288 — [FEAT] Light and countershade the sharks
+### ST-289 — [FEAT] Light and countershade the sharks
 
 **Goal:** Unlit sharks read as flat blobs.
 
@@ -938,7 +938,7 @@ Tasks follow these defaults unless the owner changes them before the task starts
 
 ---
 
-### ST-289 — [FEAT] Replace sphere-and-cone sharks with a smooth body and blade fins
+### ST-290 — [FEAT] Replace sphere-and-cone sharks with a smooth body and blade fins
 
 **Goal:** Remove the chunky sphere-and-cone look.
 
@@ -950,7 +950,7 @@ Tasks follow these defaults unless the owner changes them before the task starts
 
 ---
 
-### ST-290 — [FEAT] Bend the shark body with a continuous spine wave
+### ST-291 — [FEAT] Bend the shark body with a continuous spine wave
 
 **Goal:** Smooth swimming instead of rigid parts.
 
@@ -962,7 +962,7 @@ Tasks follow these defaults unless the owner changes them before the task starts
 
 ---
 
-### ST-291 — [FEAT] Open the jaws on every bite
+### ST-292 — [FEAT] Open the jaws on every bite
 
 **Goal:** Show the attack, not just its result.
 
@@ -974,7 +974,7 @@ Tasks follow these defaults unless the owner changes them before the task starts
 
 ---
 
-### ST-292 — [FEAT] Trail dash wakes and pop prey at the mouth
+### ST-293 — [FEAT] Trail dash wakes and pop prey at the mouth
 
 **Goal:** Make dashing and eating visible.
 
@@ -986,7 +986,7 @@ Tasks follow these defaults unless the owner changes them before the task starts
 
 ---
 
-### ST-293 — [FEAT] Shake the camera and flash bitten sharks on impact
+### ST-294 — [FEAT] Shake the camera and flash bitten sharks on impact
 
 **Goal:** Hits should be felt and seen. The Camera motion toggle currently does nothing.
 
@@ -998,7 +998,7 @@ Tasks follow these defaults unless the owner changes them before the task starts
 
 ---
 
-### ST-294 — [FEAT] Draw a visible current curtain at the arena edge
+### ST-295 — [FEAT] Draw a visible current curtain at the arena edge
 
 **Goal:** The soft wall should be visible before you reach it.
 
@@ -1010,7 +1010,7 @@ Tasks follow these defaults unless the owner changes them before the task starts
 
 ---
 
-### ST-295 — [REFACTOR] Sweep the last dead code, styles and copy
+### ST-296 — [REFACTOR] Sweep the last dead code, styles and copy
 
 **Goal:** Leave nothing unused behind after the wave.
 
@@ -1022,9 +1022,9 @@ Tasks follow these defaults unless the owner changes them before the task starts
 
 ---
 
-### ST-296 — [OPS] Release the polish update as v2.6.0
+### ST-297 — [OPS] Release the polish update as v2.6.0
 
-**Goal:** Ship ST-281 through ST-295.
+**Goal:** Ship ST-282 through ST-296.
 
 **Scope:** Semantic minor release after the owner records the layout, zoom, screen-reader, contrast and visual-readability rows on a real phone and a desktop browser.
 
