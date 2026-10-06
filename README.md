@@ -70,4 +70,4 @@ A semantic release advances package and lock versions together. A same-product r
 - `src/game/` — React Three Fiber renderer, controls, prediction, interpolation and audio.
 - `scripts/` — local development, validation and release tooling.
 
-Remote sharks, prey and effects share a 150 ms interpolation delay, derived from the protocol’s 100 ms broadcast cadence. Snapshot bracketing uses authoritative ticks on the client clock.
+Remote sharks, prey and effects share a 150 ms interpolation delay, derived from the protocol’s 100 ms broadcast cadence. Snapshot bracketing uses authoritative ticks on the client clock, estimating tick rate and tracking the minimum packet offset over two seconds with phase correction limited to 5 ms per second. Reconnects and tick regressions reset the clock.
