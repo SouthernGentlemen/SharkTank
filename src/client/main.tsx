@@ -1,6 +1,6 @@
 import { StrictMode } from "react";
 import { createRoot } from "react-dom/client";
-import { App } from "module-react3fiber/app";
+import { App } from "../game/App.js";
 import "./styles.css";
 
 const el = document.getElementById("root");

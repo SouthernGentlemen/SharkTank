@@ -11,17 +11,17 @@ import {
   normalizeYaw,
   step,
   type Snake,
-} from "../vendor/ModuleReact3Fiber/src/engine/index.js";
+} from "../src/engine/index.js";
 import {
   REALTIME_PROTOCOL_VERSION,
   toNetState,
   withRealtimeProtocol,
-} from "../vendor/ModuleReact3Fiber/src/protocol/index.js";
+} from "../src/protocol/index.js";
 import {
   cadenceDue,
   resolveClientPerformanceProfile,
   resolveRenderDpr,
-} from "../vendor/ModuleReact3Fiber/src/client/game/performance.js";
+} from "../src/game/game/performance.js";
 
 const read = (path: string) => readFileSync(new URL(path, import.meta.url), "utf8");
 
@@ -99,7 +99,7 @@ describe("ST-127 3D client performance contracts", () => {
     expect(cadenceDue(0, low.preyUpdateMs / 2, low.preyUpdateMs)).toBe(false);
     expect(cadenceDue(0, low.preyUpdateMs, low.preyUpdateMs)).toBe(true);
 
-    const viewport = read("../vendor/ModuleReact3Fiber/src/client/game/GameViewport.tsx");
+    const viewport = read("../src/game/game/GameViewport.tsx");
     expect(viewport).toContain("<Canvas");
     expect(viewport).toContain("resolveRenderDpr");
     expect(viewport).not.toContain("CanvasRenderingContext2D");
@@ -107,9 +107,9 @@ describe("ST-127 3D client performance contracts", () => {
   });
 
   it("batches repeated environment props and keeps FX limited to burst particles", () => {
-    const world = read("../vendor/ModuleReact3Fiber/src/client/game/WorldEnvironment.tsx");
-    const prey = read("../vendor/ModuleReact3Fiber/src/client/game/PreyLayer.tsx");
-    const fx = read("../vendor/ModuleReact3Fiber/src/client/game/FxLayer.tsx");
+    const world = read("../src/game/game/WorldEnvironment.tsx");
+    const prey = read("../src/game/game/PreyLayer.tsx");
+    const fx = read("../src/game/game/FxLayer.tsx");
     expect(fx.match(/<instancedMesh\b/g)).toHaveLength(1);
     expect(fx).not.toContain("<ringGeometry");
     expect(world).toContain("frenzyVolumeRef");
@@ -175,12 +175,12 @@ describe("ST-127 3D client performance contracts", () => {
   });
 
   it("throttles non-critical presentation work while preserving authority and accessibility boundaries", () => {
-    const actor = read("../vendor/ModuleReact3Fiber/src/client/game/ActorLayer.tsx");
-    const prey = read("../vendor/ModuleReact3Fiber/src/client/game/PreyLayer.tsx");
-    const world = read("../vendor/ModuleReact3Fiber/src/client/game/WorldEnvironment.tsx");
-    const fx = read("../vendor/ModuleReact3Fiber/src/client/game/FxLayer.tsx");
-    const audio = read("../vendor/ModuleReact3Fiber/src/client/audio/AudioManager.ts");
-    const radar = read("../vendor/ModuleReact3Fiber/src/client/ui/DepthRadar.tsx");
+    const actor = read("../src/game/game/ActorLayer.tsx");
+    const prey = read("../src/game/game/PreyLayer.tsx");
+    const world = read("../src/game/game/WorldEnvironment.tsx");
+    const fx = read("../src/game/game/FxLayer.tsx");
+    const audio = read("../src/game/audio/AudioManager.ts");
+    const radar = read("../src/game/ui/DepthRadar.tsx");
     const pkg = JSON.parse(read("../package.json")) as { version: string };
 
     expect(actor).toContain("performanceProfile.labelUpdateMs");

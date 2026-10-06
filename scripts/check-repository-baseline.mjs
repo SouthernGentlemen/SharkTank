@@ -56,8 +56,12 @@ for (const [name, spec, expectedMajor] of [
 ]) expect(major(spec, expectedMajor), name + " must remain on major " + expectedMajor);
 
 expect(json("tsconfig.json").compilerOptions?.strict === true, "root TypeScript program must keep strict=true");
-expect(json("vendor/ModuleReact3Fiber/tsconfig.json").compilerOptions?.strict === true, "vendored first-party TypeScript program must keep strict=true");
-has(packageJson.scripts?.typecheck ?? "", "vendor/ModuleReact3Fiber/tsconfig.json", "typecheck must cover the first-party vendor program");
+expect(!existsSync(join(root, "vendor")), "game source must live in src without a vendor package");
+expect(packageJson.scripts?.typecheck === "tsc --noEmit", "one strict TypeScript program must cover all source");
+expect(json("tsconfig.json").include?.includes("src/**/*"), "root TypeScript program must cover all game source");
+expect(json("tsconfig.json").compilerOptions?.paths === undefined, "retired package aliases must stay removed");
+expect(packageJson.dependencies?.["module-react3fiber"] === undefined, "retired game package dependency must stay removed");
+expect(!Object.keys(packageLock.packages ?? {}).some((path) => path.includes("ModuleReact3Fiber") || path.includes("module-react3fiber")), "lockfile must omit the retired game package");
 
 const vite = read("vite.config.ts");
 has(vite, 'name: "sharktank-react-game-document"', "Vite must own the React game document");

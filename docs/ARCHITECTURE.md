@@ -29,11 +29,15 @@ The top-level `sharktank` Worker exports only `Room`. The stable gameplay id is 
 
 Gameplay is not restored after a Room object restart. A new object starts a new round. Browser-local preferences never become gameplay authority.
 
+The pure deterministic `src/engine/` and shared `src/protocol/` stay free of DOM, React, Three.js and Node-only APIs. Simulation randomness uses seeded RNG in live memory.
+
 Wire state schema 11 and realtime protocol 11 are current. The Worker imports only server-safe engine/protocol entries.
 
 ## Client boundary
 
 `src/client/game-document.tsx` owns the React 19 game shell, `src/client/main.tsx` mounts it, and Vite owns the browser module graph.
+
+The browser-only game lives in `src/game/`. One strict root TypeScript program covers the Worker, engine, protocol and client through relative imports.
 
 React Three Fiber / Three.js is the only gameplay renderer. The world is full X/Y/Z with authoritative yaw + pitch; banking is presentation-only. The local shark uses local prediction followed by server reconciliation. Remote sharks and prey use remote interpolation.
 

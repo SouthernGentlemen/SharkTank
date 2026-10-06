@@ -1,5 +1,5 @@
-import { applyAction, createRoom, leaderboard, SKINS, spawnBots, step, TICKS_PER_SECOND, type RoomState } from "module-react3fiber/engine";
-import { clientInputToAction, parseRealtimeClientMessage, sanitizeDisplayName, toNetState, withRealtimeProtocol, type ServerMessagePayload } from "module-react3fiber/protocol";
+import { applyAction, createRoom, leaderboard, SKINS, spawnBots, step, TICKS_PER_SECOND, type RoomState } from "../engine/index.js";
+import { clientInputToAction, parseRealtimeClientMessage, sanitizeDisplayName, toNetState, withRealtimeProtocol, type ServerMessagePayload } from "../protocol/index.js";
 
 // A tank holds 32 sharks: up to SHARK_CAPACITY - BOT_COUNT humans, with bots making up
 // the rest so a lightly-populated tank still feels like a full lobby.

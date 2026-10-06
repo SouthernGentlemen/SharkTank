@@ -10,13 +10,13 @@ import {
   step,
   type Prey,
   type Snake,
-} from "../vendor/ModuleReact3Fiber/src/engine/index.js";
-import { REALTIME_PROTOCOL_VERSION, toNetState } from "../vendor/ModuleReact3Fiber/src/protocol/index.js";
+} from "../src/engine/index.js";
+import { REALTIME_PROTOCOL_VERSION, toNetState } from "../src/protocol/index.js";
 import {
   preyVisualFor,
   resolvePreyAnimation,
   resolvePreyPresentationQuality,
-} from "../vendor/ModuleReact3Fiber/src/client/game/preyPresentation.js";
+} from "../src/game/game/preyPresentation.js";
 
 const read = (path: string) => readFileSync(new URL(path, import.meta.url), "utf8");
 
@@ -108,7 +108,7 @@ describe("ST-120 authoritative fish and prey schools", () => {
     expect(shark.score).toBe(1);
     expect(shark.length).toBeGreaterThan(beforeLength);
 
-    const renderer = read("../vendor/ModuleReact3Fiber/src/client/game/PreyLayer.tsx");
+    const renderer = read("../src/game/game/PreyLayer.tsx");
     expect(renderer).not.toContain("score +=");
     expect(renderer).not.toContain("length +=");
     expect(renderer).not.toContain("distance3(");
@@ -147,7 +147,7 @@ describe("ST-120 authoritative fish and prey schools", () => {
     step(state);
 
     expect(bot.targetPitch).toBeGreaterThan(0);
-    const engine = read("../vendor/ModuleReact3Fiber/src/engine/room.ts");
+    const engine = read("../src/engine/room.ts");
     expect(engine).toContain("choosePreyTarget");
     expect(engine).toContain("yawPitchToward(head, targetPoint)");
   });
@@ -158,7 +158,7 @@ describe("ST-120 authoritative fish and prey schools", () => {
     expect(preyVisualFor("chum", 5, 0.95).mode).toBe("drop");
     expect(preyVisualFor("carcass", 2, 0.72).mode).toBe("drop");
 
-    const renderer = read("../vendor/ModuleReact3Fiber/src/client/game/PreyLayer.tsx");
+    const renderer = read("../src/game/game/PreyLayer.tsx");
     for (const part of ["bodyMesh", "headMesh", "tailMesh"]) {
       expect(renderer).toContain(`const ${part} = useRef<THREE.InstancedMesh>(null);`);
       expect(renderer).toContain(`ref={${part}}`);

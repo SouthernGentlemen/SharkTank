@@ -11,8 +11,8 @@ import {
   touchAxesForState,
   touchLayoutForFlightSide,
   touchNeedsLandscape,
-} from "../vendor/ModuleReact3Fiber/src/client/game/mobileControls.js";
-import { advanceCameraLookOffsets } from "../vendor/ModuleReact3Fiber/src/client/game/desktopControls.js";
+} from "../src/game/game/mobileControls.js";
+import { advanceCameraLookOffsets } from "../src/game/game/desktopControls.js";
 
 const read = (path: string) => readFileSync(new URL(path, import.meta.url), "utf8");
 
@@ -109,11 +109,11 @@ describe("ST-117 dual-stick mobile controls", () => {
   });
 
   it("wires capture, viewport cleanup, safe areas, settings modes and no legacy touch fallback", () => {
-    const controls = read("../vendor/ModuleReact3Fiber/src/client/ui/TouchControls.tsx");
-    const input = read("../vendor/ModuleReact3Fiber/src/client/game/useLocalInput.ts");
-    const screen = read("../vendor/ModuleReact3Fiber/src/client/ui/GameScreen.tsx");
-    const settings = read("../vendor/ModuleReact3Fiber/src/client/settings/SettingsContext.tsx");
-    const css = read("../vendor/ModuleReact3Fiber/src/client/ui/theme.css");
+    const controls = read("../src/game/ui/TouchControls.tsx");
+    const input = read("../src/game/game/useLocalInput.ts");
+    const screen = read("../src/game/ui/GameScreen.tsx");
+    const settings = read("../src/game/settings/SettingsContext.tsx");
+    const css = read("../src/game/ui/theme.css");
 
     expect(controls).toContain("setPointerCapture(e.pointerId)");
     expect(controls).toContain("onLostPointerCapture={end}");

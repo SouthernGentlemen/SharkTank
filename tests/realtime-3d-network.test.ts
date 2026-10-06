@@ -7,7 +7,7 @@ import {
   createRoom,
   normalizeYaw,
   type Snake,
-} from "../vendor/ModuleReact3Fiber/src/engine/index.js";
+} from "../src/engine/index.js";
 import {
   REALTIME_PROTOCOL_VERSION,
   clientInputToAction,
@@ -15,9 +15,9 @@ import {
   parseRealtimeServerMessage,
   toNetState,
   withRealtimeProtocol,
-} from "../vendor/ModuleReact3Fiber/src/protocol/index.js";
-import { LocalPredictor } from "../vendor/ModuleReact3Fiber/src/client/game/prediction.js";
-import { interpolateOrientedPose } from "../vendor/ModuleReact3Fiber/src/client/game/sceneMath.js";
+} from "../src/protocol/index.js";
+import { LocalPredictor } from "../src/game/game/prediction.js";
+import { interpolateOrientedPose } from "../src/game/game/sceneMath.js";
 
 function join(state: ReturnType<typeof createRoom>, id: string): Snake {
   applyAction(state, { type: "join", playerId: id, name: id });
@@ -263,7 +263,7 @@ describe("ST-122 realtime combat protocol", () => {
 
   it("keeps the Durable Object on schema-aware target-free input parsing", () => {
     const source = readFileSync(new URL("../src/worker/room-do.ts", import.meta.url), "utf8");
-    const protocolSource = readFileSync(new URL("../vendor/ModuleReact3Fiber/src/protocol/index.ts", import.meta.url), "utf8");
+    const protocolSource = readFileSync(new URL("../src/protocol/index.ts", import.meta.url), "utf8");
     expect(source).toContain("parseRealtimeClientMessage(parsed)");
     expect(source).toContain("clientInputToAction(msg.action, session.id)");
     expect(source).toContain("realtime schema mismatch");

@@ -5,7 +5,7 @@ import {
   chaseCameraPose,
   forwardFromYawPitch,
   resolveSceneQuality,
-} from "../vendor/ModuleReact3Fiber/src/client/game/sceneMath.js";
+} from "../src/game/game/sceneMath.js";
 
 describe("3D scene skeleton math", () => {
   it("uses X/Z horizontally and Y vertically with yaw + pitch forward math", () => {

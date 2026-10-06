@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { isFamilyFriendlyName, sanitizeDisplayName } from "../vendor/ModuleReact3Fiber/src/protocol/name-policy.js";
+import { isFamilyFriendlyName, sanitizeDisplayName } from "../src/protocol/name-policy.js";
 
 describe("display-name policy", () => {
   it("accepts visible names in non-Latin scripts", () => {

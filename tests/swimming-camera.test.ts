@@ -9,7 +9,7 @@ import {
   spawnOrientationForPoint,
   step,
   swimSpeedForLungeTicks,
-} from "../vendor/ModuleReact3Fiber/src/engine/index.js";
+} from "../src/engine/index.js";
 import {
   CAMERA_PROJECTION,
   advanceBankRoll,
@@ -18,7 +18,7 @@ import {
   chaseCameraPose,
   makeChaseCameraPose,
   smoothChaseCameraPose,
-} from "../vendor/ModuleReact3Fiber/src/client/game/sceneMath.js";
+} from "../src/game/game/sceneMath.js";
 
 describe("ST-115 shark swimming and chase camera", () => {
   it("applies configurable camera-relative yaw/pitch steering inside safe pitch limits", () => {

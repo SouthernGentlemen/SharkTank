@@ -5,14 +5,14 @@ import {
   makeEnvironmentSeeds,
   resolveOceanArenaCues,
   resolveOceanEnvironmentQuality,
-} from "../vendor/ModuleReact3Fiber/src/client/game/oceanArena.js";
-import { OCEAN_CUES } from "../vendor/ModuleReact3Fiber/src/client/game/sceneMath.js";
+} from "../src/game/game/oceanArena.js";
+import { OCEAN_CUES } from "../src/game/game/sceneMath.js";
 import {
   DEFAULT_SEABED_Y,
   DEFAULT_SURFACE_Y,
   ROOM_SCHEMA_VERSION,
-} from "../vendor/ModuleReact3Fiber/src/engine/room.js";
-import { REALTIME_PROTOCOL_VERSION } from "../vendor/ModuleReact3Fiber/src/protocol/index.js";
+} from "../src/engine/room.js";
+import { REALTIME_PROTOCOL_VERSION } from "../src/protocol/index.js";
 
 const read = (path: string) => readFileSync(new URL(path, import.meta.url), "utf8");
 
@@ -67,8 +67,8 @@ describe("ST-118 stylized ocean arena", () => {
   });
 
   it("reads live arena/frenzy authority and keeps the procedural environment client-only", () => {
-    const scene = read("../vendor/ModuleReact3Fiber/src/client/game/Scene.tsx");
-    const world = read("../vendor/ModuleReact3Fiber/src/client/game/WorldEnvironment.tsx");
+    const scene = read("../src/game/game/Scene.tsx");
+    const world = read("../src/game/game/WorldEnvironment.tsx");
     const worker = read("../src/worker/index.ts");
 
     expect(scene).toContain("<WorldEnvironment socket={socket} settings={settings}");

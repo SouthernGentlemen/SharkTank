@@ -17,14 +17,14 @@ import {
   step,
   type Prey,
   type Snake,
-} from "../vendor/ModuleReact3Fiber/src/engine/index.js";
+} from "../src/engine/index.js";
 import {
   REALTIME_PROTOCOL_VERSION,
   parseRealtimeClientMessage,
   parseRealtimeServerMessage,
   toNetState,
   withRealtimeProtocol,
-} from "../vendor/ModuleReact3Fiber/src/protocol/index.js";
+} from "../src/protocol/index.js";
 
 const read = (path: string) => readFileSync(new URL(path, import.meta.url), "utf8");
 
@@ -239,14 +239,14 @@ describe("ST-124 authoritative round and Apex loop", () => {
   });
 
   it("keeps Apex/result state visible without motion, audio, or expensive presentation", () => {
-    const actor = read("../vendor/ModuleReact3Fiber/src/client/game/ActorLayer.tsx");
-    const board = read("../vendor/ModuleReact3Fiber/src/client/ui/Leaderboard.tsx");
-    const screen = read("../vendor/ModuleReact3Fiber/src/client/ui/GameScreen.tsx");
-    const theme = read("../vendor/ModuleReact3Fiber/src/client/ui/theme.css");
+    const actor = read("../src/game/game/ActorLayer.tsx");
+    const board = read("../src/game/ui/Leaderboard.tsx");
+    const screen = read("../src/game/ui/GameScreen.tsx");
+    const theme = read("../src/game/ui/theme.css");
     const roomDo = read("../src/worker/room-do.ts");
     const worker = read("../src/worker/index.ts");
-    const app = read("../vendor/ModuleReact3Fiber/src/client/App.tsx");
-    const settings = read("../vendor/ModuleReact3Fiber/src/client/settings/SettingsContext.tsx");
+    const app = read("../src/game/App.tsx");
+    const settings = read("../src/game/settings/SettingsContext.tsx");
 
     expect((actor.match(/octahedronGeometry/g) ?? [])).toHaveLength(1);
     expect(actor).toContain("reducedMotion ? 0");

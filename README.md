@@ -63,7 +63,7 @@ A semantic release advances package and lock versions together. A same-product r
 
 - `src/worker/` — Worker routing and the memory-only Room Durable Object.
 - `src/client/` — game document and browser entry.
-- `vendor/ModuleReact3Fiber/src/engine/` — deterministic authoritative simulation.
-- `vendor/ModuleReact3Fiber/src/protocol/` — schema/protocol 11 transport shapes.
-- `vendor/ModuleReact3Fiber/src/client/` — React Three Fiber renderer, controls, prediction, interpolation and audio.
+- `src/engine/` — deterministic authoritative simulation.
+- `src/protocol/` — schema/protocol 11 transport shapes.
+- `src/game/` — React Three Fiber renderer, controls, prediction, interpolation and audio.
 - `scripts/` — local development, validation and release tooling.

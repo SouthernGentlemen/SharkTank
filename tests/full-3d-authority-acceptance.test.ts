@@ -12,7 +12,7 @@ import {
   type Prey,
   type RoomState,
   type Snake,
-} from "../vendor/ModuleReact3Fiber/src/engine/index.js";
+} from "../src/engine/index.js";
 import {
   REALTIME_PROTOCOL_VERSION,
   clientInputToAction,
@@ -21,8 +21,8 @@ import {
   toNetState,
   withRealtimeProtocol,
   type NetState,
-} from "../vendor/ModuleReact3Fiber/src/protocol/index.js";
-import { isFreshAudioEvent } from "../vendor/ModuleReact3Fiber/src/client/audio/spatialAudio.js";
+} from "../src/protocol/index.js";
+import { isFreshAudioEvent } from "../src/game/audio/spatialAudio.js";
 import {
   beginStickPointer,
   canUseAbilityPointer,
@@ -33,8 +33,8 @@ import {
   touchAxesForState,
   touchLayoutForFlightSide,
   touchNeedsLandscape,
-} from "../vendor/ModuleReact3Fiber/src/client/game/mobileControls.js";
-import { LocalPredictor } from "../vendor/ModuleReact3Fiber/src/client/game/prediction.js";
+} from "../src/game/game/mobileControls.js";
+import { LocalPredictor } from "../src/game/game/prediction.js";
 
 const read = (path: string) => readFileSync(new URL(path, import.meta.url), "utf8");
 const exists = (path: string) => existsSync(new URL(path, import.meta.url));
@@ -320,8 +320,8 @@ describe("ST-129 full-3D authority acceptance wall", () => {
   });
 
   it("resets reconnect interpolation and transient audio boundaries instead of mixing old and recovered timelines", () => {
-    const socketSource = read("../vendor/ModuleReact3Fiber/src/client/net/useRoomSocket.ts");
-    const audioSource = read("../vendor/ModuleReact3Fiber/src/client/audio/useGameAudio.ts");
+    const socketSource = read("../src/game/net/useRoomSocket.ts");
+    const audioSource = read("../src/game/audio/useGameAudio.ts");
     const roomSource = read("../src/worker/room-do.ts");
 
     expect(socketSource).toContain("Auto-reconnects with backoff.");
@@ -382,9 +382,9 @@ describe("ST-129 full-3D authority acceptance wall", () => {
     expect(touchNeedsLandscape(844, 390)).toBe(false);
     expect(touchNeedsLandscape(390, 844)).toBe(true);
 
-    const controls = read("../vendor/ModuleReact3Fiber/src/client/ui/TouchControls.tsx");
-    const screen = read("../vendor/ModuleReact3Fiber/src/client/ui/GameScreen.tsx");
-    const css = read("../vendor/ModuleReact3Fiber/src/client/ui/theme.css");
+    const controls = read("../src/game/ui/TouchControls.tsx");
+    const screen = read("../src/game/ui/GameScreen.tsx");
+    const css = read("../src/game/ui/theme.css");
     expect(controls).toContain("setPointerCapture(e.pointerId)");
     expect(controls).toContain("onPointerCancel={end}");
     expect(controls).toContain("onLostPointerCapture={end}");
@@ -398,9 +398,9 @@ describe("ST-129 full-3D authority acceptance wall", () => {
   });
 
   it("smoke-proves the live client remains R3F/WebGL-only without claiming jsdom renders WebGL", () => {
-    const gameScreen = read("../vendor/ModuleReact3Fiber/src/client/ui/GameScreen.tsx");
-    const viewport = read("../vendor/ModuleReact3Fiber/src/client/game/GameViewport.tsx");
-    const scene = read("../vendor/ModuleReact3Fiber/src/client/game/Scene.tsx");
+    const gameScreen = read("../src/game/ui/GameScreen.tsx");
+    const viewport = read("../src/game/game/GameViewport.tsx");
+    const scene = read("../src/game/game/Scene.tsx");
     const accessibility = read("../docs/ACCESSIBILITY.md");
 
     expect(gameScreen).toContain("<GameViewport");
@@ -411,7 +411,7 @@ describe("ST-129 full-3D authority acceptance wall", () => {
     expect(scene).toContain("<ActorLayer");
     expect(scene).toContain("<PreyLayer");
     expect(scene).toContain("<FxLayer");
-    expect(exists("../vendor/ModuleReact3Fiber/src/client/game/GameCanvas.tsx")).toBe(false);
+    expect(exists("../src/game/game/GameCanvas.tsx")).toBe(false);
     expect(viewport).not.toContain('getContext("2d"');
     expect(gameScreen).not.toContain('getContext("2d"');
     expect(accessibility).toContain("does not currently include a real-browser automation harness");

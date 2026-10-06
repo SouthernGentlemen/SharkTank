@@ -17,13 +17,13 @@ import {
   step,
   type Prey,
   type Snake,
-} from "../vendor/ModuleReact3Fiber/src/engine/index.js";
+} from "../src/engine/index.js";
 import {
   REALTIME_PROTOCOL_VERSION,
   parseRealtimeClientMessage,
   toNetState,
-} from "../vendor/ModuleReact3Fiber/src/protocol/index.js";
-import { resolveOceanEnvironmentQuality } from "../vendor/ModuleReact3Fiber/src/client/game/oceanArena.js";
+} from "../src/protocol/index.js";
+import { resolveOceanEnvironmentQuality } from "../src/game/game/oceanArena.js";
 
 const read = (path: string) => readFileSync(new URL(path, import.meta.url), "utf8");
 
@@ -207,7 +207,7 @@ describe("ST-123 3D server-wide Feeding Frenzy", () => {
       expect(insideFrenzy(bot.segments[0], state.ocean, 2)).toBe(true);
     }
 
-    const engine = read("../vendor/ModuleReact3Fiber/src/engine/room.ts");
+    const engine = read("../src/engine/room.ts");
     expect(engine).toContain("yawPitchToward(head, targetPoint)");
     expect(engine).toContain('applyAction(state, { type: "setBoost", playerId: s.id, on: true })');
     expect(engine).not.toContain("teleportBot");
@@ -236,11 +236,11 @@ describe("ST-123 3D server-wide Feeding Frenzy", () => {
     expect(low.frenzyRingCount).toBeLessThan(high.frenzyRingCount);
     expect(low.frenzyRingCount).toBeGreaterThan(0);
 
-    const world = read("../vendor/ModuleReact3Fiber/src/client/game/WorldEnvironment.tsx");
-    const screen = read("../vendor/ModuleReact3Fiber/src/client/ui/GameScreen.tsx");
-    const audio = read("../vendor/ModuleReact3Fiber/src/client/audio/useGameAudio.ts");
-    const audioManager = read("../vendor/ModuleReact3Fiber/src/client/audio/AudioManager.ts");
-    const theme = read("../vendor/ModuleReact3Fiber/src/client/ui/theme.css");
+    const world = read("../src/game/game/WorldEnvironment.tsx");
+    const screen = read("../src/game/ui/GameScreen.tsx");
+    const audio = read("../src/game/audio/useGameAudio.ts");
+    const audioManager = read("../src/game/audio/AudioManager.ts");
+    const theme = read("../src/game/ui/theme.css");
 
     expect(world).toContain("frenzyVolumeFor");
     expect(world).toContain("frenzyOn && !reducedMotion");
