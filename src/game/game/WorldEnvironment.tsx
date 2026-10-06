@@ -355,7 +355,7 @@ export function WorldEnvironment({ socket, settings }: { socket: RoomSocket; set
         : 0.13;
     }
 
-    const local = state?.snakes.find((shark) => shark.id === socket.youId)?.position;
+    const local = state?.sharks.find((shark) => shark.id === socket.youId)?.position;
     const boundaryDanger = local && state
       ? Math.max(0, Math.min(1, 1 - (state.arenaRadius - Math.hypot(local.x, local.z)) / 14))
       : 0;

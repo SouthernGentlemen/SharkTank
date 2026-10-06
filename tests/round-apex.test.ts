@@ -16,7 +16,7 @@ import {
   spawnBots,
   step,
   type Prey,
-  type Snake,
+  type Shark,
 } from "../src/engine/index.js";
 import {
   REALTIME_PROTOCOL_VERSION,
@@ -28,12 +28,12 @@ import {
 
 const read = (path: string) => readFileSync(new URL(path, import.meta.url), "utf8");
 
-function join(state: ReturnType<typeof createRoom>, id: string, isBot = false): Snake {
+function join(state: ReturnType<typeof createRoom>, id: string, isBot = false): Shark {
   applyAction(state, { type: "join", playerId: id, name: id, isBot });
-  return state.snakes[id];
+  return state.sharks[id];
 }
 
-function place(shark: Snake, x: number, y: number, z: number): void {
+function place(shark: Shark, x: number, y: number, z: number): void {
   const point = { x, y, z };
   shark.position = { ...point };
   shark.yaw = shark.targetYaw = 0;
@@ -106,7 +106,7 @@ describe("ST-124 authoritative round and Apex loop", () => {
     expect(toNetState(state).round.result?.winner?.id).toBe("alpha");
 
     const frozen = JSON.stringify({
-      snakes: state.snakes,
+      sharks: state.sharks,
       food: state.food,
       explosions: state.explosions,
       frenzyUntilTick: state.frenzyUntilTick,
@@ -117,7 +117,7 @@ describe("ST-124 authoritative round and Apex loop", () => {
     applyAction(state, { type: "bite", playerId: "alpha" });
     step(state);
     expect(JSON.stringify({
-      snakes: state.snakes,
+      sharks: state.sharks,
       food: state.food,
       explosions: state.explosions,
       frenzyUntilTick: state.frenzyUntilTick,
@@ -133,7 +133,7 @@ describe("ST-124 authoritative round and Apex loop", () => {
     expect(state.round).toMatchObject({ number: 2, phase: "active", startTick: state.tick });
     expect(state.round.result).toBeNull();
     expect(state.frenzyUntilTick).toBe(0);
-    expect(Object.values(state.snakes).every((shark) => shark.alive && shark.score === 0 && shark.health === COMBAT.maxHealth)).toBe(true);
+    expect(Object.values(state.sharks).every((shark) => shark.alive && shark.score === 0 && shark.health === COMBAT.maxHealth)).toBe(true);
     expect(state.food).toHaveLength(PREY_BUDGET.ambient);
   });
 

@@ -9,7 +9,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { FRENZY_RULES, TICKS_PER_SECOND, frenzyTiming, roundTicksLeft } from "../../engine/index.js";
 import { GameViewport } from "../game/GameViewport.js";
-import type { SnakeLabel } from "../game/Scene.js";
+import type { SharkLabel } from "../game/Scene.js";
 import {
   canUseAbilityPointer,
   makeTwinStickState,
@@ -29,7 +29,7 @@ import { Settings } from "./Settings.js";
 import { QuickA11y } from "./QuickA11y.js";
 import { HelpOverlay } from "./HelpOverlay.js";
 import { PauseMenu } from "./PauseMenu.js";
-import { SnakeLabels } from "./SnakeLabels.js";
+import { SharkLabels } from "./SharkLabels.js";
 import { Captions } from "./Captions.js";
 import { TouchControls, useTouchControls, useTouchPortraitLock } from "./TouchControls.js";
 
@@ -45,7 +45,7 @@ export function GameScreen({ room, identity, onAuthoritativeResult, onQuit }: Ga
   const { announce } = useAnnouncer();
   const socket = useRoomSocket(room.id, identity, room.name);
   const caption = useGameAudio(socket, settings);
-  const labelsRef = useRef<SnakeLabel[]>([]);
+  const labelsRef = useRef<SharkLabel[]>([]);
   const touchInputRef = useRef<TwinStickState>(makeTwinStickState());
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [helpOpen, setHelpOpen] = useState(false);
@@ -116,7 +116,7 @@ export function GameScreen({ room, identity, onAuthoritativeResult, onQuit }: Ga
     >
       <GameViewport socket={socket} settings={settings} inputEnabled={gameplayEnabled} labelsRef={labelsRef} touchInputRef={touchInputRef} touchControls={touch} />
 
-      {settings.a11y.colorblindLabels && <SnakeLabels labelsRef={labelsRef} quality={settings.graphics.quality} />}
+      {settings.a11y.colorblindLabels && <SharkLabels labelsRef={labelsRef} quality={settings.graphics.quality} />}
 
       <Hud socket={socket} />
       <Leaderboard socket={socket} />
@@ -237,10 +237,10 @@ function useRoundPresentation(
       const state = socket.stateRef.current;
       if (!state) return;
       const apex = state.round.apexId
-        ? state.snakes.find((shark) => shark.id === state.round.apexId)
+        ? state.sharks.find((shark) => shark.id === state.round.apexId)
         : null;
       const winner = state.round.result?.winner ?? null;
-      const local = state.snakes.find((shark) => shark.id === socket.youId);
+      const local = state.sharks.find((shark) => shark.id === socket.youId);
       setRound({
         number: state.round.number,
         phase: state.round.phase,
@@ -425,7 +425,7 @@ function useAbilityCooldown(socket: ReturnType<typeof useRoomSocket>, field: "da
   useEffect(() => {
     const update = () => {
       const state = socket.stateRef.current;
-      const shark = state?.snakes.find((item) => item.id === socket.youId);
+      const shark = state?.sharks.find((item) => item.id === socket.youId);
       const next = state && shark
         ? Math.max(0, Math.ceil((shark[field] - state.tick) / TICKS_PER_SECOND))
         : 0;

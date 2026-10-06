@@ -12,7 +12,7 @@ import {
   spawnBots,
   step,
   type RoomState,
-  type Snake,
+  type Shark,
 } from "../src/engine/index.js";
 import {
   REALTIME_PROTOCOL_VERSION,
@@ -46,12 +46,12 @@ import {
 
 const read = (path: string) => readFileSync(new URL(path, import.meta.url), "utf8");
 
-function join(state: RoomState, id: string): Snake {
+function join(state: RoomState, id: string): Shark {
   applyAction(state, { type: "join", playerId: id, name: id });
-  return state.snakes[id];
+  return state.sharks[id];
 }
 
-function place(shark: Snake, x: number, y: number, z: number, yaw = 0, pitch = 0): void {
+function place(shark: Shark, x: number, y: number, z: number, yaw = 0, pitch = 0): void {
   const point = { x, y, z };
   shark.position = { ...point };
   shark.yaw = shark.targetYaw = yaw;
@@ -89,8 +89,8 @@ describe("ST-131 full-3D product acceptance", () => {
 
     while (state.tick < pilot.respawnTick) step(state);
     applyAction(state, { type: "respawn", playerId: pilot.id });
-    expect(state.snakes[pilot.id].alive).toBe(true);
-    expect(state.snakes[pilot.id].health).toBe(COMBAT.maxHealth);
+    expect(state.sharks[pilot.id].alive).toBe(true);
+    expect(state.sharks[pilot.id].health).toBe(COMBAT.maxHealth);
 
     state.tick = state.round.apexStartTick - 1;
     step(state);
@@ -203,7 +203,7 @@ describe("ST-131 full-3D product acceptance", () => {
     expect(settings).toContain('label="Captions for audio cues"');
     expect(settings).toContain('label="Show shark name labels"');
     expect(gameScreen).toContain('settings.a11y.motion === "reduced"');
-    expect(gameScreen).toContain("settings.a11y.colorblindLabels && <SnakeLabels");
+    expect(gameScreen).toContain("settings.a11y.colorblindLabels && <SharkLabels");
     expect(gameScreen).toContain("settings.audio.captions && <Captions");
     expect(theme).toContain(':root[data-contrast="high"]');
     expect(viewport).toContain("settings.graphics.quality");
@@ -215,8 +215,8 @@ describe("ST-131 full-3D product acceptance", () => {
     const state = createRoom({ id: "st-131-full-room", seed: "st-131-full-room" });
     join(state, "pilot");
     spawnBots(state, BOT_AI_BUDGET.maxTrackedSharks - 1);
-    expect(Object.keys(state.snakes)).toHaveLength(BOT_AI_BUDGET.maxTrackedSharks);
-    expect(Object.values(state.snakes).filter((shark) => shark.isBot)).toHaveLength(BOT_AI_BUDGET.maxTrackedSharks - 1);
+    expect(Object.keys(state.sharks)).toHaveLength(BOT_AI_BUDGET.maxTrackedSharks);
+    expect(Object.values(state.sharks).filter((shark) => shark.isBot)).toHaveLength(BOT_AI_BUDGET.maxTrackedSharks - 1);
     expect(state.food).toHaveLength(PREY_BUDGET.ambient);
 
     state.tick = FRENZY_RULES.periodTicks - 1;
@@ -237,7 +237,7 @@ describe("ST-131 full-3D product acceptance", () => {
     expect(peakPrey).toBeGreaterThanOrEqual(PREY_BUDGET.ambient);
     expect(isFrenzy(state)).toBe(false);
     expect(state.food.some((prey) => prey.kind === "chum")).toBe(false);
-    expect(Object.keys(state.snakes)).toHaveLength(BOT_AI_BUDGET.maxTrackedSharks);
+    expect(Object.keys(state.sharks)).toHaveLength(BOT_AI_BUDGET.maxTrackedSharks);
 
     const net = toNetState(state);
     expect(net.snakes).toHaveLength(BOT_AI_BUDGET.maxTrackedSharks);

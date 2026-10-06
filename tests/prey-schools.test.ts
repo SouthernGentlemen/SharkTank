@@ -9,7 +9,7 @@ import {
   createRoom,
   step,
   type Prey,
-  type Snake,
+  type Shark,
 } from "../src/engine/index.js";
 import { REALTIME_PROTOCOL_VERSION, toNetState } from "../src/protocol/index.js";
 import {
@@ -32,12 +32,12 @@ function insideOcean(
     && point.y <= ocean.surfaceY - margin;
 }
 
-function join(state: ReturnType<typeof createRoom>, id: string, isBot = false): Snake {
+function join(state: ReturnType<typeof createRoom>, id: string, isBot = false): Shark {
   applyAction(state, { type: "join", playerId: id, name: id, isBot });
-  return state.snakes[id];
+  return state.sharks[id];
 }
 
-function place(shark: Snake, x: number, y: number, z: number): void {
+function place(shark: Shark, x: number, y: number, z: number): void {
   const point = { x, y, z };
   shark.position = { ...point };
 }

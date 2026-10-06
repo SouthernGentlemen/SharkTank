@@ -4,14 +4,14 @@
 import { useRef } from "react";
 import type { RoomSocket } from "../net/useRoomSocket.js";
 import type { Settings } from "../settings/SettingsContext.js";
-import { ActorLayer, type SnakeLabel } from "./ActorLayer.js";
+import { ActorLayer, type SharkLabel } from "./ActorLayer.js";
 import { CameraRig, makeCameraFollowTarget } from "./CameraRig.js";
 import { FxLayer } from "./FxLayer.js";
 import { PreyLayer } from "./PreyLayer.js";
 import { WorldEnvironment } from "./WorldEnvironment.js";
 import type { LocalInput } from "./useLocalInput.js";
 
-export type { SnakeLabel } from "./ActorLayer.js";
+export type { SharkLabel } from "./ActorLayer.js";
 
 export function Scene({
   socket,
@@ -21,7 +21,7 @@ export function Scene({
 }: {
   socket: RoomSocket;
   settings: Settings;
-  labelsRef?: React.MutableRefObject<SnakeLabel[]>;
+  labelsRef?: React.MutableRefObject<SharkLabel[]>;
   inputRef?: React.MutableRefObject<LocalInput>;
 }) {
   const followRef = useRef(makeCameraFollowTarget());

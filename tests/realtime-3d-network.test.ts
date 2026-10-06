@@ -1,4 +1,4 @@
-import { toClientSnake, toClientState } from "../src/game/net/clientState.js";
+import { toClientShark, toClientState } from "../src/game/net/clientState.js";
 import { readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
 import {
@@ -7,7 +7,7 @@ import {
   applyAction,
   createRoom,
   normalizeYaw,
-  type Snake,
+  type Shark,
 } from "../src/engine/index.js";
 import {
   REALTIME_PROTOCOL_VERSION,
@@ -20,12 +20,12 @@ import {
 import { LocalPredictor } from "../src/game/game/prediction.js";
 import { interpolateOrientedPose } from "../src/game/game/sceneMath.js";
 
-function join(state: ReturnType<typeof createRoom>, id: string): Snake {
+function join(state: ReturnType<typeof createRoom>, id: string): Shark {
   applyAction(state, { type: "join", playerId: id, name: id });
-  return state.snakes[id];
+  return state.sharks[id];
 }
 
-function place(shark: Snake, x: number, y: number, z: number): void {
+function place(shark: Shark, x: number, y: number, z: number): void {
   const point = { x, y, z };
   shark.position = { ...point };
 }
@@ -145,7 +145,11 @@ describe("ST-122 realtime combat protocol", () => {
     expect(wire.snakes[0]).toMatchObject({
       segments: [{ x: 10.12, y: -4.57, z: 2.35 }], boosting: false, chargeTicks: 0,
     });
-    const client = toClientState(wire).snakes[0];
+    const adapted = toClientState(wire);
+    expect(adapted).not.toHaveProperty("snakes");
+    expect(state).not.toHaveProperty("snakes");
+    expect(wire).not.toHaveProperty("sharks");
+    const client = adapted.sharks[0];
     expect(client.position).toEqual(wire.snakes[0].segments[0]);
     expect(client).not.toHaveProperty("segments");
     expect(client).not.toHaveProperty("boosting");
@@ -153,8 +157,8 @@ describe("ST-122 realtime combat protocol", () => {
     shark.alive = false;
     const deadWire = toNetState(state);
     expect(deadWire.snakes[0].segments).toEqual([]);
-    expect(toClientState(deadWire).snakes[0].position).toBeUndefined();
-    expect(new LocalPredictor().step(toClientSnake(deadWire.snakes[0]), {
+    expect(toClientState(deadWire).sharks[0].position).toBeUndefined();
+    expect(new LocalPredictor().step(toClientShark(deadWire.snakes[0]), {
       targetYaw: 0, targetPitch: 0, boosting: false,
     }, 1 / 60, 0)).toBeNull();
   });
@@ -170,10 +174,10 @@ describe("ST-122 realtime combat protocol", () => {
     expect(auth).toBeDefined();
 
     const predictor = new LocalPredictor();
-    predictor.step(toClientSnake(auth!), { targetYaw: 0, targetPitch: 0, boosting: false }, 0.016, 0, {
+    predictor.step(toClientShark(auth!), { targetYaw: 0, targetPitch: 0, boosting: false }, 0.016, 0, {
       seabedY: -20, surfaceY: 20, tick: 0, frenzyUntilTick: 0,
     });
-    const climbed = predictor.step(toClientSnake(auth!), { targetYaw: Math.PI / 3, targetPitch: Math.PI / 5, boosting: false }, 0.05, 0, {
+    const climbed = predictor.step(toClientShark(auth!), { targetYaw: Math.PI / 3, targetPitch: Math.PI / 5, boosting: false }, 0.05, 0, {
       seabedY: -20, surfaceY: 20, tick: 0, frenzyUntilTick: 0,
     });
     expect(climbed).not.toBeNull();
@@ -187,7 +191,7 @@ describe("ST-122 realtime combat protocol", () => {
       yaw: climbed!.yaw,
       pitch: climbed!.pitch,
     };
-    const corrected = predictor.step(toClientSnake(correctedAuth), {
+    const corrected = predictor.step(toClientShark(correctedAuth), {
       targetYaw: climbed!.yaw,
       targetPitch: -Math.PI / 5,
       boosting: false,
@@ -225,7 +229,7 @@ describe("ST-122 realtime combat protocol", () => {
       pitch: -0.45 + (i % 18) * 0.05,
       school: i % PREY_BUDGET.schools,
     }));
-    state.snakes = {};
+    state.sharks = {};
     for (let i = 0; i < 32; i += 1) {
       const shark = join(state, `shark-${i.toString().padStart(2, "0")}`);
       place(shark, i * 1.234567 - 18, (i % 20) * 0.987654 - 9, i * -1.13579 + 17);

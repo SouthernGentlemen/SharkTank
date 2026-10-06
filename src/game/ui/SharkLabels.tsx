@@ -1,21 +1,21 @@
 // Colorblind name labels. Reads projected head positions written each frame by the
-// Scene into a shared ref and renders DOM name tags over the canvas, so a snake's
+// Scene into a shared ref and renders DOM name tags over the canvas, so a shark's
 // identity never depends on color alone (WCAG 1.4.1). Purely decorative for AT
 // (aria-hidden) — the leaderboard already conveys names/scores semantically.
 
 import { useEffect, useRef, useState } from "react";
 import { resolveClientPerformanceProfile } from "../game/performance.js";
 import type { SceneQuality } from "../game/sceneMath.js";
-import type { SnakeLabel } from "../game/Scene.js";
+import type { SharkLabel } from "../game/Scene.js";
 
-export function SnakeLabels({
+export function SharkLabels({
   labelsRef,
   quality,
 }: {
-  labelsRef: React.MutableRefObject<SnakeLabel[]>;
+  labelsRef: React.MutableRefObject<SharkLabel[]>;
   quality: SceneQuality;
 }) {
-  const [labels, setLabels] = useState<SnakeLabel[]>([]);
+  const [labels, setLabels] = useState<SharkLabel[]>([]);
   const timer = useRef<ReturnType<typeof setInterval> | null>(null);
 
   useEffect(() => {
@@ -29,11 +29,11 @@ export function SnakeLabels({
   }, [labelsRef, quality]);
 
   return (
-    <svg className="snake-label-layer" width="100%" height="100%" aria-hidden="true">
+    <svg className="shark-label-layer" width="100%" height="100%" aria-hidden="true">
       {labels.map((l) => (
         <g
           key={l.id}
-          className={`snake-label${l.me ? " is-me" : ""}${l.apex ? " is-apex" : ""}`}
+          className={`shark-label${l.me ? " is-me" : ""}${l.apex ? " is-apex" : ""}`}
           transform={`translate(${l.x} ${l.y - 28})`}
         >
           <rect

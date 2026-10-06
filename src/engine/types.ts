@@ -25,7 +25,7 @@ export interface DeathRecord {
 }
 
 /** A single living (or recently dead) shark — player or bot. */
-export interface Snake {
+export interface Shark {
   id: string;
   name: string;
   skin: string;
@@ -103,7 +103,7 @@ export interface RoomState {
   tick: number;
   rngState: number;
   ocean: OceanVolume;
-  snakes: Record<string, Snake>;
+  sharks: Record<string, Shark>;
   food: Prey[];
   explosions: Explosion[];
   frenzyUntilTick: number;

@@ -13,7 +13,7 @@ import {
   swimSpeedForLungeTicks,
 } from "../../engine/index.js";
 import type { Vec3 } from "../../engine/index.js";
-import type { ClientSnake } from "../net/clientState.js";
+import type { ClientShark } from "../net/clientState.js";
 import type { LocalInput } from "./useLocalInput.js";
 
 const SPEED = MOVE.BASE_SPEED * TICKS_PER_SECOND;
@@ -46,7 +46,7 @@ export class LocalPredictor {
     this.alive = false;
   }
 
-  private seed(auth: ClientSnake): void {
+  private seed(auth: ClientShark): void {
     this.head = { ...auth.position! };
     this.yaw = auth.yaw;
     this.pitch = auth.pitch;
@@ -54,7 +54,7 @@ export class LocalPredictor {
   }
 
   step(
-    auth: ClientSnake | null | undefined,
+    auth: ClientShark | null | undefined,
     input: LocalInput,
     dt: number,
     staleness: number,

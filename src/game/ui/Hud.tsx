@@ -41,8 +41,8 @@ export function useHudStats(socket: RoomSocket): HudStats {
     const id = setInterval(() => {
       const s = socket.stateRef.current;
       if (!s) return;
-      const alive = [...s.snakes].filter((x) => x.alive);
-      const me = s.snakes.find((x) => x.id === socket.youId);
+      const alive = [...s.sharks].filter((x) => x.alive);
+      const me = s.sharks.find((x) => x.id === socket.youId);
       // Rank among the living, so rank is always within 1..players.
       const ranked = alive.sort((a, b) => b.score - a.score);
       const rank = me?.alive ? ranked.findIndex((x) => x.id === me.id) + 1 : 0;

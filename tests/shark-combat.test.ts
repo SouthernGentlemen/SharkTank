@@ -9,22 +9,22 @@ import {
   createRoom,
   step,
   type Prey,
-  type Snake,
+  type Shark,
 } from "../src/engine/index.js";
 
-function join(state: ReturnType<typeof createRoom>, id: string, isBot = false): Snake {
+function join(state: ReturnType<typeof createRoom>, id: string, isBot = false): Shark {
   applyAction(state, { type: "join", playerId: id, name: id, isBot });
-  return state.snakes[id];
+  return state.sharks[id];
 }
 
-function place(shark: Snake, x: number, y: number, z: number, yaw = 0, pitch = 0): void {
+function place(shark: Shark, x: number, y: number, z: number, yaw = 0, pitch = 0): void {
   const point = { x, y, z };
   shark.position = { ...point };
   shark.yaw = shark.targetYaw = yaw;
   shark.pitch = shark.targetPitch = pitch;
 }
 
-function ready(shark: Snake): void {
+function ready(shark: Shark): void {
   shark.invulnTick = 0;
   shark.biteCooldownTick = 0;
 }
@@ -288,7 +288,7 @@ describe("ST-122 directional shark combat", () => {
   it("keeps a 32-shark / 360-prey combat simulation inside the 20 Hz tick budget", () => {
     const state = createRoom({ id: "combat-budget", seed: "st-122-budget", oceanRadius: 100 });
     state.food = farFood(PREY_BUDGET.max);
-    state.snakes = {};
+    state.sharks = {};
     for (let i = 0; i < 32; i += 1) {
       const shark = join(state, `shark-${i}`);
       const row = Math.floor(i / 8);
@@ -302,7 +302,7 @@ describe("ST-122 directional shark combat", () => {
     const ticks = 80;
     const started = performance.now();
     for (let tick = 0; tick < ticks; tick += 1) {
-      for (const shark of Object.values(state.snakes)) {
+      for (const shark of Object.values(state.sharks)) {
         if (shark.alive) applyAction(state, { type: "bite", playerId: shark.id });
       }
       step(state);

@@ -1,4 +1,4 @@
-import { toClientSnake } from "../src/game/net/clientState.js";
+import { toClientShark } from "../src/game/net/clientState.js";
 import { existsSync, readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
 import {
@@ -12,7 +12,7 @@ import {
   type Action,
   type Prey,
   type RoomState,
-  type Snake,
+  type Shark,
 } from "../src/engine/index.js";
 import {
   REALTIME_PROTOCOL_VERSION,
@@ -40,12 +40,12 @@ import { LocalPredictor } from "../src/game/game/prediction.js";
 const read = (path: string) => readFileSync(new URL(path, import.meta.url), "utf8");
 const exists = (path: string) => existsSync(new URL(path, import.meta.url));
 
-function join(state: RoomState, id: string): Snake {
+function join(state: RoomState, id: string): Shark {
   applyAction(state, { type: "join", playerId: id, name: id });
-  return state.snakes[id];
+  return state.sharks[id];
 }
 
-function place(shark: Snake, x: number, y: number, z: number, yaw = 0, pitch = 0): void {
+function place(shark: Shark, x: number, y: number, z: number, yaw = 0, pitch = 0): void {
   const point = { x, y, z };
   shark.position = { ...point };
   shark.yaw = shark.targetYaw = yaw;
@@ -93,7 +93,7 @@ describe("ST-129 full-3D authority acceptance wall", () => {
     expect(state.round).toMatchObject({ number: 2, phase: "active", startTick: firstRoundResetTick });
     expect(ROOM_SCHEMA_VERSION).toBe(11);
     expect(toNetState(state).schemaVersion).toBe(11);
-    expect(Object.values(state.snakes).every((shark) =>
+    expect(Object.values(state.sharks).every((shark) =>
       [shark.position].every((point) => Number.isFinite(point.x) && Number.isFinite(point.y) && Number.isFinite(point.z))
       && Number.isFinite(shark.yaw)
       && Number.isFinite(shark.pitch)
@@ -151,7 +151,7 @@ describe("ST-129 full-3D authority acceptance wall", () => {
       const respawnTick = victim.respawnTick;
       while (state.tick < respawnTick) step(state);
       applyAction(state, { type: "respawn", playerId: victim.id });
-      const respawned = state.snakes[victim.id];
+      const respawned = state.sharks[victim.id];
       expect(respawned.alive).toBe(true);
       expect(respawned.health).toBe(COMBAT.maxHealth);
       expect(respawned.position).toMatchObject({
@@ -169,9 +169,9 @@ describe("ST-129 full-3D authority acceptance wall", () => {
 
       return JSON.stringify({
         tick: state.tick,
-        attacker: state.snakes.attacker,
-        victim: state.snakes.victim,
-        boundary: state.snakes.boundary,
+        attacker: state.sharks.attacker,
+        victim: state.sharks.victim,
+        boundary: state.sharks.boundary,
         food: state.food,
         rngState: state.rngState,
       });
@@ -250,9 +250,9 @@ describe("ST-129 full-3D authority acceptance wall", () => {
       frenzyUntilTick: state.frenzyUntilTick,
     };
 
-    const seeded = predictor.step(toClientSnake(auth!), input, 1 / 60, 0, world);
+    const seeded = predictor.step(toClientShark(auth!), input, 1 / 60, 0, world);
     expect(seeded).not.toBeNull();
-    const predicted = predictor.step(toClientSnake(auth!), input, 1 / 30, 0.1, world);
+    const predicted = predictor.step(toClientShark(auth!), input, 1 / 30, 0.1, world);
     expect(predicted).not.toBeNull();
     expect(predicted!.position.y).not.toBe(auth.segments[0].y);
 
@@ -266,7 +266,7 @@ describe("ST-129 full-3D authority acceptance wall", () => {
         z: point.z - 14,
       })),
     };
-    const snapped = predictor.step(toClientSnake(corrected!), input, 1 / 60, 0, world);
+    const snapped = predictor.step(toClientShark(corrected!), input, 1 / 60, 0, world);
     expect(snapped).not.toBeNull();
     expect(snapped!.position).toEqual(corrected.segments[0]);
     expect(snapped!.yaw).toBe(corrected.yaw);
@@ -307,7 +307,7 @@ describe("ST-129 full-3D authority acceptance wall", () => {
     while (state.tick < state.round.endTick) step(state);
     expect(state.round.phase).toBe("result");
     applyAction(state, { type: "join", playerId: "late", name: "Late" });
-    expect(state.snakes.late.alive).toBe(false);
+    expect(state.sharks.late.alive).toBe(false);
     const resultWelcome = welcomeState(state, "late");
     expect(resultWelcome.round.phase).toBe("result");
     expect(resultWelcome.snakes.find((item) => item.id === "late")?.alive).toBe(false);
@@ -315,7 +315,7 @@ describe("ST-129 full-3D authority acceptance wall", () => {
     const resetTick = state.round.resultEndTick;
     while (state.tick < resetTick) step(state);
     expect(state.round).toMatchObject({ number: 2, phase: "active" });
-    expect(state.snakes.late.alive).toBe(true);
+    expect(state.sharks.late.alive).toBe(true);
     expect(welcomeState(state, "late").round.phase).toBe("active");
   });
 

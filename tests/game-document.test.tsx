@@ -26,7 +26,7 @@ const mountedPresentationSource = [
   "../src/game/ui/DepthRadar.tsx",
   "../src/game/ui/PauseMenu.tsx",
   "../src/game/ui/Settings.tsx",
-  "../src/game/ui/SnakeLabels.tsx",
+  "../src/game/ui/SharkLabels.tsx",
   "../src/game/ui/TouchControls.tsx",
 ].map(read).join("\n");
 

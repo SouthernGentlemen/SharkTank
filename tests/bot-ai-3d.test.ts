@@ -11,17 +11,17 @@ import {
   spawnBots,
   step,
   type Prey,
-  type Snake,
+  type Shark,
 } from "../src/engine/index.js";
 
 const read = (path: string) => readFileSync(new URL(path, import.meta.url), "utf8");
 
-function join(state: ReturnType<typeof createRoom>, id: string, isBot = false): Snake {
+function join(state: ReturnType<typeof createRoom>, id: string, isBot = false): Shark {
   applyAction(state, { type: "join", playerId: id, name: id, isBot });
-  return state.snakes[id];
+  return state.sharks[id];
 }
 
-function place(shark: Snake, x: number, y: number, z: number): void {
+function place(shark: Shark, x: number, y: number, z: number): void {
   const point = { x, y, z };
   shark.position = { ...point };
 }
@@ -203,7 +203,7 @@ describe("ST-121 full-3D bot hunting and evasion", () => {
     }
 
     expect(JSON.stringify(first)).toBe(JSON.stringify(second));
-    const living = Object.values(first.snakes).filter((shark) => shark.alive && shark.position);
+    const living = Object.values(first.sharks).filter((shark) => shark.alive && shark.position);
     expect(new Set(living.map((shark) => Math.round(shark.position.y))).size).toBeGreaterThan(4);
     expect(living.some((shark) => Math.abs(shark.pitch) > 0.08)).toBe(true);
   });

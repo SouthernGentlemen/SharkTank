@@ -1,4 +1,4 @@
-// In-game leaderboard (top snakes). Rendered as an accessible ordered list; the
+// In-game leaderboard (top sharks). Rendered as an accessible ordered list; the
 // current player's row is marked with aria-current. Rank changes for the local
 // player are announced politely.
 
