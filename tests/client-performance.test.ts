@@ -1,3 +1,6 @@
+import { DEFAULT_SETTINGS } from "../src/game/settings/SettingsContext.js";
+import { resolveQuality } from "../src/game/game/quality.js";
+import { FrameTimeMonitor } from "../src/game/game/performance.js";
 import { performance } from "node:perf_hooks";
 import { readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
@@ -213,4 +216,34 @@ it("ST-241 typical per-session snapshots fit within 14 KB", () => {
       expect(bytes(message)).toBeLessThanOrEqual(14_000);
     }
   }
+});
+
+
+describe("ST-242 automatic quality and resolution", () => {
+  it("uses device hints only for Auto, preserving explicit choices", () => {
+    expect(DEFAULT_SETTINGS.graphics.quality).toBe("auto");
+    expect(resolveQuality("auto", { coarsePointer: true })).toBe("medium");
+    expect(resolveQuality("auto", { coarsePointer: false, memoryGb: 4 })).toBe("medium");
+    expect(resolveQuality("auto", { coarsePointer: false })).toBe("high");
+    for (const choice of ["low", "medium", "high"] as const) {
+      expect(resolveQuality(choice, { coarsePointer: true, memoryGb: 2 })).toBe(choice);
+    }
+  });
+  it("requires sustained load, respects floor/cap and recovers slowly", () => {
+    const monitor = new FrameTimeMonitor(2, 2);
+    for (let i = 0; i < 49; i++) monitor.sample(40);
+    expect(monitor.dpr).toBe(2);
+    monitor.sample(40);
+    expect(monitor.dpr).toBe(1.75);
+    for (let i = 0; i < 200; i++) monitor.sample(40);
+    expect(monitor.dpr).toBe(1);
+    for (let i = 0; i < 900; i++) monitor.sample(10);
+    expect(monitor.dpr).toBe(1);
+    for (let i = 0; i < 300; i++) monitor.sample(10);
+    expect(monitor.dpr).toBe(1.25);
+    for (let i = 0; i < 5000; i++) monitor.sample(10);
+    expect(monitor.dpr).toBe(2);
+    monitor.sample(5000);
+    expect(monitor.dpr).toBe(2);
+  });
 });

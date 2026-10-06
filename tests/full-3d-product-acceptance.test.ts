@@ -195,7 +195,7 @@ describe("ST-131 full-3D product acceptance", () => {
     expect(profiles[0].performance.preyUpdateHz).toBeLessThan(profiles[2].performance.preyUpdateHz);
     expect(profiles[0].touchDpr).toBeLessThan(profiles[2].touchDpr);
 
-    expect(settings).toContain('options={[{ v: "low", l: "Low" }, { v: "medium", l: "Medium" }, { v: "high", l: "High" }]}');
+    expect(settings).toContain('options={[{ v: "auto", l: "Auto" }, { v: "low", l: "Low" }, { v: "medium", l: "Medium" }, { v: "high", l: "High" }]}');
     expect(settings).toContain('label="Contrast"');
     expect(settings).toContain('{ v: "high", l: "High" }');
     expect(settings).toContain('label="Motion"');

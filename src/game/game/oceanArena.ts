@@ -1,3 +1,4 @@
+import { resolveQuality } from "./quality.js";
 import { FRENZY_RULES } from "../../engine/index.js";
 import type { SceneQuality } from "./sceneMath.js";
 import { OCEAN_CUES } from "./sceneMath.js";
@@ -51,7 +52,7 @@ export const ENVIRONMENT_LANDMARKS: readonly EnvironmentLandmark[] = [
   { id: "feeding-frenzy", kind: "frenzy", angle: 0, radialShare: 0 },
 ] as const;
 
-const ENVIRONMENT_QUALITY: Record<SceneQuality, OceanEnvironmentQuality> = {
+const ENVIRONMENT_QUALITY: Record<import("./quality.js").ResolvedQuality, OceanEnvironmentQuality> = {
   low: {
     particulateBudget: 36,
     bubbleBudget: 10,
@@ -97,7 +98,7 @@ export function resolveOceanArenaCues(input: AuthoritativeOceanCueInput = {}): O
 }
 
 export function resolveOceanEnvironmentQuality(quality: SceneQuality): OceanEnvironmentQuality {
-  return ENVIRONMENT_QUALITY[quality];
+  return ENVIRONMENT_QUALITY[resolveQuality(quality)];
 }
 
 function hash01(index: number, salt: number): number {

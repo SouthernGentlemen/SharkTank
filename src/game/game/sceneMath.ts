@@ -1,6 +1,7 @@
+import { resolveQuality } from "./quality.js";
 import { TICKS_PER_SECOND, shortestYawDelta, clampPitch, lerpYawShortest, normalizeYaw } from "../../engine/index.js";
 
-export type SceneQuality = "low" | "medium" | "high";
+export type SceneQuality = import("./quality.js").QualityChoice;
 
 export interface SceneVec3 {
   x: number;
@@ -112,7 +113,7 @@ const QUALITY = {
 } as const;
 
 export function resolveSceneQuality(quality: SceneQuality) {
-  return QUALITY[quality];
+  return QUALITY[resolveQuality(quality)];
 }
 
 function unitAxis(value: number): number {

@@ -106,20 +106,6 @@ Tasks follow these defaults unless the owner changes them before the task starts
 
 ## Open tasks
 
-### ST-242 — [PERF] Pick quality automatically and lower resolution under load
-
-**Goal:** Phones default to High quality and never adapt.
-
-**Scope**
-- Add an `auto` quality, now the default: Medium on coarse-pointer or low-memory devices, High otherwise. Saved choices still win.
-- A frame-time monitor steps DPR down (never below 1.0) when the two-second average exceeds 1.25× target, and back up after ten seconds of headroom.
-
-**Acceptance:** Resolver and stepping tests pass; actors and cues never change.
-
-**Validation:** `npm test -- tests/client-performance.test.ts tests/full-3d-product-acceptance.test.ts`.
-
----
-
 ### ST-243 — [OPS] Release the smooth update as v2.2.0
 
 **Goal:** Ship ST-226 through ST-242.
