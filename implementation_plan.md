@@ -106,18 +106,6 @@ Tasks follow these defaults unless the owner changes them before the task starts
 
 ## Open tasks
 
-### ST-239 — [FIX] Blend reconciliation corrections instead of snapping the camera
-
-**Goal:** Large corrections teleport the local shark and the camera.
-
-**Scope:** Render through a decaying visual offset (about 120 ms half-life) for errors up to 12 units. Spawn, respawn and reconnect still snap.
-
-**Acceptance:** A 6-unit correction never moves the rendered shark more than 1 unit in a frame (test).
-
-**Validation:** `npm test -- tests/realtime-3d-network.test.ts tests/swimming-camera.test.ts`.
-
----
-
 ### ST-240 — [API] Pack snapshots into compact realtime protocol 12
 
 **Goal:** Prey objects with long ids and repeated keys make up most of every snapshot.

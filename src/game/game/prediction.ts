@@ -23,6 +23,8 @@ const PITCH = MOVE.PITCH_RATE * TICKS_PER_SECOND;
 const RECONCILE_PER_SECOND = 5;
 const MAX_RECONCILE_SPEED = SPEED * 0.65;
 const TELEPORT_ERROR = 8;
+const MAX_VISUAL_ERROR = 12;
+const VISUAL_HALF_LIFE = 0.12;
 
 export interface PredictionResult {
   position: Vec3;
@@ -39,6 +41,7 @@ export interface PredictionWorld {
 
 export class LocalPredictor {
   private head: Vec3 = { x: 0, y: 0, z: 0 };
+  private visualOffset: Vec3 = { x: 0, y: 0, z: 0 };
   private yaw = 0;
   private pitch = 0;
   private alive = false;
@@ -49,6 +52,7 @@ export class LocalPredictor {
   private sharkId: string | null = null;
 
   reset(): void {
+    this.visualOffset = { x: 0, y: 0, z: 0 };
     this.alive = false;
     this.pendingAt = null;
     this.lastTick = -1;
@@ -125,9 +129,17 @@ export class LocalPredictor {
       y: auth.position.y + authForward.y * authSpeed * staleness,
       z: auth.position.z + authForward.z * authSpeed * staleness,
     };
+    // Decay presentation independently of simulation reconciliation. Preserve ordinary
+    // movement while cancelling only the correction applied on this frame.
+    const decay = Math.pow(0.5, Math.max(0, dt) / VISUAL_HALF_LIFE);
+    this.visualOffset.x *= decay;
+    this.visualOffset.y *= decay;
+    this.visualOffset.z *= decay;
+    const beforeCorrection = { ...next };
     const error = distance3(authNow, next);
     if (error > TELEPORT_ERROR) {
       this.seed(auth);
+      this.preserveVisualPosition(beforeCorrection, error);
       return this.build();
     }
     if (error > 0.001) {
@@ -139,7 +151,27 @@ export class LocalPredictor {
     }
 
     this.head = next;
+    this.preserveVisualPosition(beforeCorrection, error);
     return this.build();
+  }
+
+  /** Shared presentation position for the local mesh, labels and camera target. */
+  renderPosition(): Vec3 {
+    return {
+      x: this.head.x + this.visualOffset.x,
+      y: this.head.y + this.visualOffset.y,
+      z: this.head.z + this.visualOffset.z,
+    };
+  }
+
+  private preserveVisualPosition(before: Vec3, error: number): void {
+    if (error > MAX_VISUAL_ERROR) {
+      this.visualOffset = { x: 0, y: 0, z: 0 };
+      return;
+    }
+    this.visualOffset.x += before.x - this.head.x;
+    this.visualOffset.y += before.y - this.head.y;
+    this.visualOffset.z += before.z - this.head.z;
   }
 
   private build(): PredictionResult {

@@ -59,7 +59,8 @@ describe("R3F-only gameplay renderer", () => {
   it("renders the volumetric authoritative shape through the same modular R3F layers", () => {
     expect(actors).toContain("LocalPredictor");
     expect(actors).toContain("shark.pitch");
-    expect(actors).toContain("predicted.position.y");
+    expect(actors).toContain("predictor.renderPosition()");
+    expect(actors).toContain("localRenderPosition!.y");
     expect(prey).toContain("pose.y");
     expect(fx).toContain('burst.kind === "bite"');
     expect(fx.toLowerCase()).not.toContain("rocket");
