@@ -1,3 +1,4 @@
+import { resolveQuality } from "./quality.js";
 import { TICKS_PER_SECOND } from "../../engine/index.js";
 import type { PreyKind } from "../../engine/index.js";
 import type { SceneQuality } from "./sceneMath.js";
@@ -9,7 +10,7 @@ const QUALITY = {
 } as const;
 
 export function resolvePreyPresentationQuality(quality: SceneQuality) {
-  return QUALITY[quality];
+  return QUALITY[resolveQuality(quality)];
 }
 
 export interface PreyVisualProfile {

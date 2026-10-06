@@ -1,11 +1,12 @@
+import { resolveQuality } from "./quality.js";
 import { TICKS_PER_SECOND } from "../../engine/index.js";
-export type SharkPresentationQuality = "low" | "medium" | "high";
+export type SharkPresentationQuality = import("./quality.js").QualityChoice;
 
 export interface SharkPresentationProfile {
   radialSegments: number;
 }
 
-const QUALITY: Record<SharkPresentationQuality, SharkPresentationProfile> = {
+const QUALITY: Record<import("./quality.js").ResolvedQuality, SharkPresentationProfile> = {
   low: { radialSegments: 6 },
   medium: { radialSegments: 8 },
   high: { radialSegments: 10 },
@@ -14,7 +15,7 @@ const QUALITY: Record<SharkPresentationQuality, SharkPresentationProfile> = {
 export function resolveSharkPresentationQuality(
   quality: SharkPresentationQuality,
 ): SharkPresentationProfile {
-  return QUALITY[quality];
+  return QUALITY[resolveQuality(quality)];
 }
 
 export function sharkScaleForLength(length: number): number {

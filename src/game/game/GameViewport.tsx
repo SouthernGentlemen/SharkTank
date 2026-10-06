@@ -1,3 +1,4 @@
+import { AdaptiveResolution } from "./AdaptiveResolution.js";
 import { Canvas } from "@react-three/fiber";
 import { useEffect, useRef, useState } from "react";
 import type { RoomSocket } from "../net/useRoomSocket.js";
@@ -86,6 +87,7 @@ export function GameViewport({
         dpr={renderDpr}
         gl={{ alpha: false, antialias: quality.antialias }}
       >
+        <AdaptiveResolution cap={renderDpr} />
         <Scene socket={socket} settings={settings} labelsRef={labelsRef} inputRef={inputRef} />
       </Canvas>
     </div>

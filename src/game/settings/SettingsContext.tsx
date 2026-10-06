@@ -71,7 +71,7 @@ export function rebindKeybinds(current: Keybinds, key: keyof Keybinds, code: str
 
 export interface Settings {
   graphics: {
-    quality: "low" | "medium" | "high";
+    quality: "auto" | "low" | "medium" | "high";
     showMinimap: boolean;
     showGrid: boolean;
     cameraShake: boolean;
@@ -106,7 +106,7 @@ export interface Settings {
 }
 
 export const DEFAULT_SETTINGS: Settings = {
-  graphics: { quality: "high", showMinimap: true, showGrid: true, cameraShake: true },
+  graphics: { quality: "auto", showMinimap: true, showGrid: true, cameraShake: true },
   // BGM is opt-in (0) so nothing autoplays unexpectedly; SFX are brief + event-driven.
   audio: { master: 0.8, sfx: 0.9, music: 0, captions: false },
   controls: {

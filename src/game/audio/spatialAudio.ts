@@ -1,3 +1,4 @@
+import { resolveQuality, type QualityChoice } from "../game/quality.js";
 import { sharkScaleForLength } from "../game/sharkPresentation.js";
 
 export interface AudioPoint {
@@ -122,7 +123,8 @@ export function directionCaption(listener: ListenerPose, emitter: AudioPoint): s
   return mix.front < -0.25 ? "behind" : "ahead";
 }
 
-export function emitterCapForQuality(quality: "low" | "medium" | "high"): number {
+export function emitterCapForQuality(choice: QualityChoice): number {
+  const quality = resolveQuality(choice);
   if (quality === "low") return 3;
   if (quality === "medium") return 5;
   return 6;
