@@ -944,14 +944,28 @@ function resolveSharkCollisions(state: RoomState): void {
       const headB = b.position;
       if (distanceSquared3(headA, headB) > (radiusA + radiusB) ** 2) continue;
 
-      const apartA = distanceSquared3(headA, headB) > 1e-9
-        ? yawPitchToward(headB, headA)
-        : { yaw: normalizeYaw(a.yaw + Math.PI / 2), pitch: 0 };
-      const apartB = { yaw: normalizeYaw(apartA.yaw + Math.PI), pitch: -apartA.pitch };
-      a.yaw = a.targetYaw = apartA.yaw;
-      a.pitch = a.targetPitch = apartA.pitch;
-      b.yaw = b.targetYaw = apartB.yaw;
-      b.pitch = b.targetPitch = apartB.pitch;
+      const distance = distance3(headA, headB);
+      // Coincident centres use a stable horizontal normal, without consuming RNG.
+      const normal = distance > 1e-9
+        ? { x: (headB.x - headA.x) / distance, y: (headB.y - headA.y) / distance, z: (headB.z - headA.z) / distance }
+        : { x: 0, y: 0, z: 1 };
+      const overlap = radiusA + radiusB - distance;
+      const push = (point: Vec3, amount: number): Vec3 => clampToOceanVolume({
+        x: point.x + normal.x * amount,
+        y: point.y + normal.y * amount,
+        z: point.z + normal.z * amount,
+      }, state.ocean);
+      a.position = push(headA, -overlap / 2);
+      b.position = push(headB, overlap / 2);
+      // Transfer any blocked share to the other shark along the same normal.
+      // A few bounded passes handle curved-wall clamps without changing intent.
+      for (let pass = 0; pass < 8; pass += 1) {
+        const remaining = radiusA + radiusB - distance3(a.position, b.position);
+        if (remaining <= 1e-9) break;
+        a.position = push(a.position, -remaining);
+        const afterA = radiusA + radiusB - distance3(a.position, b.position);
+        if (afterA > 0) b.position = push(b.position, afterA);
+      }
     }
   }
 }

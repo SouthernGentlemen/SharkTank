@@ -196,7 +196,40 @@ describe("ST-122 directional shark combat", () => {
     expect(small.alive).toBe(true);
     expect(large.health).toBe(100);
     expect(small.health).toBe(100);
-    expect(large.yaw).not.toBe(small.yaw);
+    expect(large.yaw).toBe(0);
+    expect(small.yaw).toBe(0);
+    expect(Math.hypot(large.position.x - small.position.x, large.position.y - small.position.y, large.position.z - small.position.z))
+      .toBeGreaterThanOrEqual(1.4 + Math.sqrt(100) * 0.075 + Math.sqrt(8) * 0.075 - 1e-9);
+  });
+
+  it.each([
+    ["diagonal", 0, 0, 0, 0.3, 0.4, 0.5],
+    ["surface", 0, 12, 0, 0, 11.8, 0],
+    ["seabed", 0, -12, 0, 0, -11.8, 0],
+    ["wall", 99.4, 0, 0, 99.1, 0, 0],
+  ])("separates %s overlaps within the ocean while preserving headings and intent", (_label, ax, ay, az, bx, by, bz) => {
+    const state = createRoom({ seed: "separation", oceanRadius: 100 });
+    state.food = farFood(PREY_BUDGET.ambient);
+    const a = join(state, "a");
+    const b = join(state, "b");
+    place(a, ax, ay, az, Math.PI / 2);
+    place(b, bx, by, bz, Math.PI / 2);
+    // Same forward displacement preserves the fixture's contact normal.
+    step(state);
+    const combinedRadius = 1.4 + (Math.sqrt(a.length) + Math.sqrt(b.length)) * 0.075;
+    expect(Math.hypot(a.position.x - b.position.x, a.position.y - b.position.y, a.position.z - b.position.z))
+      .toBeGreaterThanOrEqual(combinedRadius - 1e-8);
+    for (const shark of [a, b]) {
+      expect(shark.alive).toBe(true);
+      expect(shark.health).toBe(100);
+      expect(shark.yaw).toBeCloseTo(Math.PI / 2);
+      expect(shark.targetYaw).toBe(Math.PI / 2);
+      expect(shark.pitch).toBe(0);
+      expect(shark.targetPitch).toBe(0);
+      expect(Math.hypot(shark.position.x, shark.position.z)).toBeLessThanOrEqual(state.ocean.radius);
+      expect(shark.position.y).toBeGreaterThanOrEqual(state.ocean.seabedY);
+      expect(shark.position.y).toBeLessThanOrEqual(state.ocean.surfaceY);
+    }
   });
 
   it("caps kill rewards, growth and carcass creation at the prey budget", () => {
