@@ -52,7 +52,7 @@ On the server, the Worker serves only the game shell, its assets, `/version.json
   - No telemetry, analytics, audit logs, usage metering or persisted game state.
   - After ST-149 the only Durable Object is `Room`.
   - Nothing new may add a server write, a log stream or a tracking request.
-- **One protocol change.** ST-240 moves the wire to protocol 12. Its prey species table covers every planned species, so later fish tasks need no protocol change. With nothing persisted after ST-144, there is no stored schema to migrate.
+- **One protocol change.** Protocol 12 is current. Its prey species table covers every planned species, so later fish tasks need no protocol change. With nothing persisted after ST-144, there is no stored schema to migrate.
 - **Determinism stays intact.** Engine rule changes stay seeded and testable, and update the determinism tests in the same task.
 - **Docs and contract tests move with behavior.** README, ARCHITECTURE, ACCESSIBILITY and PRODUCT-ACCEPTANCE describe current behavior and are updated in the same commit as the change. A test is never deleted without replacing its behavior proof, unless the feature it covered is deleted too.
 - **Removals are complete.** A task that removes a feature also removes its routes, styles, settings, copy, scripts, tests and docs in the same commit.
@@ -89,7 +89,7 @@ Tasks follow these defaults unless the owner changes them before the task starts
 | Knob | Today | Target | Task |
 | --- | --- | --- | --- |
 | Remote interpolation | 150 ms shared delay, rate estimation, bounded clock correction and ≤ 120 ms extrapolation | 1.5 × snapshot interval (150 ms), drift-locked, ≤ 120 ms extrapolation | ST-233–ST-235 |
-| Snapshot weight | ~30 KB × 10 Hz ≈ 295 KB/s | ≤ 14 KB typical × 10 Hz | ST-240–ST-241 |
+| Snapshot weight | ≤ 16 KB ambient full room; ≤ 25 KB cap-and-effects stress fixture | ≤ 14 KB typical × 10 Hz | ST-241 |
 | Steering send | ≤ 20 Hz, 0.015 rad deadband, trailing final send | 20 Hz, 0.015 rad, trailing final send | ST-237 |
 | Pitch on release | Held | Auto-levels at ~1.2 rad/s | ST-244 |
 | Surface and seabed | Pitch snapped to 0 | Proportional glide band (3 units) | ST-245 |
@@ -105,27 +105,6 @@ Tasks follow these defaults unless the owner changes them before the task starts
 | Music | Six-note loop on `setInterval`, off by default | Layered adaptive score on the audio clock, on at 35% | ST-275–ST-278 |
 
 ## Open tasks
-
-### ST-240 — [API] Pack snapshots into compact realtime protocol 12
-
-**Goal:** Prey objects with long ids and repeated keys make up most of every snapshot.
-
-**Scope**
-- Bump the realtime protocol to 12.
-- Send each prey as a tuple: a short hash of its id, a species code, position at 0.1 precision, and yaw and pitch at 0.01.
-- The species table covers every planned look and kind, so later fish tasks need no protocol change:
-  - school looks: sardine, anchovy, silverside, clownfish, blue tang, yellow tang, angelfish and parrotfish;
-  - chum and carcass with their bonus variants;
-  - tuna, squid, ray and golden fish.
-- The server derives each prey's code from its kind, school and bonus variant, and the parser decodes tuples back into `NetPrey`.
-- Sharks go under `sharks` with a single `position`; `schemaVersion` and the vestigial fields leave the wire.
-- Update the protocol pins in docs, `check-game-surface.mjs` and tests.
-
-**Acceptance:** A full-room snapshot is at most 16 KB (test). Encode and decode round-trip; stale clients see "Game update required".
-
-**Validation:** `npm test -- tests/realtime-3d-network.test.ts tests/client-performance.test.ts tests/full-3d-documentation-contract.test.ts`; `npm run check:local-http`.
-
----
 
 ### ST-241 — [PERF] Cull prey snapshots to each player's surroundings
 

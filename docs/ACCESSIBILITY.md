@@ -12,7 +12,7 @@ Reduced motion limits camera easing, banking, particles and environmental motion
 
 Local prediction, remote interpolation and graphics quality are presentation paths only. Accessibility settings cannot remove authoritative actors or competitive state. Settings stay in the device-local player record.
 
-Wire state schema 11 and realtime protocol 11 remain current.
+In-memory engine schema 11 and realtime protocol 12 remain current.
 
 ## Manual acceptance
 

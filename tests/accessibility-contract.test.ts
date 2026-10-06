@@ -206,7 +206,7 @@ describe("full-3D accessibility re-proof", () => {
     expect(gameViewport).toContain("<Canvas");
     expect(gameViewport).not.toContain("CanvasRenderingContext2D");
     expect(ROOM_SCHEMA_VERSION).toBe(11);
-    expect(REALTIME_PROTOCOL_VERSION).toBe(11);
+    expect(REALTIME_PROTOCOL_VERSION).toBe(12);
     expect(pkg.version).toBe("2.1.0");
   });
 });

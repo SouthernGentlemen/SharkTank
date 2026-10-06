@@ -28,7 +28,7 @@ describe("full-3D current-state documentation", () => {
       "Feeding Frenzy",
       "Apex",
       "schema 11",
-      "protocol 11",
+      "protocol 12",
       "DOM",
     ]) expect(docs).toContain(text);
 
@@ -83,6 +83,6 @@ describe("full-3D current-state documentation", () => {
     expect(pkg.version).toBe("2.1.0");
     expect(pkg.releaseRevision).toBe(0);
     expect(ROOM_SCHEMA_VERSION).toBe(11);
-    expect(REALTIME_PROTOCOL_VERSION).toBe(11);
+    expect(REALTIME_PROTOCOL_VERSION).toBe(12);
   });
 });

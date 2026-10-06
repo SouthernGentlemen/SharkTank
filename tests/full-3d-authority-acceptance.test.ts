@@ -92,7 +92,7 @@ describe("ST-129 full-3D authority acceptance wall", () => {
     expect(sawResult).toBe(true);
     expect(state.round).toMatchObject({ number: 2, phase: "active", startTick: firstRoundResetTick });
     expect(ROOM_SCHEMA_VERSION).toBe(11);
-    expect(toNetState(state).schemaVersion).toBe(11);
+    expect(toNetState(state)).not.toHaveProperty("schemaVersion");
     expect(Object.values(state.sharks).every((shark) =>
       [shark.position].every((point) => Number.isFinite(point.x) && Number.isFinite(point.y) && Number.isFinite(point.z))
       && Number.isFinite(shark.yaw)
@@ -181,7 +181,7 @@ describe("ST-129 full-3D authority acceptance wall", () => {
   });
 
   it("rejects malformed or stale 3D input and binds accepted intent to the server session identity", () => {
-    expect(REALTIME_PROTOCOL_VERSION).toBe(11);
+    expect(REALTIME_PROTOCOL_VERSION).toBe(12);
 
     for (const action of [
       { type: "setOrientation", yaw: Number.NaN, pitch: 0 },
@@ -232,7 +232,7 @@ describe("ST-129 full-3D authority acceptance wall", () => {
     const state = createRoom({ id: "prediction", seed: "prediction" });
     const shark = join(state, "pilot");
     place(shark, 0, 0, 0, 0, 0);
-    const auth = toNetState(state).snakes.find((item) => item.id === shark.id);
+    const auth = toNetState(state).sharks.find((item) => item.id === shark.id);
     if (!auth) throw new Error("missing authoritative shark");
 
     const predictor = new LocalPredictor();
@@ -254,21 +254,17 @@ describe("ST-129 full-3D authority acceptance wall", () => {
     expect(seeded).not.toBeNull();
     const predicted = predictor.step(toClientShark(auth!), input, 1 / 30, 0.1, world);
     expect(predicted).not.toBeNull();
-    expect(predicted!.position.y).not.toBe(auth.segments[0].y);
+    expect(predicted!.position.y).not.toBe(auth.position.y);
 
     const corrected = {
       ...auth,
       yaw: -1.2,
       pitch: -0.25,
-      segments: auth.segments.map((point) => ({
-        x: point.x + 20,
-        y: point.y + 6,
-        z: point.z - 14,
-      })),
+      position: { x: auth.position.x + 20, y: auth.position.y + 6, z: auth.position.z - 14 },
     };
     const snapped = predictor.step(toClientShark(corrected!), input, 1 / 60, 0, world);
     expect(snapped).not.toBeNull();
-    expect(snapped!.position).toEqual(corrected.segments[0]);
+    expect(snapped!.position).toEqual(corrected.position);
     expect(snapped!.yaw).toBe(corrected.yaw);
     expect(snapped!.pitch).toBe(corrected.pitch);
   });
@@ -278,8 +274,7 @@ describe("ST-129 full-3D authority acceptance wall", () => {
     const pilot = join(state, "pilot");
 
     expect(welcomeState(state, pilot.id)).toMatchObject({
-      schemaVersion: 11,
-      tick: state.tick,
+        tick: state.tick,
       round: { phase: "active" },
     });
 
@@ -287,12 +282,12 @@ describe("ST-129 full-3D authority acceptance wall", () => {
     place(pilot, state.ocean.radius - 0.1, 0, 0, 0, 0);
     step(state);
     expect(pilot.alive).toBe(false);
-    expect(welcomeState(state, pilot.id).snakes.find((item) => item.id === pilot.id)?.alive).toBe(false);
+    expect(welcomeState(state, pilot.id).sharks.find((item) => item.id === pilot.id)?.alive).toBe(false);
 
     const respawnTick = pilot.respawnTick;
     while (state.tick < respawnTick) step(state);
     applyAction(state, { type: "respawn", playerId: pilot.id });
-    expect(welcomeState(state, pilot.id).snakes.find((item) => item.id === pilot.id)?.alive).toBe(true);
+    expect(welcomeState(state, pilot.id).sharks.find((item) => item.id === pilot.id)?.alive).toBe(true);
 
     while (state.tick < FRENZY_RULES.periodTicks) step(state);
     expect(isFrenzy(state)).toBe(true);
@@ -310,7 +305,7 @@ describe("ST-129 full-3D authority acceptance wall", () => {
     expect(state.sharks.late.alive).toBe(false);
     const resultWelcome = welcomeState(state, "late");
     expect(resultWelcome.round.phase).toBe("result");
-    expect(resultWelcome.snakes.find((item) => item.id === "late")?.alive).toBe(false);
+    expect(resultWelcome.sharks.find((item) => item.id === "late")?.alive).toBe(false);
 
     const resetTick = state.round.resultEndTick;
     while (state.tick < resetTick) step(state);

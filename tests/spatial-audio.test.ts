@@ -88,7 +88,7 @@ describe("ST-125 spatial underwater game audio", () => {
     expect(settings).toContain("audio: { master: 0.8, sfx: 0.9, music: 0, captions: false }");
     expect(packageJson.version).toBe("2.1.0");
     expect(ROOM_SCHEMA_VERSION).toBe(11);
-    expect(REALTIME_PROTOCOL_VERSION).toBe(11);
+    expect(REALTIME_PROTOCOL_VERSION).toBe(12);
   });
 
 });

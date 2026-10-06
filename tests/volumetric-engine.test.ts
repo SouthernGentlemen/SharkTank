@@ -40,7 +40,7 @@ describe("volumetric authoritative engine", () => {
   it("uses schema 11, X/Y/Z state, bounded volume spawns and no authoritative roll", () => {
     const state = createRoom({ seed: "volume-shape" });
     expect(ROOM_SCHEMA_VERSION).toBe(11);
-    expect(toNetState(state).schemaVersion).toBe(11);
+    expect(toNetState(state)).not.toHaveProperty("schemaVersion");
     expect(state.ocean.surfaceY).toBeGreaterThan(state.ocean.seabedY);
     expect(state.food.some((food) => Math.abs(food.y) > 0.1)).toBe(true);
     expect(state.food.every((food) => insideOcean(food, state.ocean))).toBe(true);
@@ -172,11 +172,11 @@ describe("volumetric authoritative engine", () => {
     expect(JSON.stringify(left)).toBe(JSON.stringify(right));
 
     const net = toNetState(left);
-    expect(net.schemaVersion).toBe(11);
+    expect(net).not.toHaveProperty("schemaVersion");
     expect(net.seabedY).toBe(left.ocean.seabedY);
     expect(net.surfaceY).toBe(left.ocean.surfaceY);
-    expect(net.snakes.every((shark) => shark.segments.every((segment) => Number.isFinite(segment.y)))).toBe(true);
-    expect(net.food.every((food) => Number.isFinite(food.y))).toBe(true);
+    expect(net.sharks.every((shark) => Number.isFinite(shark.position.y))).toBe(true);
+    expect(net.food.every((food) => Number.isFinite(food[3]))).toBe(true);
   });
 
   it("keeps authoritative modules framework-agnostic and free of planar actor distance helpers", () => {

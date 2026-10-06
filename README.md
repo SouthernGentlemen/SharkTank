@@ -37,9 +37,9 @@ The Worker exports only `Room`. Player name, skin, best score, controls, audio a
 
 The Room Durable Object owns movement, collisions, prey consumption, score, growth, damage, death/respawn, Feeding Frenzy, Apex and round state. Gameplay runs in memory for the life of the Room object; a new object starts a fresh round.
 
-The deterministic engine and protocol are server-safe. The client uses local prediction for the player's shark and remote interpolation for other sharks and prey, but presentation never writes competitive truth. Sharks use one authoritative `position`; client snapshots and prediction use the same single-position model. Engine and client state use `Shark` / `sharks`; the wire adapters retain protocol 11’s `snakes` key until ST-240. Protocol 11 keeps `segments: [position]` for living sharks (empty for dead sharks) and the legacy `boosting: false` / `chargeTicks: 0` fields until the queued protocol update.
+The deterministic engine and protocol are server-safe. The client uses local prediction for the player's shark and remote interpolation for other sharks and prey, but presentation never writes competitive truth. Sharks use one authoritative `position`; client snapshots and prediction use the same single-position model. Engine, client and wire state use `Shark` / `sharks` with a single `position`. Protocol 12 omits legacy segments, boosting, chargeTicks and schemaVersion. Prey tuples carry a stable short id hash, species code, X/Y/Z at 0.1 precision and yaw/pitch at 0.01; the parser restores presentation fields from the permanent sixteen-species table.
 
-Wire state schema 11 and realtime protocol 11 are current.
+In-memory engine schema 11 and realtime protocol 12 are current.
 
 ## Controls
 
@@ -66,7 +66,7 @@ A semantic release advances package and lock versions together. A same-product r
 - `src/worker/` — Worker routing and the memory-only Room Durable Object.
 - `src/client/` — game document and browser entry.
 - `src/engine/` — deterministic authoritative simulation.
-- `src/protocol/` — schema/protocol 11 transport shapes.
+- `src/protocol/` — protocol 12 transport shapes.
 - `src/game/` — React Three Fiber renderer, controls, prediction, interpolation and audio.
 - `scripts/` — local development, validation and release tooling.
 

@@ -17,6 +17,11 @@ import {
   parseRealtimeClientMessage,
   parseRealtimeServerMessage,
   toNetState,
+  decodeState,
+  decodePrey,
+  encodePrey,
+  preyWireId,
+  PREY_SPECIES,
   withRealtimeProtocol,
 } from "../src/protocol/index.js";
 import { LocalPredictor } from "../src/game/game/prediction.js";
@@ -76,8 +81,8 @@ describe("ST-122 realtime combat protocol", () => {
     })).toEqual({ ok: false, reason: "malformed" });
   });
 
-  it("requires realtime protocol 11 on both directions", () => {
-    expect(REALTIME_PROTOCOL_VERSION).toBe(11);
+  it("requires realtime protocol 12 on both directions", () => {
+    expect(REALTIME_PROTOCOL_VERSION).toBe(12);
     const state = toNetState(createRoom({ seed: "server-marker" }));
     const current = withRealtimeProtocol({ t: "state" as const, state });
     expect(parseRealtimeServerMessage(current).ok).toBe(true);
@@ -85,7 +90,7 @@ describe("ST-122 realtime combat protocol", () => {
     expect(parseRealtimeServerMessage({ ...current, v: 9 })).toEqual({ ok: false, reason: "stale-schema" });
   });
 
-  it("quantizes complete schema-11 X/Y/Z combat state without ranged projectile state", () => {
+  it("quantizes complete protocol-12 X/Y/Z combat state without ranged projectile state", () => {
     const state = createRoom({ seed: "wire-roundtrip" });
     state.food = [{ id: "food", kind: "reef", x: 1.234, y: -2.345, z: 3.456, value: 3, r: 0.456, yaw: 1.23456, pitch: -0.23456, school: 2 }];
     const shark = join(state, "pilot");
@@ -105,15 +110,15 @@ describe("ST-122 realtime combat protocol", () => {
     }];
 
     const net = toNetState(state);
-    expect(net.schemaVersion).toBe(11);
-    expect(net.snakes.find((item) => item.id === shark.id)?.segments[0]).toEqual({ x: 10.12, y: -4.57, z: 2.35 });
-    expect(net.snakes.find((item) => item.id === shark.id)).toMatchObject({
+    expect(net).not.toHaveProperty("schemaVersion");
+    expect(net.sharks.find((item) => item.id === shark.id)?.position).toEqual({ x: 10.12, y: -4.57, z: 2.35 });
+    expect(net.sharks.find((item) => item.id === shark.id)).toMatchObject({
       yaw: 1.235,
       pitch: -0.457,
       health: 66,
       biteCooldownTick: 99,
     });
-    expect(net.food[0]).toEqual({ id: "food", kind: "reef", x: 1.2, y: -2.3, z: 3.5, value: 3, r: 0.46, yaw: 1.235, pitch: -0.235 });
+    expect(decodePrey(net.food[0])).toMatchObject({ id: preyWireId("food"), species: "yellow-tang", kind: "reef", x: 1.2, y: -2.3, z: 3.5, value: 2, r: 0.58, yaw: 1.23, pitch: -0.23 });
     expect(net.explosions[0]).toMatchObject({ x: -1.23, y: 2.35, z: -3.46, kind: "bite" });
     expect(JSON.stringify(net).toLowerCase()).not.toContain("rocket");
     expect(JSON.parse(JSON.stringify(net))).toEqual(net);
@@ -139,28 +144,28 @@ describe("ST-122 realtime combat protocol", () => {
     }))).toEqual({ ok: false, reason: "malformed" });
   });
 
-  it("preserves protocol 11 while adapting living and dead sharks to single positions", () => {
+  it("preserves protocol 12 while adapting living and dead sharks to single positions", () => {
     const state = createRoom({ seed: "single-position-adapter" });
     const shark = join(state, "you");
     place(shark, 10.123, -4.567, 2.345);
     const wire = toNetState(state);
-    expect(wire.snakes[0]).toMatchObject({
-      segments: [{ x: 10.12, y: -4.57, z: 2.35 }], boosting: false, chargeTicks: 0,
+    expect(wire.sharks[0]).toMatchObject({
+      position: { x: 10.12, y: -4.57, z: 2.35 },
     });
-    const adapted = toClientState(wire);
+    const adapted = toClientState(decodeState(wire));
     expect(adapted).not.toHaveProperty("snakes");
     expect(state).not.toHaveProperty("snakes");
-    expect(wire).not.toHaveProperty("sharks");
+    expect(wire).not.toHaveProperty("snakes");
     const client = adapted.sharks[0];
-    expect(client.position).toEqual(wire.snakes[0].segments[0]);
+    expect(client.position).toEqual(wire.sharks[0].position);
     expect(client).not.toHaveProperty("segments");
     expect(client).not.toHaveProperty("boosting");
     expect(client).not.toHaveProperty("chargeTicks");
     shark.alive = false;
     const deadWire = toNetState(state);
-    expect(deadWire.snakes[0].segments).toEqual([]);
-    expect(toClientState(deadWire).sharks[0].position).toBeUndefined();
-    expect(new LocalPredictor().step(toClientShark(deadWire.snakes[0]), {
+    expect(deadWire.sharks[0].position).toEqual(wire.sharks[0].position);
+    expect(toClientState(decodeState(deadWire)).sharks[0].alive).toBe(false);
+    expect(new LocalPredictor().step(toClientShark(deadWire.sharks[0]), {
       targetYaw: 0, targetPitch: 0, boosting: false,
     }, 1 / 60, 0)).toBeNull();
   });
@@ -172,7 +177,7 @@ describe("ST-122 realtime combat protocol", () => {
     place(shark, 0, 0, 0);
     shark.yaw = shark.targetYaw = 0;
     shark.pitch = shark.targetPitch = 0;
-    const auth = toNetState(state).snakes.find((item) => item.id === shark.id);
+    const auth = toNetState(state).sharks.find((item) => item.id === shark.id);
     expect(auth).toBeDefined();
 
     const predictor = new LocalPredictor();
@@ -189,7 +194,7 @@ describe("ST-122 realtime combat protocol", () => {
 
     const correctedAuth = {
       ...auth!,
-      segments: [{ x: climbed!.position.x + 2, y: climbed!.position.y + 1, z: climbed!.position.z - 2 }],
+      position: { x: climbed!.position.x + 2, y: climbed!.position.y + 1, z: climbed!.position.z - 2 },
       yaw: climbed!.yaw,
       pitch: climbed!.pitch,
     };
@@ -212,7 +217,7 @@ describe("ST-122 realtime combat protocol", () => {
     place(shark, 0, 0, 0);
     shark.yaw = shark.targetYaw = 0;
     shark.pitch = shark.targetPitch = 0;
-    const auth = toClientShark(toNetState(state).snakes.find((s) => s.id === shark.id)!);
+    const auth = toClientShark(toNetState(state).sharks.find((s) => s.id === shark.id)!);
     const world = { seabedY: -20, surfaceY: 20, tick: state.tick, frenzyUntilTick: 0 };
     const input = { targetYaw: 0, targetPitch: 0, boosting: false };
     const dash = new LocalPredictor();
@@ -241,7 +246,7 @@ describe("ST-122 realtime combat protocol", () => {
     place(shark, 0, 0, 0);
     shark.yaw = shark.targetYaw = 0;
     shark.pitch = shark.targetPitch = 0;
-    const auth = toClientShark(toNetState(state).snakes.find((s) => s.id === shark.id)!);
+    const auth = toClientShark(toNetState(state).sharks.find((s) => s.id === shark.id)!);
     const world = { seabedY: -20, surfaceY: 20, tick: state.tick, frenzyUntilTick: 0 };
     const input = { targetYaw: 0, targetPitch: 0, boosting: false };
     const predictor = new LocalPredictor();
@@ -268,7 +273,7 @@ describe("ST-122 realtime combat protocol", () => {
     place(shark, 0, 0, 0);
     shark.yaw = shark.targetYaw = 0;
     shark.pitch = shark.targetPitch = 0;
-    const auth = toClientShark(toNetState(state).snakes.find((s) => s.id === shark.id)!);
+    const auth = toClientShark(toNetState(state).sharks.find((s) => s.id === shark.id)!);
     const input = { targetYaw: 0, targetPitch: 0, boosting: false };
     for (const error of [6, 12]) {
       const predictor = new LocalPredictor();
@@ -293,7 +298,7 @@ describe("ST-122 realtime combat protocol", () => {
     const state = createRoom({ seed: "visual-reset" });
     const shark = join(state, "pilot");
     place(shark, 0, 0, 0);
-    const auth = toClientShark(toNetState(state).snakes.find((s) => s.id === shark.id)!);
+    const auth = toClientShark(toNetState(state).sharks.find((s) => s.id === shark.id)!);
     const input = { targetYaw: auth.yaw, targetPitch: auth.pitch, boosting: false };
     const world = { seabedY: -20, surfaceY: 20, tick: 10, frenzyUntilTick: 0 };
     for (const reset of ["death", "reconnect", "identity", "tick", "large"] as const) {
@@ -368,30 +373,42 @@ describe("ST-122 realtime combat protocol", () => {
     });
     const preQuantizationBytes = bytes(preQuantization);
 
-    const planar = JSON.parse(JSON.stringify(message)) as {
-      state: {
-        snakes: Array<{ segments: Array<{ y?: number }>; pitch?: number }>;
-        food: Array<{ y?: number; pitch?: number }>;
-        explosions: Array<{ y?: number }>;
-      };
-    };
-    for (const item of planar.state.snakes) {
-      for (const segment of item.segments) delete segment.y;
-      delete item.pitch;
-    }
-    for (const item of planar.state.food) {
-      delete item.y;
-      delete item.pitch;
-    }
-    for (const item of planar.state.explosions) delete item.y;
-    const planarBytes = bytes(planar);
-
-    const MAX_FULL_ROOM_BYTES = 60_000;
-    const MAX_3D_OVERHEAD_BYTES = 10_000;
-    console.info(`ST-122 snapshot bytes: ${afterBytes}; pre-quantization: ${preQuantizationBytes}; planar-equivalent: ${planarBytes}; budget: ${MAX_FULL_ROOM_BYTES}`);
+    const MAX_FULL_ROOM_BYTES = 25_000;
+    console.info(`ST-240 snapshot bytes: ${afterBytes}; budget: ${MAX_FULL_ROOM_BYTES}`);
     expect(afterBytes).toBeLessThanOrEqual(MAX_FULL_ROOM_BYTES);
-    expect(afterBytes).toBeLessThanOrEqual(preQuantizationBytes);
-    expect(afterBytes - planarBytes).toBeLessThanOrEqual(MAX_3D_OVERHEAD_BYTES);
+    expect(afterBytes).toBeLessThan(preQuantizationBytes);
+
+  });
+
+  it("packs a full 32-shark room with ambient prey within 16 KB", () => {
+    const state = createRoom({ seed: "full-room-protocol-12" });
+    for (let i = 0; i < 32; i++) join(state, `player-${i}`);
+    expect(state.food).toHaveLength(PREY_BUDGET.ambient);
+    const wire = withRealtimeProtocol({ t: "welcome" as const, youId: "player-0", roomId: "room-1", state: toNetState(state) });
+    expect(bytes(wire)).toBeLessThanOrEqual(16_000);
+    const parsed = parseRealtimeServerMessage(JSON.parse(JSON.stringify(wire)));
+    expect(parsed.ok).toBe(true);
+    if (!parsed.ok || parsed.message.t !== "welcome") throw new Error("welcome parse failed");
+    expect(parsed.message.state).toEqual(decodeState(wire.state));
+    expect(new Set(parsed.message.state.food.map((prey) => prey.id)).size).toBe(state.food.length);
+    expect(parseRealtimeServerMessage({ ...wire, v: 11 })).toEqual({ ok: false, reason: "stale-schema" });
+    expect(parseRealtimeClientMessage({ v: 11, t: "hello", name: "Old", skin: "cyan" })).toEqual({ ok: false, reason: "stale-schema" });
+  });
+
+  it("round-trips every reserved species and rejects malformed tuples", () => {
+    for (let code = 0; code < PREY_SPECIES.length; code++) {
+      expect(decodePrey(["abc", code, 1, -2, 3, 0.5, -0.2]).species).toBe(PREY_SPECIES[code]);
+    }
+    const state = createRoom({ seed: "variants" });
+    for (const [kind, value, code] of [["chum", 3, 8], ["chum", 5, 9], ["carcass", 1, 10], ["carcass", 2, 11]] as const) {
+      const prey = { ...state.food[0], kind, value };
+      expect(encodePrey(prey)[1]).toBe(code);
+      expect(decodePrey(encodePrey(prey))).toMatchObject({ kind, value });
+    }
+    for (const tuple of [["abc", 16, 0, 0, 0, 0, 0], ["abc", 0, NaN, 0, 0, 0, 0], ["abc", 0], {}]) {
+      const wire = { ...toNetState(state), food: [tuple] };
+      expect(parseRealtimeServerMessage(withRealtimeProtocol({ t: "state", state: wire }))).toEqual({ ok: false, reason: "malformed" });
+    }
   });
 
   it("keeps the Durable Object on schema-aware target-free input parsing", () => {

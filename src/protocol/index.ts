@@ -2,14 +2,13 @@
 // travel over the WebSocket (realtime play) into the Room Durable Object.
 
 import { clampPitch, normalizeYaw } from "../engine/geometry3d.js";
-import { ROOM_SCHEMA_VERSION } from "../engine/room.js";
 import type { Action, DeathAction, Explosion, OceanVolume, Prey, RoomState, RoundState, ScoreEntry, Shark, Vec3 } from "../engine/types.js";
 export { isFamilyFriendlyName, sanitizeDisplayName } from "./name-policy.js";
 
 // ── WebSocket: realtime play (client ⇄ Room DO) ───────────────────────────────
 export const STATE_BROADCAST_EVERY = 2; // 20 Hz simulation, 10 Hz snapshots.
 
-export const REALTIME_PROTOCOL_VERSION = 11 as const;
+export const REALTIME_PROTOCOL_VERSION = 12 as const;
 
 interface OrientationInputAction {
   type: "setOrientation";
@@ -34,17 +33,56 @@ type ClientMessage = ClientMessagePayload & { v: typeof REALTIME_PROTOCOL_VERSIO
 export type NetShark = Pick<
   Shark,
   "id" | "name" | "skin" | "yaw" | "pitch" | "length" | "lungeTicks" | "dashCooldownTick" | "health" | "biteCooldownTick" | "score" | "alive"
-> & { segments: Vec3[]; boosting: boolean; chargeTicks: number };
+> & { position: Vec3 };
 
 /**
  * Compact authoritative prey on the wire. Stable ids allow interpolation between
  * snapshots; school membership remains server-only because rendering does not need it.
  */
-export type NetPrey = Pick<
+export type NetPrey = { species?: typeof PREY_SPECIES[number] } & Pick<
   Prey,
   "id" | "kind" | "x" | "y" | "z" | "value" | "r" | "yaw" | "pitch"
 >;
 
+
+/** Protocol 12 code order is permanent; future species do not renumber entries. */
+export const PREY_SPECIES = [
+  "sardine", "anchovy", "silverside", "clownfish", "blue-tang", "yellow-tang", "angelfish", "parrotfish",
+  "chum", "bonus-chum", "carcass", "bonus-carcass", "tuna", "squid", "ray", "golden-fish",
+] as const;
+export type PreyTuple = [id: string, species: number, x: number, y: number, z: number, yaw: number, pitch: number];
+export type WireState = Omit<NetState, "food"> & { food: PreyTuple[] };
+
+/** Stable 32-bit FNV-1a identity, encoded in base 36 (at most seven characters). */
+export function preyWireId(id: string): string {
+  let hash = 2166136261;
+  for (let i = 0; i < id.length; i++) hash = Math.imul(hash ^ id.charCodeAt(i), 16777619);
+  return (hash >>> 0).toString(36);
+}
+export function preySpeciesCode(prey: Prey): number {
+  if (prey.kind === "chum") return prey.value > 3 ? 9 : 8;
+  if (prey.kind === "carcass") return prey.value > 1 ? 11 : 10;
+  const school = Math.max(0, prey.school);
+  return prey.kind === "bait" ? school % 3 : 3 + school % 5;
+}
+export function encodePrey(prey: Prey): PreyTuple {
+  return [preyWireId(prey.id), preySpeciesCode(prey), round(prey.x, 1), round(prey.y, 1), round(prey.z, 1), round(prey.yaw, 2), round(prey.pitch, 2)];
+}
+function isPreyTuple(value: unknown): value is PreyTuple {
+  return Array.isArray(value) && value.length === 7 && typeof value[0] === "string"
+    && /^[0-9a-z]{1,7}$/.test(value[0]) && Number.isInteger(value[1]) && value[1] >= 0 && value[1] < PREY_SPECIES.length
+    && value.slice(2).every(finite);
+}
+export function decodePrey(tuple: PreyTuple): NetPrey {
+  const [id, species, x, y, z, yaw, pitch] = tuple;
+  const kind = species < 3 ? "bait" : species < 8 ? "reef" : species < 10 ? "chum" : species < 12 ? "carcass" : "reef";
+  const value = species === 9 ? 5 : species === 11 ? 2 : kind === "bait" || kind === "carcass" ? 1 : kind === "chum" ? 3 : 2;
+  const r = species === 9 ? 0.95 : species === 11 ? 0.72 : kind === "bait" ? 0.42 : kind === "carcass" ? 0.5 : kind === "chum" ? 0.78 : 0.58;
+  return { id, species: PREY_SPECIES[species], kind, value, r, x, y, z, yaw, pitch };
+}
+export function decodeState(state: WireState): NetState {
+  return { ...state, food: state.food.map(decodePrey) };
+}
 
 type NetExplosion = Pick<
   Explosion,
@@ -55,12 +93,11 @@ type NetExplosion = Pick<
 type NetRoundState = RoundState;
 
 export interface NetState {
-  schemaVersion: 11;
   tick: number;
   arenaRadius: number;
   seabedY: number;
   surfaceY: number;
-  snakes: NetShark[];
+  sharks: NetShark[];
   food: NetPrey[];
   explosions: NetExplosion[];
   /** Tick the running Feeding Frenzy ends at; 0 or past when none is running. */
@@ -70,13 +107,16 @@ export interface NetState {
 }
 
 export type ServerMessagePayload =
-  | { t: "welcome"; youId: string; roomId: string; state: NetState }
-  | { t: "state"; state: NetState }
+  | { t: "welcome"; youId: string; roomId: string; state: WireState }
+  | { t: "state"; state: WireState }
   | { t: "leaderboard"; entries: ScoreEntry[] }
   | { t: "died"; by: string | null; action: DeathAction | null; tick: number; score: number; respawnInMs: number }
   | { t: "pong"; ts: number };
 
-type ServerMessage = ServerMessagePayload & { v: typeof REALTIME_PROTOCOL_VERSION };
+type DecodedServerPayload = Exclude<ServerMessagePayload, { t: "welcome" | "state" }>
+  | { t: "welcome"; youId: string; roomId: string; state: NetState }
+  | { t: "state"; state: NetState };
+type ServerMessage = DecodedServerPayload & { v: typeof REALTIME_PROTOCOL_VERSION };
 
 type RealtimeParseFailureReason = "stale-schema" | "malformed";
 type RealtimeParseResult<T> =
@@ -170,13 +210,18 @@ function isNetRoundState(value: unknown): value is NetRoundState {
     && (result.winner === null || isScoreEntry(result.winner));
 }
 
-function isNetState(value: unknown): value is NetState {
+function isWireState(value: unknown): value is WireState {
   return record(value)
-    && value.schemaVersion === 11
     && typeof value.tick === "number"
     && Number.isFinite(value.tick)
-    && Array.isArray(value.snakes)
-    && Array.isArray(value.food)
+    && finite(value.arenaRadius) && finite(value.seabedY) && finite(value.surfaceY)
+    && finite(value.frenzyUntilTick)
+    && Array.isArray(value.sharks) && value.sharks.every((shark: unknown) =>
+      record(shark) && record(shark.position) && finite(shark.position.x)
+      && finite(shark.position.y) && finite(shark.position.z)
+      && typeof shark.id === "string" && typeof shark.alive === "boolean"
+      && finite(shark.yaw) && finite(shark.pitch))
+    && Array.isArray(value.food) && value.food.every(isPreyTuple)
     && Array.isArray(value.explosions)
     && isNetRoundState(value.round);
 }
@@ -186,12 +231,12 @@ export function parseRealtimeServerMessage(value: unknown): RealtimeParseResult<
   if (value.v !== REALTIME_PROTOCOL_VERSION) return { ok: false, reason: "stale-schema" };
 
   if (value.t === "welcome") {
-    if (typeof value.youId !== "string" || typeof value.roomId !== "string" || !isNetState(value.state)) return { ok: false, reason: "malformed" };
-    return { ok: true, message: value as unknown as ServerMessage };
+    if (typeof value.youId !== "string" || typeof value.roomId !== "string" || !isWireState(value.state)) return { ok: false, reason: "malformed" };
+    return { ok: true, message: { ...value, state: decodeState(value.state as WireState) } as unknown as ServerMessage };
   }
   if (value.t === "state") {
-    if (!isNetState(value.state)) return { ok: false, reason: "malformed" };
-    return { ok: true, message: value as unknown as ServerMessage };
+    if (!isWireState(value.state)) return { ok: false, reason: "malformed" };
+    return { ok: true, message: { ...value, state: decodeState(value.state as WireState) } as unknown as ServerMessage };
   }
   if (value.t === "leaderboard") {
     if (!Array.isArray(value.entries)) return { ok: false, reason: "malformed" };
@@ -229,9 +274,8 @@ function round(value: number, places = 2): number {
 }
 
 /** Build the on-the-wire snapshot from authoritative RoomState. */
-export function toNetState(state: RoomState): NetState {
+export function toNetState(state: RoomState): WireState {
   return {
-    schemaVersion: ROOM_SCHEMA_VERSION,
     tick: state.tick,
     arenaRadius: round(state.ocean.radius, 1),
     seabedY: round(state.ocean.seabedY, 1),
@@ -246,16 +290,14 @@ export function toNetState(state: RoomState): NetState {
           }
         : null,
     },
-    snakes: Object.values(state.sharks).map((s) => ({
+    sharks: Object.values(state.sharks).map((s) => ({
       id: s.id,
       name: s.name,
       skin: s.skin,
-      segments: s.alive ? [{ x: round(s.position.x), y: round(s.position.y), z: round(s.position.z) }] : [],
+      position: { x: round(s.position.x), y: round(s.position.y), z: round(s.position.z) },
       yaw: round(s.yaw, 3),
       pitch: round(s.pitch, 3),
       length: round(s.length, 2),
-      boosting: false,
-      chargeTicks: 0,
       lungeTicks: s.lungeTicks ?? 0,
       dashCooldownTick: s.dashCooldownTick ?? 0,
       health: s.health,
@@ -263,17 +305,7 @@ export function toNetState(state: RoomState): NetState {
       score: s.score,
       alive: s.alive,
     })),
-    food: state.food.map((f) => ({
-      id: f.id,
-      kind: f.kind,
-      x: round(f.x, 1),
-      y: round(f.y, 1),
-      z: round(f.z, 1),
-      value: f.value,
-      r: round(f.r, 2),
-      yaw: round(f.yaw, 3),
-      pitch: round(f.pitch, 3),
-    })),
+    food: state.food.map(encodePrey),
 
     explosions: (state.explosions ?? []).map((burst) => ({
       id: burst.id,

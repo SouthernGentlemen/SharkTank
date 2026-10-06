@@ -67,7 +67,7 @@ describe("ST-124 authoritative round and Apex loop", () => {
     place(beta, 20, 4, 0);
 
     expect(ROOM_SCHEMA_VERSION).toBe(11);
-    expect(REALTIME_PROTOCOL_VERSION).toBe(11);
+    expect(REALTIME_PROTOCOL_VERSION).toBe(12);
     expect(ROUND_RULES).toMatchObject({
       activeTicks: TICKS_PER_SECOND * 5 * 60,
       apexTicks: TICKS_PER_SECOND * 45,
