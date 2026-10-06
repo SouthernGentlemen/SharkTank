@@ -13,7 +13,6 @@ import {
 } from "../vendor/ModuleReact3Fiber/src/engine/index.js";
 import { REALTIME_PROTOCOL_VERSION, toNetState } from "../vendor/ModuleReact3Fiber/src/protocol/index.js";
 import {
-  PREY_SILHOUETTE,
   preyVisualFor,
   resolvePreyAnimation,
   resolvePreyPresentationQuality,
@@ -154,13 +153,16 @@ describe("ST-120 authoritative fish and prey schools", () => {
   });
 
   it("renders recognizable procedural fish and distinct chum/carcass drops through bounded instancing", () => {
-    expect(PREY_SILHOUETTE).toEqual(["body", "head", "tail"]);
     expect(preyVisualFor("bait", 1, 0.42).mode).toBe("fish");
     expect(preyVisualFor("reef", 2, 0.58).bodyHeight).toBeGreaterThan(preyVisualFor("bait", 1, 0.42).bodyHeight);
     expect(preyVisualFor("chum", 5, 0.95).mode).toBe("drop");
     expect(preyVisualFor("carcass", 2, 0.72).mode).toBe("drop");
 
     const renderer = read("../vendor/ModuleReact3Fiber/src/client/game/PreyLayer.tsx");
+    for (const part of ["bodyMesh", "headMesh", "tailMesh"]) {
+      expect(renderer).toContain(`const ${part} = useRef<THREE.InstancedMesh>(null);`);
+      expect(renderer).toContain(`ref={${part}}`);
+    }
     expect(renderer).toContain("THREE.InstancedMesh");
     expect(renderer).toContain("<sphereGeometry");
     expect(renderer).toContain("<coneGeometry");
@@ -185,7 +187,6 @@ describe("ST-120 authoritative fish and prey schools", () => {
     const high = resolvePreyPresentationQuality("high");
     expect(low.radialSegments).toBeGreaterThanOrEqual(6);
     expect(low.radialSegments).toBeLessThan(high.radialSegments);
-    expect(PREY_SILHOUETTE).toHaveLength(3);
   });
 
   it("ships only compact authoritative prey fields and keeps browser presentation out of Worker imports", () => {

@@ -64,8 +64,10 @@ describe("R3F-only gameplay renderer", () => {
     expect(fx).toContain('burst.kind === "bite"');
     expect(fx.toLowerCase()).not.toContain("rocket");
     expect(fx).toContain("burst.y");
-    expect(fx).toContain("frenzyUntilTick");
-    expect(fx).toContain("arenaRadius");
+    const world = read("../vendor/ModuleReact3Fiber/src/client/game/WorldEnvironment.tsx");
+    expect(world).toContain("frenzyUntilTick");
+    expect(world).toContain("state.arenaRadius");
+    expect(fx).not.toContain("<ringGeometry");
     expect(actors).toContain("colorblindLabels");
     expect(actors).toContain("frameAt(INTERP_DELAY_MS)");
   });

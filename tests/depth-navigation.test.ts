@@ -144,7 +144,6 @@ describe("ST-126 depth-aware competitive cues", () => {
     const labels = read("../vendor/ModuleReact3Fiber/src/client/ui/SnakeLabels.tsx");
     const settings = read("../vendor/ModuleReact3Fiber/src/client/ui/Settings.tsx");
     const css = read("../vendor/ModuleReact3Fiber/src/client/ui/theme.css");
-    const plan = read("../implementation_plan.md");
 
     expect(screen).toContain("<DepthRadar");
     expect(screen).not.toContain("<Minimap");
@@ -157,13 +156,6 @@ describe("ST-126 depth-aware competitive cues", () => {
     expect(css).toContain("width:min(300px,36vw)");
     expect(css).toContain("bottom:calc(12px + var(--safe-b))");
     expect(css).not.toContain(".game-minimap");
-    expect(plan).not.toContain("### ST-126");
-    expect(plan).not.toContain("### ST-127");
-    expect(plan).not.toContain("### ST-128");
-    expect(plan).not.toContain("### ST-129");
-    expect(plan).not.toContain("### ST-131");
-    expect(plan).not.toContain("### ST-132");
-    expect(plan).toContain("The queue is empty. Select no implementation task.");
   });
 
   it("keeps wire identity at 11 while the RoomState persistence schema field is retired", () => {

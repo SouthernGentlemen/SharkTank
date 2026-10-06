@@ -3,7 +3,6 @@ import { describe, expect, it } from "vitest";
 import { ROOM_SCHEMA_VERSION } from "../vendor/ModuleReact3Fiber/src/engine/room.js";
 import { REALTIME_PROTOCOL_VERSION } from "../vendor/ModuleReact3Fiber/src/protocol/index.js";
 import {
-  SHARK_ANATOMY,
   resolveSharkAnimation,
   resolveSharkPresentationQuality,
   sharkScaleForLength,
@@ -13,16 +12,6 @@ const read = (path: string) => readFileSync(new URL(path, import.meta.url), "utf
 
 describe("ST-119 animated shark models", () => {
   it("replaces the single stretched actor primitive with a recognizable composed shark silhouette", () => {
-    expect(SHARK_ANATOMY).toEqual([
-      "head",
-      "snout",
-      "body",
-      "tailPeduncle",
-      "tailFin",
-      "dorsalFin",
-      "pectoralFins",
-    ]);
-
     const actors = read("../vendor/ModuleReact3Fiber/src/client/game/ActorLayer.tsx");
     for (const refName of [
       "bodyMesh",
@@ -35,6 +24,7 @@ describe("ST-119 animated shark models", () => {
       "pectoralRightMesh",
     ]) {
       expect(actors).toContain(`const ${refName} = useRef<THREE.InstancedMesh>(null);`);
+      expect(actors).toContain(`ref={${refName}}`);
     }
     expect(actors).not.toContain("const sharkMesh =");
     expect(actors).not.toContain("dummy.scale.set(sharkScale * 1.75");

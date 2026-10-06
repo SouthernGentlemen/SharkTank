@@ -1,13 +1,3 @@
-export const SHARK_ANATOMY = [
-  "head",
-  "snout",
-  "body",
-  "tailPeduncle",
-  "tailFin",
-  "dorsalFin",
-  "pectoralFins",
-] as const;
-
 export type SharkPresentationQuality = "low" | "medium" | "high";
 
 export interface SharkPresentationProfile {

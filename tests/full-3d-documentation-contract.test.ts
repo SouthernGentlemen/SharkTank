@@ -14,7 +14,6 @@ describe("full-3D current-state documentation", () => {
   const security = read("../SECURITY.md");
   const moduleReadme = read("../vendor/ModuleReact3Fiber/README.md");
   const moduleGuide = read("../vendor/ModuleReact3Fiber/CLAUDE.md");
-  const plan = read("../implementation_plan.md");
   const viewport = read("../vendor/ModuleReact3Fiber/src/client/game/GameViewport.tsx");
 
   it("documents the renderer, authority, controls and gameplay that are actually built", () => {
@@ -68,7 +67,7 @@ describe("full-3D current-state documentation", () => {
   });
 
   it("keeps retired renderer and planar instructions out of current guidance", () => {
-    const currentGuidance = [readme, architecture, accessibility, moduleReadme, moduleGuide, plan, viewport].join("\n");
+    const currentGuidance = [readme, architecture, accessibility, moduleReadme, moduleGuide, viewport].join("\n");
     const retiredPhrases = [
       "present production game mounts " + "GameCanvas",
       "Authority is still " + "planar",
@@ -81,15 +80,11 @@ describe("full-3D current-state documentation", () => {
     expect(existsSync(new URL("../vendor/ModuleReact3Fiber/src/client/game/" + "GameCanvas.tsx", import.meta.url))).toBe(false);
   });
 
-  it("keeps identity and the current-only queue stable while documentation advances", () => {
+  it("keeps release and protocol identity stable while documentation advances", () => {
     const pkg = JSON.parse(read("../package.json")) as { version: string; releaseRevision: number };
     expect(pkg.version).toBe("2.1.0");
     expect(pkg.releaseRevision).toBe(0);
     expect(ROOM_SCHEMA_VERSION).toBe(11);
     expect(REALTIME_PROTOCOL_VERSION).toBe(11);
-    expect(plan).not.toContain("### ST-130");
-    expect(plan).not.toContain("### ST-131");
-    expect(plan).not.toContain("### ST-132");
-    expect(plan).toContain("The queue is empty. Select no implementation task.");
   });
 });

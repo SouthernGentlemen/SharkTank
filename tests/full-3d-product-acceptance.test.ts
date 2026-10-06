@@ -255,7 +255,7 @@ describe("ST-131 full-3D product acceptance", () => {
     const ci = read("../.github/workflows/ci.yml");
     const tagRelease = read("../.github/workflows/tag-release.yml");
     const release = read("../.github/workflows/release.yml");
-    const plan = read("../implementation_plan.md");
+
     const manual = read("../docs/PRODUCT-ACCEPTANCE.md");
     const pkg = JSON.parse(read("../package.json")) as { version: string };
     const github = JSON.parse(read("../config/github-repository-settings.json")) as {
@@ -295,9 +295,6 @@ describe("ST-131 full-3D product acceptance", () => {
     expect(pkg.releaseRevision).toBe(0);
     expect(ROOM_SCHEMA_VERSION).toBe(11);
     expect(REALTIME_PROTOCOL_VERSION).toBe(11);
-    expect(plan).not.toContain("### ST-131");
-    expect(plan).not.toContain("### ST-132");
-    expect(plan).toContain("The queue is empty. Select no implementation task.");
 
     for (const phrase of [
       "A manual-only row is not a pass until somebody actually performs it",

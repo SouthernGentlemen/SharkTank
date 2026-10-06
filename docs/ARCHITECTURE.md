@@ -37,6 +37,8 @@ Wire state schema 11 and realtime protocol 11 are current. The Worker imports on
 
 React Three Fiber / Three.js is the only gameplay renderer. The world is full X/Y/Z with authoritative yaw + pitch; banking is presentation-only. The local shark uses local prediction followed by server reconciliation. Remote sharks and prey use remote interpolation.
 
+`WorldEnvironment` owns the arena boundary and Feeding Frenzy volume cues. `FxLayer` renders only instanced burst particles.
+
 The semantic DOM owns menus, HUD, leaderboard, settings, dialogs, captions, announcements, labels and depth cues. WebGL does not replace those interfaces.
 
 ## Controls
