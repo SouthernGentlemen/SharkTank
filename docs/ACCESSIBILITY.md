@@ -1,29 +1,30 @@
-# Full-3D accessibility
+# Accessibility
 
-SharkTank keeps accessibility in the semantic DOM surrounding the React Three Fiber gameplay surface. This document describes the current implementation and proof boundary; it is not a WCAG certification and does not claim that a visual realtime 3D action game is equivalent to a text game.
+SharkTank keeps accessible interaction in the semantic DOM around the React Three Fiber gameplay surface. This is the current product boundary, not a certification claim.
 
-## Automated proof
+## Current behavior
 
-The credential-free repository check covers deterministic contracts for the full keyboard control map, authoritative round lifecycle, focus traps, native button semantics, reduced-motion camera and shark presentation, non-color Apex and depth cues, bounded live announcements, spatial-audio captions, touch pointer ownership, safe-area layout, minimum target sizing, high-contrast hooks, the semantic depth radar, and the accessible description of the WebGL gameplay view.
+The keyboard map covers W/S pitch, A/D yaw, Arrow-key camera look, burst, bite, pause, respawn and exit. Mobile controls use independent pointers for flight, look and abilities.
 
-The keyboard contract exercises W/S pitch, A/D yaw, arrow-key camera look, burst, bite, pause ownership, respawn and exit affordances, plus the authoritative active → Apex → result → next-round lifecycle. The Room Durable Object and deterministic engine remain authoritative; accessibility presentation does not create gameplay truth.
+Menus, HUD, leaderboard, settings, dialogs, captions, live announcements, projected shark labels and depth cues remain semantic HTML/React. The WebGL view has an accessible description of the active controls.
 
-Reduced-motion mode keeps the same authoritative snapshots and controls. It removes or snaps presentation-only camera easing, speed FOV expansion, shark swim animation, banking smoothing, particle travel, environmental drift and Frenzy pulsing/rotation without hiding Apex, Frenzy, depth, health, score, cooldown, result, reconnect or navigation state.
+Reduced motion limits camera easing, banking, particles and environmental motion without hiding gameplay state. High contrast and non-color cues preserve Apex, depth, health, score and navigation meaning. Captions are produced independently of Web Audio playback.
 
-The WebGL surface is described as a 3D gameplay view using the player's current key bindings. Meaningful competitive state remains outside WebGL in the semantic DOM HUD, leaderboard, dialogs, live regions, captions, projected labels and depth radar. Hiding the visual radar keeps its semantic content available.
+Local prediction, remote interpolation and graphics quality are presentation paths only. Accessibility settings cannot remove authoritative actors or competitive state. Settings stay in the device-local player record.
 
-Gameplay-relevant captions are produced independently of whether Web Audio can play, while respecting spatial range and bounded repeat cadence. Screen-reader announcements remain separate and event-bounded so a full room does not announce every actor update.
+Wire state schema 11 and realtime protocol 11 remain current.
 
-## Browser and device acceptance
+## Manual acceptance
 
-The repository does not currently include a real-browser automation harness such as Playwright, Puppeteer or WebDriver. Static/source contracts and deterministic unit tests therefore do not prove browser, physical-device or assistive-technology behavior by themselves.
+The repository does not currently include a real-browser automation harness. Automated tests do not replace real browser, device or assistive-technology checks. On the exact candidate commit, verify:
 
-The reproducible cross-mode procedure is in [PRODUCT-ACCEPTANCE.md](PRODUCT-ACCEPTANCE.md). Product acceptance must still exercise real Tab and Shift+Tab traversal; focus restoration after pause/settings/help/result/death transitions; Escape handling in dialogs; VoiceOver/TalkBack/desktop screen readers; 200 percent and higher zoom/reflow; physical safe-area cutouts; portrait-to-landscape rotation; simultaneous dual-stick plus ability pointers on hardware; computed contrast in the running browser; real WebGL rendering; and caption readability over representative 3D scenes.
+- Tab and Shift+Tab traversal, focus entry/restoration and Escape behavior.
+- VoiceOver, TalkBack or the target desktop screen reader.
+- 200% and higher zoom/reflow.
+- Computed contrast in the running browser.
+- Reduced-motion and high-contrast presentation during active play.
+- Caption readability during busy scenes.
+- Physical simultaneous dual-stick plus ability pointers on hardware, rotation and safe-area cutouts.
+- Real WebGL rendering on the target browser/device.
 
-Any failure in those checks is a product defect; the automated proof does not waive it.
-
-## Preserved boundaries
-
-The production renderer is React Three Fiber/WebGL only and gameplay is full X/Y/Z. There is no Canvas2D or planar accessibility fallback. Desktop jet-style flight, mobile dual-stick input, depth-aware non-color cues, semantic DOM equivalents, reduced motion, captions, spatial underwater audio, Apex, Feeding Frenzy, directional bite + burst combat, scoring, prey and movement all consume the same authoritative state.
-
-Local prediction and remote interpolation are presentation paths only. Accessibility and performance settings cannot remove authoritative actors or competitive cues. Accessibility settings are stored only in the unified device-local player record and do not create telemetry or server profile writes. Wire state schema 11 and realtime protocol 11 remain current.
+Use [PRODUCT-ACCEPTANCE.md](PRODUCT-ACCEPTANCE.md) for the complete release-facing procedure.

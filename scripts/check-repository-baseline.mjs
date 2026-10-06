@@ -133,15 +133,10 @@ expect(!repositoryFiles.some((path) => path.toLowerCase() === "changelog.md"), "
 expect(!repositoryFiles.some((path) => /^docs\/releases\//i.test(path)), "per-version Markdown release archive directory is not allowed");
 expect(!repositoryFiles.some((path) => /(?:^|\/)v\d+\.\d+\.\d+\.md$/i.test(path)), "per-version Markdown release files are not allowed");
 expect(!existsSync(join(root, "docs/RECONSTRUCTION.md")), "reconstruction narrative must remain retired");
-expect(!existsSync(join(root, "docs/history/LEGACY-INVENTORY.md")), "legacy inventory narrative must remain retired");
-expect(JSON.stringify(readdirSync(join(root, "docs/history")).sort()) === JSON.stringify(["CHANGE-MAP.csv","NESTED-SOURCE-MAP.csv"]), "docs/history must contain exact provenance CSV inputs only");
-
-const changeMap = read("docs/history/CHANGE-MAP.csv").trim().split(/\r?\n/).slice(1);
-for (const row of changeMap) {
-  const id = row.split(",", 1)[0];
-  const match = /^ST-(\d{3})$/.exec(id);
-  expect(Boolean(match) && Number(match[1]) <= 28, "CHANGE-MAP.csv must not contain forward ST history: " + id);
-}
+expect(!existsSync(join(root, "docs/history")), "retired provenance directory must stay deleted");
+expect(!existsSync(join(root, "scripts/check-provenance.mjs")), "retired provenance checker must stay deleted");
+expect(packageJson.scripts?.["check:provenance"] === undefined, "retired provenance npm command must stay deleted");
+expect(!(packageJson.scripts?.check ?? "").includes("check:provenance"), "canonical check must not call retired provenance validation");
 expect(!read("SECURITY.md").includes("reconstructed releases"), "security policy must describe supported releases as current state");
 
 const githubSettings = json("config/github-repository-settings.json");
@@ -267,7 +262,7 @@ expect(packageJson.scripts?.["check:local-readiness"] === "node --test scripts/l
 for (const requiredCheck of [
   "npm run test:plan-queue","npm run check:implementation-plan","npm run test:release-tagging","npm run test:release-publication","npm run check:release-workflow","npm run test:release-identity","npm run check:platform",
   "npm run typecheck","npm test","npm run build","npm run check:repository-baseline",
-  "npm run check:change-contract","npm run test:github-settings","npm run check:history","npm run test:public-secrets","npm run check:public-secrets","npm run check:provenance",
+  "npm run check:change-contract","npm run test:github-settings","npm run check:history","npm run test:public-secrets","npm run check:public-secrets",
   "npm run check:local-readiness","npm run check:dev-command","npm run check:local-http","npm run test:dependency-advisories","npm run check:whitespace",
 ]) has(packageJson.scripts?.check ?? "", requiredCheck, "npm run check must remain complete");
 expect(!(packageJson.scripts?.check ?? "").includes("npm audit"), "canonical check must not run the network advisory lookup");

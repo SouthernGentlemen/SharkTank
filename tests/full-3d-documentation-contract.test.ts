@@ -10,13 +10,15 @@ describe("full-3D current-state documentation", () => {
   const readme = read("../README.md");
   const architecture = read("../docs/ARCHITECTURE.md");
   const accessibility = read("../docs/ACCESSIBILITY.md");
+  const productAcceptance = read("../docs/PRODUCT-ACCEPTANCE.md");
+  const security = read("../SECURITY.md");
   const moduleReadme = read("../vendor/ModuleReact3Fiber/README.md");
   const moduleGuide = read("../vendor/ModuleReact3Fiber/CLAUDE.md");
   const plan = read("../implementation_plan.md");
   const viewport = read("../vendor/ModuleReact3Fiber/src/client/game/GameViewport.tsx");
 
   it("documents the renderer, authority, controls and gameplay that are actually built", () => {
-    const docs = [readme, architecture, accessibility, moduleReadme, moduleGuide].join("\n");
+    const docs = [readme, architecture, accessibility, productAcceptance, security, moduleReadme, moduleGuide].join("\n");
     for (const text of [
       "React Three Fiber",
       "full X/Y/Z",
@@ -52,6 +54,19 @@ describe("full-3D current-state documentation", () => {
     expect(readme).toContain("F bites");
   });
 
+  it("keeps current product docs focused on the game", () => {
+    const productDocs = [readme, architecture, accessibility, productAcceptance, security].join("\n").toLowerCase();
+    for (const retired of ["evidence", "receipts", "billing", "backups", "incidents", "iso 27001", "iso 42001", "provenance"]) {
+      expect(productDocs).not.toContain(retired);
+    }
+    expect(existsSync(new URL("../docs/history", import.meta.url))).toBe(false);
+    expect(existsSync(new URL("../scripts/check-provenance.mjs", import.meta.url))).toBe(false);
+
+    const pkg = JSON.parse(read("../package.json")) as { scripts: Record<string, string> };
+    expect(pkg.scripts["check:provenance"]).toBeUndefined();
+    expect(pkg.scripts.check).not.toContain("check:provenance");
+  });
+
   it("keeps retired renderer and planar instructions out of current guidance", () => {
     const currentGuidance = [readme, architecture, accessibility, moduleReadme, moduleGuide, plan, viewport].join("\n");
     const retiredPhrases = [
@@ -67,7 +82,7 @@ describe("full-3D current-state documentation", () => {
   });
 
   it("keeps identity and the current-only queue stable while documentation advances", () => {
-    const pkg = JSON.parse(read("../package.json")) as { version: string };
+    const pkg = JSON.parse(read("../package.json")) as { version: string; releaseRevision: number };
     expect(pkg.version).toBe("2.1.0");
     expect(pkg.releaseRevision).toBe(0);
     expect(ROOM_SCHEMA_VERSION).toBe(11);
