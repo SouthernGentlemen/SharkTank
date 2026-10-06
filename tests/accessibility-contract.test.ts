@@ -139,7 +139,7 @@ describe("full-3D accessibility re-proof", () => {
     expect(cameraFovForSpeed(28, 11, 28, true)).toBe(CAMERA_PROJECTION.fov);
     expect(Math.abs(advanceBankRoll(0, 10, 1 / 60, true))).toBeLessThanOrEqual(0.24);
     expect(resolveSharkAnimation({
-      tick: 100,
+      seconds: 5,
       actorId: "pilot",
       speed: 28,
       baseSpeed: 11,

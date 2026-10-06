@@ -106,21 +106,6 @@ Tasks follow these defaults unless the owner changes them before the task starts
 
 ## Open tasks
 
-### ST-236 — [FIX] Drive animation and banking from continuous client time
-
-**Goal:** Swim phases use the stalled server tick, and remote banking spikes on snapshot steps.
-
-**Scope**
-- Shark and prey animation take seconds from the frame clock, keeping today's frequencies.
-- Remote yaw rate comes from the bracketing snapshots and is low-passed before banking.
-- Reduced motion keeps the rest pose.
-
-**Acceptance:** Animation phase advances every frame, and stepped 10 Hz yaw produces bounded roll change (tests).
-
-**Validation:** `npm test -- tests/shark-models.test.ts tests/prey-schools.test.ts tests/swimming-camera.test.ts tests/accessibility-contract.test.ts`.
-
----
-
 ### ST-237 — [PERF] Send steering intent at 20 Hz with a trailing final update
 
 **Goal:** The Room steers from stale, coarse targets.

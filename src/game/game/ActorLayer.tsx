@@ -19,6 +19,8 @@ import { cadenceDue, resolveClientPerformanceProfile } from "./performance.js";
 import { LocalPredictor } from "./prediction.js";
 import {
   advanceBankRoll,
+  snapshotYawRate,
+  smoothYawRate,
   interpolateOrientedPose,
   type OrientedScenePose,
 } from "./sceneMath.js";
@@ -127,12 +129,12 @@ export function ActorLayer({
   const toLabel = useMemo(() => new THREE.Vector3(), []);
   const tempColor = useMemo(() => new THREE.Color(), []);
   const prevById = useMemo(() => new Map<string, ClientShark>(), []);
-  const motionById = useMemo(() => new Map<string, { yaw: number; roll: number }>(), []);
+  const motionById = useMemo(() => new Map<string, { yaw: number; roll: number; yawRate: number }>(), []);
   const labelBuffer = useMemo<SharkLabel[]>(() => [], []);
   const lastLabelPassAt = useRef(-Infinity);
   const performanceProfile = resolveClientPerformanceProfile(settings.graphics.quality);
 
-  useFrame((_, dt) => {
+  useFrame(({ clock }, dt) => {
     const body = bodyMesh.current;
     const head = headMesh.current;
     const snout = snoutMesh.current;
@@ -169,6 +171,9 @@ export function ActorLayer({
     const activeIds = new Set(state.sharks.filter(shark => shark.alive).map(shark => shark.id));
     for (const id of remotePoses.keys()) {
       if (!activeIds.has(id)) remotePoses.delete(id);
+    }
+    for (const id of motionById.keys()) {
+      if (!activeIds.has(id)) motionById.delete(id);
     }
     const previous = frame.older;
     const reducedMotion = settings.a11y.motion === "reduced";
@@ -258,13 +263,16 @@ export function ActorLayer({
         apexMarker.visible = true;
         apexMarker.position.copy(position);
         apexMarker.position.y += 2.35 * sharkScale;
-        apexMarker.rotation.set(0, reducedMotion ? 0 : (state.tick + alpha) * 0.035, 0);
+        apexMarker.rotation.set(0, reducedMotion ? 0 : clock.elapsedTime * TICKS_PER_SECOND * 0.035, 0);
         apexMarker.scale.setScalar(Math.max(0.72, sharkScale * 0.46));
       }
 
-      const motion = motionById.get(shark.id) ?? { yaw, roll: 0 };
-      const yawRate = shortestYawDelta(motion.yaw, yaw) / Math.max(1 / 120, Math.min(0.05, dt));
-      motion.roll = advanceBankRoll(motion.roll, yawRate, dt, reducedMotion);
+      const motion = motionById.get(shark.id) ?? { yaw, roll: 0, yawRate: 0 };
+      const targetYawRate = usePrediction
+        ? shortestYawDelta(motion.yaw, yaw) / Math.max(1 / 120, Math.min(0.05, dt))
+        : snapshotYawRate(previousShark?.yaw ?? shark.yaw, shark.yaw, previous.tick, state.tick);
+      motion.yawRate = smoothYawRate(motion.yawRate, targetYawRate, dt);
+      motion.roll = advanceBankRoll(motion.roll, motion.yawRate, dt, reducedMotion);
       motion.yaw = yaw;
       motionById.set(shark.id, motion);
 
@@ -273,7 +281,7 @@ export function ActorLayer({
       const boostSpeed = MOVE.BOOST_SPEED * TICKS_PER_SECOND * frenzy;
       const speed = swimSpeedForLungeTicks(shark.lungeTicks) * TICKS_PER_SECOND * frenzy;
       const animation = resolveSharkAnimation({
-        tick: state.tick + alpha,
+        seconds: clock.elapsedTime,
         actorId: shark.id,
         speed,
         baseSpeed,

@@ -119,7 +119,7 @@ export function PreyLayer({ socket, settings }: { socket: RoomSocket; settings: 
 
       if (visual.mode === "fish" && fishCount < PREY_BUDGET.max) {
         const animation = resolvePreyAnimation({
-          tick: current.tick + alpha,
+          seconds: clock.elapsedTime,
           id: actor.id,
           speed,
           reducedMotion,
@@ -156,7 +156,7 @@ export function PreyLayer({ socket, settings }: { socket: RoomSocket; settings: 
         drop.rotation.set(
           pose.pitch,
           -pose.yaw,
-          reducedMotion ? 0 : (current.tick + (actor.id.length % 7)) * 0.025,
+          reducedMotion ? 0 : (clock.elapsedTime * TICKS_PER_SECOND + (actor.id.length % 7)) * 0.025,
         );
         drop.scale.setScalar(visual.dropScale);
         drop.updateMatrix();

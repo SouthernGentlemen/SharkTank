@@ -77,3 +77,5 @@ Do not use production credentials for local acceptance.
 Record the environment and PASS/FAIL for desktop lifecycle, controls, quality modes, accessibility modes, zoom/reflow, screen reader, physical multi-touch, rotation/safe area and Feeding Frenzy readability. Any failure blocks release acceptance until corrected.
 
 Late-snapshot tests cover 120 ms of continuous shark and prey motion during a 200 ms gap, holding beyond the cap, and continuous recovery when authoritative packets resume.
+
+Shark and prey swim phases use continuous client frame seconds at the existing frequencies, independent of snapshot arrival or holds. Remote banking uses snapshot-pair yaw rates with a low-pass filter before roll easing. Reduced motion keeps swim flex in the rest pose.

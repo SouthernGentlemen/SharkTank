@@ -1,3 +1,4 @@
+import { TICKS_PER_SECOND } from "../../engine/index.js";
 export type SharkPresentationQuality = "low" | "medium" | "high";
 
 export interface SharkPresentationProfile {
@@ -22,7 +23,7 @@ export function sharkScaleForLength(length: number): number {
 }
 
 export interface SharkAnimationInput {
-  tick: number;
+  seconds: number;
   actorId: string;
   speed: number;
   baseSpeed: number;
@@ -72,8 +73,8 @@ export function resolveSharkAnimation(input: SharkAnimationInput): SharkAnimatio
   const speed = Number.isFinite(input.speed) ? input.speed : baseSpeed;
   const speedRatio = clamp01((speed - baseSpeed) / (boostSpeed - baseSpeed));
   const intensity = clamp01(0.28 + speedRatio * 0.58 + (input.boosting ? 0.16 : 0));
-  const tick = Number.isFinite(input.tick) ? input.tick : 0;
-  const phase = tick * (0.3 + speedRatio * 0.09) + actorPhase(input.actorId);
+  const seconds = Number.isFinite(input.seconds) ? input.seconds : 0;
+  const phase = seconds * TICKS_PER_SECOND * (0.3 + speedRatio * 0.09) + actorPhase(input.actorId);
   const pitch = Number.isFinite(input.pitch) ? input.pitch : 0;
 
   return {
