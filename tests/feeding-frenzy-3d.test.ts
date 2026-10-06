@@ -13,8 +13,6 @@ import {
   frenzyTiming,
   frenzyVolumeFor,
   isFrenzy,
-  isInsideFrenzyVolume,
-  isInsideOceanVolume,
   spawnBots,
   step,
   type Prey,
@@ -28,6 +26,29 @@ import {
 import { resolveOceanEnvironmentQuality } from "../vendor/ModuleReact3Fiber/src/client/game/oceanArena.js";
 
 const read = (path: string) => readFileSync(new URL(path, import.meta.url), "utf8");
+
+function insideOcean(
+  point: { x: number; y: number; z: number },
+  ocean: { radius: number; seabedY: number; surfaceY: number },
+  margin = 0,
+): boolean {
+  const radius = Math.max(0, ocean.radius - margin);
+  return Number.isFinite(point.x) && Number.isFinite(point.y) && Number.isFinite(point.z)
+    && point.x * point.x + point.z * point.z <= radius * radius
+    && point.y >= ocean.seabedY + margin
+    && point.y <= ocean.surfaceY - margin;
+}
+
+function insideFrenzy(
+  point: { x: number; y: number; z: number },
+  ocean: { radius: number; seabedY: number; surfaceY: number },
+  margin = 0,
+): boolean {
+  const volume = frenzyVolumeFor(ocean);
+  const radius = Math.max(0, volume.radius + margin);
+  return point.x * point.x + point.z * point.z <= radius * radius
+    && Math.abs(point.y - volume.center.y) <= volume.halfHeight + margin;
+}
 
 function join(state: ReturnType<typeof createRoom>, id: string, isBot = false): Snake {
   applyAction(state, { type: "join", playerId: id, name: id, isBot });
@@ -93,8 +114,8 @@ describe("ST-123 3D server-wide Feeding Frenzy", () => {
     expect(chum).toHaveLength(FRENZY_RULES.chumCount);
     expect(volume.radius).toBeCloseTo(state.ocean.radius * FRENZY_RULES.volumeRadiusShare);
     expect(volume.halfHeight).toBeGreaterThan(5);
-    expect(chum.every((actor) => isInsideOceanVolume(actor, state.ocean))).toBe(true);
-    expect(chum.every((actor) => isInsideFrenzyVolume(actor, state.ocean, 0.2))).toBe(true);
+    expect(chum.every((actor) => insideOcean(actor, state.ocean))).toBe(true);
+    expect(chum.every((actor) => insideFrenzy(actor, state.ocean, 0.2))).toBe(true);
     expect(new Set(chum.map((actor) => Math.round(actor.y))).size).toBeGreaterThan(8);
     expect(Math.min(...chum.map((actor) => actor.y))).toBeLessThan(volume.center.y - volume.halfHeight * 0.55);
     expect(Math.max(...chum.map((actor) => actor.y))).toBeGreaterThan(volume.center.y + volume.halfHeight * 0.55);
@@ -183,7 +204,7 @@ describe("ST-123 3D server-wide Feeding Frenzy", () => {
       expect(Math.sign(bot.targetPitch)).toBe(startY < 0 ? 1 : -1);
 
       for (let i = 0; i < 85; i += 1) step(state);
-      expect(isInsideFrenzyVolume(bot.segments[0], state.ocean, 2)).toBe(true);
+      expect(insideFrenzy(bot.segments[0], state.ocean, 2)).toBe(true);
     }
 
     const engine = read("../vendor/ModuleReact3Fiber/src/engine/room.ts");

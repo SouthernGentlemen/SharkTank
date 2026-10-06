@@ -61,8 +61,6 @@ try {
   const version = await request("/version.json");
   const identity = await version.json();
   if (version.status !== 200 || identity.app !== "sharktank" || !identity.version || !/^[0-9a-f]{40}$/.test(identity.commit)) fail("/version.json lost baseline release identity");
-  const health = await request("/api/health");
-  if (health.status !== 200 || (await health.json()).ok !== true) fail("/api/health lost its existing JSON contract");
   const noUpgrade = await request("/room/room-1/ws");
   if (noUpgrade.status !== 426) fail("room WebSocket path must require upgrade");
   await checkRoomSocket();
@@ -76,7 +74,7 @@ try {
     "/audit.json", "/audit.jsonl", "/audit/status.json", "/audit/game/room-1", "/audit/replay/room-1",
     "/logs/game/room-1.txt", "/docs", "/docs/", "/openapi.json", "/docs/openapi.json",
     "/incidents.json", "/logs.json", "/inquiry.json",
-    "/api/lobby", "/api/leaderboard", "/api/security-report", "/api/tank", "/api/profile", "/api/audit",
+    "/api/health", "/api/lobby", "/api/leaderboard", "/api/security-report", "/api/tank", "/api/profile", "/api/audit",
     "/room/room-2/ws", "/room/room-3/ws", "/room/room-4/ws",
   ]) {
     if (path.startsWith("/api/") || path.startsWith("/room/")) {

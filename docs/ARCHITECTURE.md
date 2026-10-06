@@ -17,7 +17,6 @@ The shared `platform/wg-edge/` shell owns host/TLS checks, `/version.json`, resp
 
 - `/` and `/play` redirect to `/play/`.
 - `/play/` is the one explicit browser application boundary.
-- `/api/health` serves the current health response.
 - `/room/room-1/ws` is the only gameplay socket.
 - Static game assets are served through the Worker asset binding.
 - Every other application path falls through to the shared 404.

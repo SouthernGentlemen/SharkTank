@@ -15,9 +15,7 @@ The queue comes from two code deep dives plus live production measurements taken
 ### What the deep dives found
 
 - **Dead code remains outside the active game path.**
-  - Never imported: the vendored `store` module and the `client/index.ts` entry.
   - Production code used only by tests: render-cost inventories (`estimateSceneRenderCost`, `estimateBaselineSceneRenderCost`, `CLIENT_PERFORMANCE_BUDGETS`) and descriptive lists (`SHARK_ANATOMY`, `PREY_SILHOUETTE`).
-  - Never called: `cloneRoom`, `frenzyTicksLeft`, `nextInt`, `isInsideOceanVolume`, `isInsideFrenzyVolume`, `distancePointToSegmentSquared3`, `HealthResponse`, `ErrorResponse` and `roomSocketPath`.
   - The snake-era trail (`path`, `segments`, `sampleTrail`, `SEGMENT_SPACING`, `TAIL_MARGIN`) always yields one point, and `boosting`/`chargeTicks` are always false and zero.
   - The FX layer draws a 1-unit "boundary" ring at the arena centre plus a duplicate Frenzy ring.
   - The Camera motion setting is read by nothing.
@@ -110,23 +108,6 @@ Tasks follow these defaults unless the owner changes them before the task starts
 | Music | Six-note loop on `setInterval`, off by default | Layered adaptive score on the audio clock, on at 35% | ST-274–ST-277 |
 
 ## Open tasks
-
-### ST-227 — [REFACTOR] Remove dead engine, protocol and package code
-
-**Goal:** Delete code nothing imports or calls.
-
-**Scope**
-- Delete the vendored `store` module and its package export.
-- Delete the `client/index.ts` entry and its package export; the host imports `App` directly.
-- Delete `cloneRoom`, `frenzyTicksLeft`, `nextInt`, `isInsideOceanVolume`, `isInsideFrenzyVolume` and `distancePointToSegmentSquared3`.
-- Delete `HealthResponse`, `ErrorResponse`, `roomSocketPath` and `/api/health`; `/version.json` remains.
-- Drop `export` from symbols used only inside their own module.
-
-**Acceptance:** A repeat of the dead-export scan finds nothing unused.
-
-**Validation:** `npm run typecheck`; `npm test`.
-
----
 
 ### ST-228 — [REFACTOR] Remove dead rendering and test-only code from the client
 

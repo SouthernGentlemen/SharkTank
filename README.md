@@ -28,7 +28,6 @@ Useful commands:
 - `/` and `/play` redirect to `/play/`.
 - `/play/` serves the React game document and Vite assets.
 - `/version.json` exposes release identity through the shared wg-edge shell.
-- `/api/health` returns the current health response.
 - `/room/room-1/ws` is the only gameplay WebSocket.
 - Unknown routes return the shared shell 404.
 

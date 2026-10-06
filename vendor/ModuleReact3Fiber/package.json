@@ -7,9 +7,7 @@
   "type": "module",
   "exports": {
     "./engine": "./src/engine/index.ts",
-    "./store": "./src/store/index.ts",
-    "./protocol": "./src/protocol/index.ts",
-    "./client": "./src/client/index.ts"
+    "./protocol": "./src/protocol/index.ts"
   },
   "scripts": {
     "typecheck": "tsc --noEmit"

@@ -3,7 +3,6 @@
 // @ts-expect-error TypeScript does not pair .mjs with the baseline's index.d.ts.
 import { createEdge as createEdgeRuntime } from "../../platform/wg-edge/index.mjs";
 import type { createEdge as CreateEdge } from "../../platform/wg-edge/index.d.ts";
-import { API } from "module-react3fiber/protocol";
 
 export { Room } from "./room-do.js";
 import type { Env } from "./env.js";
@@ -37,7 +36,6 @@ export default createEdge<Env>({
       return env.ROOM.get(id).fetch(new Request(fwd.toString(), { method: request.method, headers: request.headers }));
     }
 
-    if (path === API.health) return json({ ok: true, module: "module-react3fiber", release: version, time: new Date().toISOString() });
 
     const gameShell = isGameShellPath(path);
     if (!gameShell && !isStaticAssetPath(path)) return null;
