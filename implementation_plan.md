@@ -106,18 +106,6 @@ Tasks follow these defaults unless the owner changes them before the task starts
 
 ## Open tasks
 
-### ST-238 — [FEAT] Predict the dash locally the instant it is pressed
-
-**Goal:** The local dash waits one round trip before it moves.
-
-**Scope:** Export the dash envelope from the engine. Start a local lunge on a boost press whose cooldown is ready in the latest snapshot, reconcile with authoritative `lungeTicks`, and cancel if unconfirmed within 250 ms.
-
-**Acceptance:** Predicted speed rises on the press frame; a rejected dash stays within correction bounds.
-
-**Validation:** `npm test -- tests/realtime-3d-network.test.ts tests/shark-combat.test.ts`.
-
----
-
 ### ST-239 — [FIX] Blend reconciliation corrections instead of snapping the camera
 
 **Goal:** Large corrections teleport the local shark and the camera.

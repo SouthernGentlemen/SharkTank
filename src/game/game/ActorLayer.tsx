@@ -189,12 +189,12 @@ export function ActorLayer({
     const authoritativeMe = socket.stateRef.current?.sharks.find((shark) => shark.id === socket.youId) ?? null;
     const staleness = Math.max(0, (nowMs - socket.newestAtRef.current) / 1000);
     const predicted = inputRef
-      ? predictor.step(authoritativeMe, inputRef.current, dt, staleness, {
+      ? predictor.step(socket.status === "open" ? authoritativeMe : null, inputRef.current, dt, staleness, {
           seabedY: state.seabedY,
           surfaceY: state.surfaceY,
-          tick: state.tick,
-          frenzyUntilTick: state.frenzyUntilTick,
-        })
+          tick: socket.stateRef.current?.tick ?? state.tick,
+          frenzyUntilTick: socket.stateRef.current?.frenzyUntilTick ?? state.frenzyUntilTick,
+        }, nowMs, socket.dashPressedAtRef.current)
       : null;
 
     const labels = labelBuffer;

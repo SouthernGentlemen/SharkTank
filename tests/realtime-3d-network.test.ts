@@ -204,6 +204,62 @@ describe("ST-122 realtime combat protocol", () => {
     expect(corrected!.pitch).toBeLessThan(climbed!.pitch);
   });
 
+  it("predicts a ready dash on the press frame and bounds rejected movement", () => {
+    const state = createRoom({ seed: "dash-prediction" });
+    const shark = join(state, "pilot");
+    place(shark, 0, 0, 0);
+    shark.yaw = shark.targetYaw = 0;
+    shark.pitch = shark.targetPitch = 0;
+    const auth = toClientShark(toNetState(state).snakes.find((s) => s.id === shark.id)!);
+    const world = { seabedY: -20, surfaceY: 20, tick: state.tick, frenzyUntilTick: 0 };
+    const input = { targetYaw: 0, targetPitch: 0, boosting: false };
+    const dash = new LocalPredictor();
+    const base = new LocalPredictor();
+    dash.step(auth, input, 0, 0, world, 0);
+    base.step(auth, input, 0, 0, world, 0);
+    const pressed = dash.step(auth, input, 0.016, 0, world, 16, 16)!;
+    const normal = base.step(auth, input, 0.016, 0, world, 16)!;
+    expect(pressed.position.x).toBeGreaterThan(normal.position.x);
+    let previous = pressed.position.x;
+    for (let now = 32; now <= 320; now += 16) {
+      const result = dash.step(auth, input, 0.016, 0, world, now, 16)!;
+      expect(Math.abs(result.position.x - previous)).toBeLessThan(1);
+      expect(result.position.x).toBeLessThan(8);
+      previous = result.position.x;
+    }
+    const settled = new LocalPredictor();
+    settled.step({ ...auth, position: { x: previous, y: 0, z: 0 } }, input, 0, 0, world, 320);
+    const after = dash.step(auth, input, 0.016, 0, world, 336, 16)!;
+    expect(after).toEqual(settled.step(auth, input, 0.016, 0, world, 336));
+  });
+
+  it("honors cooldown, authoritative dash confirmation and prediction reset", () => {
+    const state = createRoom({ seed: "dash-confirmation" });
+    const shark = join(state, "pilot");
+    place(shark, 0, 0, 0);
+    shark.yaw = shark.targetYaw = 0;
+    shark.pitch = shark.targetPitch = 0;
+    const auth = toClientShark(toNetState(state).snakes.find((s) => s.id === shark.id)!);
+    const world = { seabedY: -20, surfaceY: 20, tick: state.tick, frenzyUntilTick: 0 };
+    const input = { targetYaw: 0, targetPitch: 0, boosting: false };
+    const predictor = new LocalPredictor();
+    const baseline = new LocalPredictor();
+    predictor.step(auth, input, 0, 0, world, 0);
+    baseline.step(auth, input, 0, 0, world, 0);
+    expect(predictor.step({ ...auth, dashCooldownTick: world.tick + 10 }, input, 0.016, 0, world, 16, 16))
+      .toEqual(baseline.step(auth, input, 0.016, 0, world, 16));
+    predictor.step(auth, input, 0.016, 0, world, 32, 32);
+    const confirmed = { ...auth, lungeTicks: 6, dashCooldownTick: world.tick + 40 };
+    const confirmedBase = new LocalPredictor();
+    const seeded = predictor.step(confirmed, input, 0.016, 0, world, 64, 32)!;
+    confirmedBase.step({ ...confirmed, position: seeded.position }, input, 0, 0, world, 64);
+    const a = predictor.step({ ...confirmed, position: seeded.position }, input, 0.016, 0, world, 80, 32)!;
+    const b = confirmedBase.step({ ...confirmed, position: seeded.position }, input, 0.016, 0, world, 80)!;
+    expect(a).toEqual(b);
+    predictor.reset();
+    expect(predictor.step(auth, input, 0.016, 0, world, 96, 32)?.position).toEqual(auth.position);
+  });
+
   it("interpolates remote X/Y/Z and pitch while taking the shortest yaw path across ±π", () => {
     const mid = interpolateOrientedPose(
       { x: -4, y: -8, z: 2, yaw: Math.PI - 0.1, pitch: -0.4 },
