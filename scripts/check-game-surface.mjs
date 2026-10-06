@@ -19,7 +19,7 @@ async function checkRoomSocket() {
   try {
     const welcome = await new Promise((resolve, reject) => {
       const timer = setTimeout(() => reject(new Error("room welcome timed out")), 5_000);
-      socket.addEventListener("open", () => socket.send(JSON.stringify({ v: 11, t: "hello", name: "Acceptance Shark", skin: "cyan", debugLanguage: "ts" })), { once: true });
+      socket.addEventListener("open", () => socket.send(JSON.stringify({ v: 12, t: "hello", name: "Acceptance Shark", skin: "cyan", debugLanguage: "ts" })), { once: true });
       socket.addEventListener("message", (event) => {
         try {
           const message = JSON.parse(String(event.data));
@@ -28,9 +28,12 @@ async function checkRoomSocket() {
       });
       socket.addEventListener("error", () => { clearTimeout(timer); reject(new Error("room socket error")); }, { once: true });
     });
-    if (welcome.v !== 11 || welcome.roomId !== "room-1" || !welcome.youId || typeof welcome.state?.tick !== "number") {
+    if (welcome.v !== 12 || welcome.roomId !== "room-1" || !welcome.youId || typeof welcome.state?.tick !== "number") {
       fail("room WebSocket welcome lost authoritative state or identity");
     }
+    if (!Array.isArray(welcome.state?.sharks) || !welcome.state.sharks.every((shark) => shark.position && !Object.hasOwn(shark, "segments"))
+      || !Array.isArray(welcome.state?.food) || !welcome.state.food.every((prey) => Array.isArray(prey) && prey.length === 7)
+      || Object.hasOwn(welcome.state, "schemaVersion")) fail("room WebSocket must carry protocol 12 compact state");
   } finally {
     socket.close();
   }

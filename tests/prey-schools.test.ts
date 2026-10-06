@@ -11,7 +11,7 @@ import {
   type Prey,
   type Shark,
 } from "../src/engine/index.js";
-import { REALTIME_PROTOCOL_VERSION, toNetState } from "../src/protocol/index.js";
+import { REALTIME_PROTOCOL_VERSION, toNetState, decodeState, preyWireId } from "../src/protocol/index.js";
 import {
   preyVisualFor,
   resolvePreyAnimation,
@@ -197,12 +197,12 @@ describe("ST-120 authoritative fish and prey schools", () => {
 
   it("ships only compact authoritative prey fields and keeps browser presentation out of Worker imports", () => {
     const state = createRoom({ seed: "wire-prey" });
-    const net = toNetState(state);
+    const net = decodeState(toNetState(state));
     expect(ROOM_SCHEMA_VERSION).toBe(11);
-    expect(REALTIME_PROTOCOL_VERSION).toBe(11);
+    expect(REALTIME_PROTOCOL_VERSION).toBe(12);
     expect(net.food).toHaveLength(PREY_BUDGET.ambient);
     expect(net.food[0]).toMatchObject({
-      id: state.food[0].id,
+      id: preyWireId(state.food[0].id),
       kind: state.food[0].kind,
       value: state.food[0].value,
     });

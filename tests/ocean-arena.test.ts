@@ -63,7 +63,7 @@ describe("ST-118 stylized ocean arena", () => {
     expect(ENVIRONMENT_LANDMARKS.some((landmark) => landmark.kind === "wreck")).toBe(true);
     expect(ENVIRONMENT_LANDMARKS.some((landmark) => landmark.kind === "frenzy")).toBe(true);
     expect(ROOM_SCHEMA_VERSION).toBe(11);
-    expect(REALTIME_PROTOCOL_VERSION).toBe(11);
+    expect(REALTIME_PROTOCOL_VERSION).toBe(12);
   });
 
   it("reads live arena/frenzy authority and keeps the procedural environment client-only", () => {

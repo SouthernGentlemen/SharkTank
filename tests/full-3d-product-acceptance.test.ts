@@ -240,11 +240,9 @@ describe("ST-131 full-3D product acceptance", () => {
     expect(Object.keys(state.sharks)).toHaveLength(BOT_AI_BUDGET.maxTrackedSharks);
 
     const net = toNetState(state);
-    expect(net.snakes).toHaveLength(BOT_AI_BUDGET.maxTrackedSharks);
+    expect(net.sharks).toHaveLength(BOT_AI_BUDGET.maxTrackedSharks);
     expect(net.food.length).toBeLessThanOrEqual(PREY_BUDGET.max);
-    expect(net.snakes.every((shark) => shark.segments.every((point) =>
-      Number.isFinite(point.x) && Number.isFinite(point.y) && Number.isFinite(point.z)
-    ))).toBe(true);
+    expect(net.sharks.every((shark) => Number.isFinite(shark.position.x) && Number.isFinite(shark.position.y) && Number.isFinite(shark.position.z))).toBe(true);
   });
 
   it("keeps support surfaces and release/provider compatibility boundaries inside the existing acceptance gates", () => {
@@ -293,7 +291,7 @@ describe("ST-131 full-3D product acceptance", () => {
     expect(pkg.version).toBe("2.1.0");
     expect(pkg.releaseRevision).toBe(0);
     expect(ROOM_SCHEMA_VERSION).toBe(11);
-    expect(REALTIME_PROTOCOL_VERSION).toBe(11);
+    expect(REALTIME_PROTOCOL_VERSION).toBe(12);
 
     for (const phrase of [
       "A manual-only row is not a pass until somebody actually performs it",

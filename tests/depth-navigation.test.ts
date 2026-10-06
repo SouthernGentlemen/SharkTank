@@ -35,7 +35,6 @@ function prey(id: string, x: number, y: number, z: number, kind: NetPrey["kind"]
 
 function state(): ClientState {
   return {
-    schemaVersion: 11,
     tick: 100,
     arenaRadius: 120,
     seabedY: -60,
@@ -161,8 +160,8 @@ describe("ST-126 depth-aware competitive cues", () => {
     const protocol = read("../src/protocol/index.ts");
     const engineTypes = read("../src/engine/types.ts");
     const pkg = JSON.parse(read("../package.json")) as { version: string };
-    expect(protocol).toContain("REALTIME_PROTOCOL_VERSION = 11");
-    expect(protocol).toContain("schemaVersion: 11;");
+    expect(protocol).toContain("REALTIME_PROTOCOL_VERSION = 12");
+    expect(protocol).not.toContain("schemaVersion:");
     expect(engineTypes).not.toContain("schemaVersion: 11");
     expect(pkg.version).toBe("2.1.0");
   });

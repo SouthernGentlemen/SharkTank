@@ -20,6 +20,8 @@ The focused product test covers the device-local player record, menu/tank/game l
 
 The snapshot timeline test replays 10 Hz arrivals with ±25 ms jitter at 60 Hz and server clocks 1% fast or slow over ten minutes, requiring fewer than 2% clamped frames after startup, render lag within 20 ms of target, and continuous frame-sized clock advances.
 
+Protocol 12 tests require a 32-shark room with 200 ambient prey to fit within 16 KB and the 360-prey/32-effect stress fixture within 25 KB. They verify tuple decoding, all sixteen reserved species codes, drop bonus variants and rejection of protocol 11 clients. Stale clients see "Game update required. Reload to reconnect."
+
 The local HTTP gate checks the root redirect, `/play/`, `/version.json`, static assets, shared 404 handling and a Room WebSocket hello/welcome exchange.
 
 ## Real-browser desktop acceptance
@@ -67,7 +69,7 @@ Spot-check the exact candidate environment:
 - `/` redirects to `/play/`.
 - `/play/` loads the built game and first-party assets.
 - `/version.json` matches the candidate release identity.
-- `/room/room-1/ws` accepts protocol 11 WebSocket play.
+- `/room/room-1/ws` accepts protocol 12 WebSocket play.
 - Unknown application paths, including the retired `/api/health`, return the shared 404.
 
 Do not use production credentials for local acceptance.

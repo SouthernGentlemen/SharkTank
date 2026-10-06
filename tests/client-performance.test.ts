@@ -127,10 +127,10 @@ describe("ST-127 3D client performance contracts", () => {
     const snapshotBytes = bytes(message);
     const measuredBytesPerSecond = snapshotBytes * (TICKS_PER_SECOND / STATE_BROADCAST_EVERY);
 
-    expect(message.state.snakes).toHaveLength(32);
+    expect(message.state.sharks).toHaveLength(32);
     expect(message.state.food).toHaveLength(PREY_BUDGET.max);
-    expect(snapshotBytes).toBeLessThanOrEqual(60_000);
-    expect(measuredBytesPerSecond).toBeLessThanOrEqual(600_000);
+    expect(snapshotBytes).toBeLessThanOrEqual(25_000);
+    expect(measuredBytesPerSecond).toBeLessThanOrEqual(250_000);
 
     const roomDo = read("../src/worker/room-do.ts");
     expect(roomDo).toContain("STATE_BROADCAST_EVERY,");
@@ -193,6 +193,6 @@ describe("ST-127 3D client performance contracts", () => {
     expect(radar).toContain("setInterval(update, 250)");
     expect(pkg.version).toBe("2.1.0");
     expect(ROOM_SCHEMA_VERSION).toBe(11);
-    expect(REALTIME_PROTOCOL_VERSION).toBe(11);
+    expect(REALTIME_PROTOCOL_VERSION).toBe(12);
   });
 });
