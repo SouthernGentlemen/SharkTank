@@ -35,8 +35,7 @@ function join(state: ReturnType<typeof createRoom>, id: string, isBot = false): 
 
 function place(shark: Snake, x: number, y: number, z: number): void {
   const point = { x, y, z };
-  shark.path = [{ ...point }];
-  shark.segments = [{ ...point }];
+  shark.position = { ...point };
   shark.yaw = shark.targetYaw = 0;
   shark.pitch = shark.targetPitch = 0;
 }
@@ -152,18 +151,18 @@ describe("ST-124 authoritative round and Apex loop", () => {
     state.round.apexId = apex.id;
     state.tick = 100;
 
-    const beforeApex = { ...apex.segments[0] };
-    const beforeHunter = { ...hunter.segments[0] };
+    const beforeApex = { ...apex.position };
+    const beforeHunter = { ...hunter.position };
     step(state);
     const apexTravel = Math.hypot(
-      apex.segments[0].x - beforeApex.x,
-      apex.segments[0].y - beforeApex.y,
-      apex.segments[0].z - beforeApex.z,
+      apex.position.x - beforeApex.x,
+      apex.position.y - beforeApex.y,
+      apex.position.z - beforeApex.z,
     );
     const hunterTravel = Math.hypot(
-      hunter.segments[0].x - beforeHunter.x,
-      hunter.segments[0].y - beforeHunter.y,
-      hunter.segments[0].z - beforeHunter.z,
+      hunter.position.x - beforeHunter.x,
+      hunter.position.y - beforeHunter.y,
+      hunter.position.z - beforeHunter.z,
     );
     expect(apexTravel).toBeGreaterThan(hunterTravel);
 

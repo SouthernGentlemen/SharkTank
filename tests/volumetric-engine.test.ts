@@ -33,8 +33,7 @@ function join(state: ReturnType<typeof createRoom>, id: string): Snake {
 
 function place(shark: Snake, x: number, y: number, z: number): void {
   const point = { x, y, z };
-  shark.path = [{ ...point }];
-  shark.segments = [{ ...point }];
+  shark.position = { ...point };
 }
 
 describe("volumetric authoritative engine", () => {
@@ -47,7 +46,7 @@ describe("volumetric authoritative engine", () => {
     expect(state.food.every((food) => insideOcean(food, state.ocean))).toBe(true);
 
     const sharks = ["a", "b", "c", "d"].map((id) => join(state, id));
-    expect(new Set(sharks.map((shark) => shark.segments[0].y.toFixed(4))).size).toBeGreaterThan(1);
+    expect(new Set(sharks.map((shark) => shark.position.y.toFixed(4))).size).toBeGreaterThan(1);
     expect(sharks.every((shark) => Number.isFinite(shark.yaw) && Number.isFinite(shark.pitch))).toBe(true);
     expect("roll" in sharks[0]).toBe(false);
   });
@@ -68,12 +67,12 @@ describe("volumetric authoritative engine", () => {
 
     applyAction(state, { type: "setOrientation", playerId: shark.id, yaw: 0, pitch: Math.PI / 6 });
     step(state);
-    const climbedY = shark.segments[0].y;
+    const climbedY = shark.position.y;
     expect(climbedY).toBeGreaterThan(0);
 
     applyAction(state, { type: "setOrientation", playerId: shark.id, yaw: 0, pitch: -Math.PI / 6 });
     for (let i = 0; i < 5; i += 1) step(state);
-    expect(shark.segments[0].y).toBeLessThan(climbedY);
+    expect(shark.position.y).toBeLessThan(climbedY);
   });
 
   it("enforces radial death plus surface and seabed clamps", () => {
@@ -87,13 +86,13 @@ describe("volumetric authoritative engine", () => {
     shark.pitch = shark.targetPitch = Math.PI / 3;
     step(state);
     expect(shark.alive).toBe(true);
-    expect(shark.segments[0].y).toBeLessThanOrEqual(state.ocean.surfaceY);
+    expect(shark.position.y).toBeLessThanOrEqual(state.ocean.surfaceY);
     expect(shark.pitch).toBe(0);
 
     place(shark, 0, -3.9, 0);
     shark.pitch = shark.targetPitch = -Math.PI / 3;
     step(state);
-    expect(shark.segments[0].y).toBeGreaterThanOrEqual(state.ocean.seabedY);
+    expect(shark.position.y).toBeGreaterThanOrEqual(state.ocean.seabedY);
     expect(shark.pitch).toBe(0);
 
     place(shark, state.ocean.radius - 0.1, 0, 0);
@@ -116,12 +115,12 @@ describe("volumetric authoritative engine", () => {
     place(eater, 0, -5, 0);
     place(rival, 20, 5, 0);
 
-    state.food = [{ id: "high", kind: "reef", x: eater.segments[0].x + 0.556, y: 5, z: 0, value: 2, r: 0.4, yaw: 0, pitch: 0, school: 1 }];
+    state.food = [{ id: "high", kind: "reef", x: eater.position.x + 0.556, y: 5, z: 0, value: 2, r: 0.4, yaw: 0, pitch: 0, school: 1 }];
     step(state);
     expect(state.food.some((food) => food.id === "high")).toBe(true);
     expect(rival.alive).toBe(true);
 
-    const head = eater.segments[0];
+    const head = eater.position;
     state.food = [{ id: "same-depth", kind: "reef", x: head.x + 0.556, y: head.y, z: head.z, value: 2, r: 0.4, yaw: 0, pitch: 0, school: 1 }];
     step(state);
     expect(state.food.some((food) => food.id === "same-depth")).toBe(false);

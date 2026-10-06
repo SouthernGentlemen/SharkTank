@@ -57,8 +57,7 @@ function join(state: ReturnType<typeof createRoom>, id: string, isBot = false): 
 
 function place(shark: Snake, x: number, y: number, z: number): void {
   const point = { x, y, z };
-  shark.path = [{ ...point }];
-  shark.segments = [{ ...point }];
+  shark.position = { ...point };
 }
 
 function farPrey(count: number): Prey[] {
@@ -204,7 +203,7 @@ describe("ST-123 3D server-wide Feeding Frenzy", () => {
       expect(Math.sign(bot.targetPitch)).toBe(startY < 0 ? 1 : -1);
 
       for (let i = 0; i < 85; i += 1) step(state);
-      expect(insideFrenzy(bot.segments[0], state.ocean, 2)).toBe(true);
+      expect(insideFrenzy(bot.position, state.ocean, 2)).toBe(true);
     }
 
     const engine = read("../src/engine/room.ts");

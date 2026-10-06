@@ -8,6 +8,8 @@ import { clampPitch, normalizeYaw, shortestYawDelta, TICKS_PER_SECOND } from "..
 import { parseRealtimeServerMessage, withRealtimeProtocol, type ClientMessagePayload, type NetState, type ScoreEntry } from "../../protocol/index.js";
 import { connectionAfterClose, connectionAfterWelcome, type ConnectionStatus } from "./roomConnectionState.js";
 
+import { toClientState, type ClientState } from "./clientState.js";
+
 const TICK_MS = 1000 / TICKS_PER_SECOND;
 
 export type { ConnectionStatus } from "./roomConnectionState.js";
@@ -23,14 +25,14 @@ export interface DeathInfo {
 
 /** A pair of buffered snapshots straddling the render time, plus the blend factor. */
 export interface InterpFrame {
-  older: NetState;
-  newer: NetState;
+  older: ClientState;
+  newer: ClientState;
   alpha: number; // 0 at `older`, 1 at `newer`
 }
 
 export interface RoomSocket {
   /** Latest authoritative snapshot; null until the first packet. Used by HUD/minimap/audio. */
-  stateRef: React.MutableRefObject<NetState | null>;
+  stateRef: React.MutableRefObject<ClientState | null>;
   /** performance.now() when the newest snapshot arrived — for prediction reconciliation. */
   newestAtRef: React.MutableRefObject<number>;
   /**
@@ -62,10 +64,10 @@ export function useRoomSocket(
   identity: { name: string; skin: string },
   roomName = "Tank",
 ): RoomSocket {
-  const stateRef = useRef<NetState | null>(null);
+  const stateRef = useRef<ClientState | null>(null);
   const newestAtRef = useRef<number>(0);
   // Ring of recent snapshots stamped with client receive time, ordered oldest→newest.
-  const bufferRef = useRef<Array<{ t: number; state: NetState }>>([]);
+  const bufferRef = useRef<Array<{ t: number; state: ClientState }>>([]);
   // Convert the authoritative tick clock to the client's monotonic clock once per
   // connection. Interpolation then advances on server time instead of packet-arrival
   // time, so a late packet cannot make every remote entity visibly speed up or stall.
@@ -91,7 +93,8 @@ export function useRoomSocket(
   }, []);
 
   // Record a snapshot as the latest AND append it to the interpolation buffer.
-  const pushSnapshot = useCallback((state: NetState) => {
+  const pushSnapshot = useCallback((wireState: NetState) => {
+    const state = toClientState(wireState);
     stateRef.current = state;
     const currentPlayerId = youIdRef.current;
     if (currentPlayerId && state.snakes.some((shark) => shark.id === currentPlayerId && shark.alive)) {

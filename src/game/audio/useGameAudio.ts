@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from "react";
-import type { NetPrey, NetSnake } from "../../protocol/index.js";
+import type { NetPrey } from "../../protocol/index.js";
+import type { ClientSnake } from "../net/clientState.js";
 import { audio, SFX_CAPTION, type Sfx } from "./AudioManager.js";
 import {
   AUDIO_LIMITS,
@@ -18,8 +19,8 @@ export interface Caption {
   id: number;
 }
 
-function headOf(shark: NetSnake): AudioPoint | null {
-  const head = shark.segments[0];
+function headOf(shark: ClientSnake): AudioPoint | null {
+  const head = shark.position;
   return head ? { x: head.x, y: head.y, z: head.z } : null;
 }
 
@@ -156,12 +157,12 @@ export function useGameAudio(socket: RoomSocket, settings: Settings): Caption | 
       if (me) {
         if (first) {
           wasAlive.current = me.alive;
-          lastBoost.current = me.lungeTicks > 0 || me.boosting;
+          lastBoost.current = me.lungeTicks > 0;
           if (me.alive) cue.current("spawn", { key: "spawn:" + state.round.number + ":" + state.tick });
         } else {
           if (me.alive && !wasAlive.current) cue.current("spawn", { key: "spawn:" + state.tick });
           wasAlive.current = me.alive;
-          const boosting = me.lungeTicks > 0 || me.boosting;
+          const boosting = me.lungeTicks > 0;
           if (boosting && !lastBoost.current) {
             cue.current("boost", { key: "boost", minIntervalMs: 180 });
           }

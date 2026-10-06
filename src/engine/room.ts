@@ -34,7 +34,6 @@ const BASE_SPEED = 0.556; // world units / tick (~11 u/s)
 const BOOST_SPEED = 1.42; // (~28 u/s) — short, high-impact chomp dash
 const TURN_RATE = 0.22; // max yaw radians / tick (~4.4 rad/s)
 const PITCH_RATE = 0.16; // max pitch radians / tick (~3.2 rad/s), calmer near surface/floor
-const SEGMENT_SPACING = 0.62; // arc-length between body discs sampled off the head trail
 const START_LENGTH = 10;
 /** A fresh shark enters at the size of the field, not at the size of an empty tank.
  *  In a 32-shark arena the bots are already 3-5× a bare spawn by the time a human
@@ -44,7 +43,6 @@ const START_LENGTH = 10;
 const SPAWN_MEDIAN_SHARE = 0.45;
 const MAX_SPAWN_LENGTH = START_LENGTH * 2.6;
 const MIN_LENGTH = 6; // can't boost below this
-const TAIL_MARGIN = 1.5; // extra trail arc-length kept beyond the body (world units)
 const HEAD_RADIUS = 0.7; // collision radius of the head
 const EAT_RADIUS = 1.2;
 const MAX_CHOMPS_PER_TICK = 2;
@@ -300,9 +298,9 @@ function stepPrey(state: RoomState): void {
   const horizontalWarning = Math.max(2, state.ocean.radius - PREY_BUDGET.boundaryMargin * 3);
   const horizontalWarningSq = horizontalWarning * horizontalWarning;
   const livingHeads = Object.values(state.snakes)
-    .filter((shark) => shark.alive && shark.segments[0])
+    .filter((shark) => shark.alive)
     .slice(0, PREY_BUDGET.maxSharksForFlee)
-    .map((shark) => shark.segments[0]);
+    .map((shark) => shark.position);
 
   for (const prey of state.food) {
     const spec = PREY_SPECS[prey.kind];
@@ -351,14 +349,14 @@ function stepPrey(state: RoomState): void {
 }
 
 // ── Snake construction ──────────────────────────────────────────────────────────
-/** Pick a spawn in the inner ocean volume, as far as possible from living shark segments. */
+/** Pick a spawn in the inner ocean volume, as far as possible from living shark positions. */
 function safeSpawn(state: RoomState): Vec3 {
   const inner = state.ocean.radius * 0.72;
   const occupied: Array<{ p: Vec3; weight: number }> = [];
   for (const s of Object.values(state.snakes)) {
     if (!s.alive) continue;
     const weight = 1 + Math.min(3, s.length / (START_LENGTH * 2));
-    for (let i = 0; i < s.segments.length; i += 3) occupied.push({ p: s.segments[i], weight });
+    occupied.push({ p: s.position, weight });
   }
 
   let best: Vec3 = {
@@ -382,11 +380,6 @@ function safeSpawn(state: RoomState): Vec3 {
   return best;
 }
 
-/** Number of body discs a snake of the given target length should show. */
-export function segmentCount(length: number): number {
-  return 1; // sharks grow by scale, not by adding a long segmented body
-}
-
 /** Movement model shared with the client so client-side prediction uses identical math.
  *  Values are per authoritative tick; multiply by TICKS_PER_SECOND for per-second rates. */
 export const MOVE = {
@@ -394,7 +387,6 @@ export const MOVE = {
   BOOST_SPEED,
   TURN_RATE,
   PITCH_RATE,
-  SEGMENT_SPACING,
   MIN_LENGTH,
   FRENZY_SPEED,
 } as const;
@@ -411,62 +403,6 @@ export function swimSpeedForLungeTicks(lungeTicks: number): number {
   const decel = Math.min(1, ticks / DASH_DECEL_TICKS);
   const envelope = Math.min(accel, decel);
   return BASE_SPEED + (BOOST_SPEED - BASE_SPEED) * envelope;
-}
-
-/** Sample `count` evenly-spaced points by walking a head-first trail at SEGMENT_SPACING
- *  arc-length steps (interpolating between breadcrumbs). Pure — reused by the server
- *  simulation and by client-side prediction. `fallbackHeading` extends the tail when the
- *  trail is too short (fresh spawn). Returns points head-first. */
-export function sampleTrail(
-  path: Vec3[],
-  count: number,
-  fallbackYaw: number,
-  fallbackPitch = 0,
-): Vec3[] {
-  const out: Vec3[] = [{ x: path[0].x, y: path[0].y, z: path[0].z }];
-  let seg = 1;
-  let acc = 0;
-  for (let i = 0; i < path.length - 1 && seg < count; i += 1) {
-    const a = path[i];
-    const b = path[i + 1];
-    const edge = distance3(a, b);
-    if (edge <= 1e-6) continue;
-    let along = 0;
-    while (acc + (edge - along) >= SEGMENT_SPACING && seg < count) {
-      const need = SEGMENT_SPACING - acc;
-      along += need;
-      const f = along / edge;
-      out.push({
-        x: a.x + (b.x - a.x) * f,
-        y: a.y + (b.y - a.y) * f,
-        z: a.z + (b.z - a.z) * f,
-      });
-      seg += 1;
-      acc = 0;
-    }
-    acc += edge - along;
-  }
-
-  const fallback = forwardFromYawPitch(fallbackYaw, fallbackPitch);
-  while (out.length < count) {
-    const last = out[out.length - 1];
-    const prev = out[out.length - 2];
-    const back = prev
-      ? { x: last.x - prev.x, y: last.y - prev.y, z: last.z - prev.z }
-      : { x: -fallback.x, y: -fallback.y, z: -fallback.z };
-    const length = Math.sqrt(back.x * back.x + back.y * back.y + back.z * back.z) || 1;
-    out.push({
-      x: last.x + (back.x / length) * SEGMENT_SPACING,
-      y: last.y + (back.y / length) * SEGMENT_SPACING,
-      z: last.z + (back.z / length) * SEGMENT_SPACING,
-    });
-  }
-  return out;
-}
-
-/** Rebuild a snake's body segments from its head trail (server-side). */
-function resampleSegments(snake: Snake): void {
-  snake.segments = sampleTrail(snake.path, segmentCount(snake.length), snake.yaw, snake.pitch);
 }
 
 /** Median length across living sharks — the yardstick a fresh spawn is sized against. */
@@ -498,29 +434,16 @@ function makeSnake(state: RoomState, id: string, name: string, skin: string, isB
   const spawn = safeSpawn(state);
   const length = spawnLength(state);
   const { yaw, pitch } = spawnOrientationForPoint(spawn, state.ocean, randRange(state, -0.5, 0.5));
-  const backward = forwardFromYawPitch(yaw, pitch);
-  const path: Vec3[] = [];
-  const trailStep = SEGMENT_SPACING;
-  for (let i = 0; i < START_LENGTH + 3; i += 1) {
-    path.push({
-      x: spawn.x - backward.x * i * trailStep,
-      y: spawn.y - backward.y * i * trailStep,
-      z: spawn.z - backward.z * i * trailStep,
-    });
-  }
   const snake: Snake = {
     id,
     name,
     skin: validSkin(skin),
-    path,
-    segments: [],
+    position: spawn,
     yaw,
     pitch,
     targetYaw: yaw,
     targetPitch: pitch,
     length,
-    boosting: false,
-    chargeTicks: 0,
     lungeTicks: 0,
     dashCooldownTick: 0,
     health: COMBAT.maxHealth,
@@ -532,7 +455,6 @@ function makeSnake(state: RoomState, id: string, name: string, skin: string, isB
     respawnTick: 0,
     invulnTick: state.tick + SPAWN_GRACE,
   };
-  resampleSegments(snake);
   return snake;
 }
 
@@ -696,8 +618,6 @@ function concludeRound(state: RoomState): void {
   retireFrenzyFood(state);
   state.frenzyUntilTick = 0;
   for (const shark of Object.values(state.snakes)) {
-    shark.boosting = false;
-    shark.chargeTicks = 0;
     shark.lungeTicks = 0;
     shark.targetYaw = shark.yaw;
     shark.targetPitch = shark.pitch;
@@ -768,7 +688,6 @@ export function applyAction(state: RoomState, action: Action): RoomState {
           joined.alive = false;
           joined.health = 0;
           joined.respawnTick = state.round.resultEndTick;
-          joined.segments = [];
         }
         state.snakes[action.playerId] = joined;
       }
@@ -800,14 +719,12 @@ export function applyAction(state: RoomState, action: Action): RoomState {
           // feel different rather than just looking different.
           s.dashCooldownTick = state.tick + Math.round(DASH_COOLDOWN_TICKS * (isFrenzy(state) ? FRENZY_RULES.dashCooldownMultiplier : 1));
         }
-        s.chargeTicks = 0;
-        s.boosting = false;
       }
       return state;
     }
     case "bite": {
       const s = state.snakes[action.playerId];
-      if (state.round.phase !== "result" && s?.alive && s.segments[0] && state.tick >= s.biteCooldownTick) {
+      if (state.round.phase !== "result" && s?.alive && state.tick >= s.biteCooldownTick) {
         s.biteCooldownTick = state.tick + COMBAT.biteCooldownTicks;
         // Choosing to attack ends spawn grace: protected sharks cannot deal free damage.
         if (state.tick < s.invulnTick) s.invulnTick = state.tick;
@@ -853,7 +770,7 @@ export function step(state: RoomState): RoomState {
 
   // Bots plan from one bounded authoritative view, then move through the same
   // yaw/pitch and burst rules as every other shark.
-  const bots = Object.values(state.snakes).filter((s) => s.alive && s.isBot && s.segments[0]);
+  const bots = Object.values(state.snakes).filter((s) => s.alive && s.isBot);
   if (bots.length) {
     const botView = makeBotWorldView(state);
     for (const bot of bots) steerBot(state, bot, botView);
@@ -898,17 +815,15 @@ function moveSnake(state: RoomState, s: Snake): void {
   s.pitch = clampPitch(moveToward(s.pitch, s.targetPitch, PITCH_RATE));
 
   let speed = swimSpeedForLungeTicks(s.lungeTicks);
-  s.chargeTicks ??= 0;
   s.lungeTicks ??= 0;
   s.dashCooldownTick ??= 0;
-  if (s.boosting) s.chargeTicks = Math.min(16, s.chargeTicks + 1);
   if (s.lungeTicks > 0) s.lungeTicks -= 1;
   if (isFrenzy(state)) speed *= FRENZY_SPEED;
   if (state.round.phase === "apex" && state.round.apexId === s.id) {
     speed *= ROUND_RULES.apexSpeedMultiplier;
   }
 
-  const head = s.path[0];
+  const head = s.position;
   const forward = forwardFromYawPitch(s.yaw, s.pitch);
   const rawY = head.y + forward.y * speed;
   const y = Math.max(state.ocean.seabedY, Math.min(state.ocean.surfaceY, rawY));
@@ -916,28 +831,15 @@ function moveSnake(state: RoomState, s: Snake): void {
     s.pitch = 0;
     s.targetPitch = 0;
   }
-  s.path.unshift({
+  s.position = {
     x: head.x + forward.x * speed,
     y,
     z: head.z + forward.z * speed,
-  });
-
-  const needLen = segmentCount(s.length) * SEGMENT_SPACING + TAIL_MARGIN;
-  let acc = 0;
-  let cut = s.path.length;
-  for (let i = 1; i < s.path.length; i += 1) {
-    acc += distance3(s.path[i], s.path[i - 1]);
-    if (acc >= needLen) {
-      cut = i + 1;
-      break;
-    }
-  }
-  if (s.path.length > cut) s.path.length = cut;
-  resampleSegments(s);
+  };
 }
 
 function eat(state: RoomState, s: Snake): void {
-  const head = s.segments[0];
+  const head = s.position;
   const maxChomps = s.isBot ? 1 : MAX_CHOMPS_PER_TICK;
   let chomps = 0;
   state.food = state.food.filter((f) => {
@@ -970,7 +872,7 @@ function biteDamage(attacker: Snake, victim: Snake): number {
 }
 
 function resolveBite(state: RoomState, attacker: Snake): void {
-  const origin = attacker.segments[0];
+  const origin = attacker.position;
   if (!origin) return;
   const forward = forwardFromYawPitch(attacker.yaw, attacker.pitch);
   const range = biteRangeFor(attacker);
@@ -981,10 +883,9 @@ function resolveBite(state: RoomState, attacker: Snake): void {
     if (
       candidate.id === attacker.id
       || !candidate.alive
-      || !candidate.segments[0]
       || state.tick < candidate.invulnTick
     ) continue;
-    const head = candidate.segments[0];
+    const head = candidate.position;
     const dx = head.x - origin.x;
     const dy = head.y - origin.y;
     const dz = head.z - origin.z;
@@ -1000,7 +901,7 @@ function resolveBite(state: RoomState, attacker: Snake): void {
 
   if (!target) return;
   target.health = Math.max(0, target.health - biteDamage(attacker, target));
-  const hit = target.segments[0];
+  const hit = target.position;
   state.explosions.push({
     id: `bite-${attacker.id}-${target.id}-${state.tick}`,
     x: hit.x,
@@ -1027,10 +928,10 @@ function resolveBite(state: RoomState, attacker: Snake): void {
 }
 
 function resolveSharkCollisions(state: RoomState): void {
-  const living = Object.values(state.snakes).filter((shark) => shark.alive && shark.segments[0]);
+  const living = Object.values(state.snakes).filter((shark) => shark.alive);
   const radiusSq = state.ocean.radius * state.ocean.radius;
   for (const shark of living) {
-    const head = shark.segments[0];
+    const head = shark.position;
     if (shark.alive && horizontalRadiusSquared(head) >= radiusSq) killSnake(state, shark, null, "boundary");
   }
 
@@ -1042,8 +943,8 @@ function resolveSharkCollisions(state: RoomState): void {
       if (!b.alive) continue;
       const radiusA = HEAD_RADIUS + Math.min(1.15, Math.sqrt(a.length) * 0.075);
       const radiusB = HEAD_RADIUS + Math.min(1.15, Math.sqrt(b.length) * 0.075);
-      const headA = a.segments[0];
-      const headB = b.segments[0];
+      const headA = a.position;
+      const headB = b.position;
       if (distanceSquared3(headA, headB) > (radiusA + radiusB) ** 2) continue;
 
       const apartA = distanceSquared3(headA, headB) > 1e-9
@@ -1059,7 +960,7 @@ function resolveSharkCollisions(state: RoomState): void {
 }
 
 function killSnake(state: RoomState, s: Snake, killerId: string | null, action: DeathAction): void {
-  const head = s.segments[0] ?? s.path[0];
+  const head = s.position;
   if (head) {
     state.explosions ??= [];
     state.explosions.push({
@@ -1076,16 +977,13 @@ function killSnake(state: RoomState, s: Snake, killerId: string | null, action: 
   s.alive = false;
   s.health = 0;
   s.lastDeath = { killerId, victimId: s.id, action, tick: state.tick };
-  s.boosting = false;
-  s.chargeTicks = 0;
   s.lungeTicks = 0;
   s.respawnTick = state.tick + RESPAWN_DELAY;
-  s.segments = [];
 }
 
 /** Turn a shark into bounded, collectible carcass pieces without using presentation geometry for collision. */
 function scatterAsFood(state: RoomState, s: Snake): void {
-  const head = s.segments[0] ?? s.path[0];
+  const head = s.position;
   if (!head) return;
   const desired = Math.min(28, 12 + Math.floor(Math.sqrt(Math.max(0, s.length)) * 1.5));
   const count = Math.min(desired, Math.max(0, PREY_BUDGET.max - state.food.length));
@@ -1124,7 +1022,7 @@ interface BotWorldView {
 
 function makeBotWorldView(state: RoomState): BotWorldView {
   const livingSharks = Object.values(state.snakes)
-    .filter((shark) => shark.alive && shark.segments[0])
+    .filter((shark) => shark.alive)
     .slice(0, BOT_AI_BUDGET.maxTrackedSharks);
   const schoolValue = Array.from({ length: PREY_BUDGET.schools }, () => 0);
   for (const actor of state.food) {
@@ -1141,7 +1039,7 @@ function makeBotWorldView(state: RoomState): BotWorldView {
 }
 
 function boundaryEscapeTarget(state: RoomState, s: Snake): Vec3 | null {
-  const head = s.segments[0];
+  const head = s.position;
   const radius = Math.sqrt(horizontalRadiusSquared(head));
   const radialGap = state.ocean.radius - radius;
   const surfaceGap = state.ocean.surfaceY - head.y;
@@ -1198,12 +1096,7 @@ function choosePreyTarget(state: RoomState, head: Vec3, view: BotWorldView): { p
 }
 
 function steerBot(state: RoomState, s: Snake, view: BotWorldView): void {
-  const head = s.segments[0];
-
-  // Clear any legacy planner charge flag, then use the normal setBoost action below.
-  if (s.boosting || s.chargeTicks > 0) {
-    applyAction(state, { type: "setBoost", playerId: s.id, on: false });
-  }
+  const head = s.position;
 
   const boundaryTarget = boundaryEscapeTarget(state, s);
   if (boundaryTarget) {
@@ -1218,8 +1111,8 @@ function steerBot(state: RoomState, s: Snake, view: BotWorldView): void {
   let quarry: Snake | null = null;
   let quarryDistance = Infinity;
   for (const rival of view.livingSharks) {
-    if (rival.id === s.id || !rival.segments[0]) continue;
-    const distance = distance3(head, rival.segments[0]);
+    if (rival.id === s.id) continue;
+    const distance = distance3(head, rival.position);
     if (
       rival.length >= s.length * BOT_AI_BUDGET.threatLengthRatio
       && distance < BOT_AI_BUDGET.threatRadius
@@ -1245,8 +1138,8 @@ function steerBot(state: RoomState, s: Snake, view: BotWorldView): void {
     }
   }
 
-  if (threat?.segments[0]) {
-    const target = yawPitchToward(threat.segments[0], head);
+  if (threat?.position) {
+    const target = yawPitchToward(threat.position, head);
     s.targetYaw = target.yaw;
     s.targetPitch = target.pitch;
     if (threatDistance <= BOT_AI_BUDGET.escapeBurstRange) {
@@ -1256,15 +1149,15 @@ function steerBot(state: RoomState, s: Snake, view: BotWorldView): void {
   }
 
   const preyTarget = choosePreyTarget(state, head, view);
-  const shouldHuntRival = quarry?.segments[0]
+  const shouldHuntRival = quarry?.position
     && (view.apexId === quarry.id || !preyTarget || quarryDistance < Math.min(12, preyTarget.distance * 0.8));
 
   let targetPoint: Vec3 | null = null;
   let targetDistance = Infinity;
   let wantsBurst = false;
 
-  if (shouldHuntRival && quarry?.segments[0]) {
-    targetPoint = quarry.segments[0];
+  if (shouldHuntRival && quarry?.position) {
+    targetPoint = quarry.position;
     targetDistance = quarryDistance;
     wantsBurst = quarryDistance <= BOT_AI_BUDGET.burstRange;
   } else if (preyTarget) {

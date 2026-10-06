@@ -8,7 +8,7 @@ import {
   shortestYawDelta,
   swimSpeedForLungeTicks,
 } from "../../engine/index.js";
-import type { NetSnake } from "../../protocol/index.js";
+import type { ClientSnake } from "../net/clientState.js";
 import type { RoomSocket } from "../net/useRoomSocket.js";
 import type { Settings } from "../settings/SettingsContext.js";
 import type { CameraFollowTarget } from "./CameraRig.js";
@@ -122,7 +122,7 @@ export function ActorLayer({
   const cameraForward = useMemo(() => new THREE.Vector3(), []);
   const toLabel = useMemo(() => new THREE.Vector3(), []);
   const tempColor = useMemo(() => new THREE.Color(), []);
-  const prevById = useMemo(() => new Map<string, NetSnake>(), []);
+  const prevById = useMemo(() => new Map<string, ClientSnake>(), []);
   const motionById = useMemo(() => new Map<string, { yaw: number; roll: number }>(), []);
   const labelBuffer = useMemo<SnakeLabel[]>(() => [], []);
   const lastLabelPassAt = useRef(-Infinity);
@@ -199,7 +199,7 @@ export function ActorLayer({
     for (const shark of state.snakes) {
       const isMe = shark.id === socket.youId;
       const usePrediction = isMe && predicted != null;
-      if (!usePrediction && (!shark.alive || !shark.segments[0])) continue;
+      if (!usePrediction && (!shark.alive || !shark.position)) continue;
       if (sharkCount >= MAX_SHARKS) break;
 
       const previousShark = prevById.get(shark.id);
@@ -209,12 +209,12 @@ export function ActorLayer({
       let yaw: number;
       let pitch: number;
       if (usePrediction) {
-        position.set(predicted.head.x, predicted.head.y, predicted.head.z);
+        position.set(predicted.position.x, predicted.position.y, predicted.position.z);
         yaw = predicted.yaw;
         pitch = predicted.pitch;
       } else {
-        const sharkHead = shark.segments[0];
-        const priorHead = previousShark?.segments[0] ?? sharkHead;
+        const sharkHead = shark.position!;
+        const priorHead = previousShark?.position ?? sharkHead;
         interpolateOrientedPose(
           {
             x: priorHead.x,
@@ -263,7 +263,7 @@ export function ActorLayer({
         speed,
         baseSpeed,
         boostSpeed,
-        boosting: shark.boosting || shark.lungeTicks > 0,
+        boosting: shark.lungeTicks > 0,
         pitch,
         reducedMotion,
       });
@@ -322,9 +322,7 @@ export function ActorLayer({
         0.36, 0.9, 0.25,
       );
 
-      const activityGlow = shark.boosting
-        ? Math.min(0.72, 0.25 + (shark.chargeTicks ?? 0) * 0.07)
-        : isMe ? 0.18 : 0;
+      const activityGlow = isMe ? 0.18 : 0;
       const glow = Math.max(activityGlow, shark.id === apexId ? 0.42 : 0);
       const renderColor = glow ? tempColor.copy(bodyColor).lerp(WHITE, glow) : bodyColor;
       setPartColor(sharkParts, sharkCount, renderColor);
@@ -411,15 +409,15 @@ export function ActorLayer({
     const interpolatedMe = state.snakes.find((shark) => shark.id === socket.youId && shark.alive);
     if (predicted) {
       followRef.current.active = true;
-      followRef.current.position.x = predicted.head.x;
-      followRef.current.position.y = predicted.head.y;
-      followRef.current.position.z = predicted.head.z;
+      followRef.current.position.x = predicted.position.x;
+      followRef.current.position.y = predicted.position.y;
+      followRef.current.position.z = predicted.position.z;
       followRef.current.yaw = predicted.yaw;
       followRef.current.pitch = predicted.pitch;
-    } else if (interpolatedMe?.segments[0]) {
+    } else if (interpolatedMe?.position) {
       const prior = prevById.get(interpolatedMe.id);
-      const sharkHead = interpolatedMe.segments[0];
-      const priorHead = prior?.segments[0] ?? sharkHead;
+      const sharkHead = interpolatedMe.position;
+      const priorHead = prior?.position ?? sharkHead;
       interpolateOrientedPose(
         {
           x: priorHead.x,

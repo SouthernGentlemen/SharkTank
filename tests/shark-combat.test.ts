@@ -19,8 +19,7 @@ function join(state: ReturnType<typeof createRoom>, id: string, isBot = false): 
 
 function place(shark: Snake, x: number, y: number, z: number, yaw = 0, pitch = 0): void {
   const point = { x, y, z };
-  shark.path = [{ ...point }];
-  shark.segments = [{ ...point }];
+  shark.position = { ...point };
   shark.yaw = shark.targetYaw = yaw;
   shark.pitch = shark.targetPitch = pitch;
 }

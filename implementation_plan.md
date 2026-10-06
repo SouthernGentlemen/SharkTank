@@ -15,7 +15,6 @@ The queue comes from two code deep dives plus live production measurements taken
 ### What the deep dives found
 
 - **Dead code remains outside the active game path.**
-  - The snake-era trail (`path`, `segments`, `sampleTrail`, `SEGMENT_SPACING`, `TAIL_MARGIN`) always yields one point, and `boosting`/`chargeTicks` are always false and zero.
   - The Camera motion setting is read by nothing.
 - **Remote motion freezes most of the time.** Snapshots arrive at 10.1 Hz (median gap 99.4 ms) but the interpolation delay is 45 ms. Replaying measured arrivals through the client's rule leaves remote sharks and fish frozen on about 72% of 60 Hz frames, and the clock drifts (+0.7 ms/s) with no correction. Swim animation follows the same stalled clock.
 - **The wire is heavy for phones.** About 30 KB of JSON per snapshot carries every prey in the tank: about 295 KB/s, roughly 1 GB per hour.
@@ -106,20 +105,6 @@ Tasks follow these defaults unless the owner changes them before the task starts
 | Music | Six-note loop on `setInterval`, off by default | Layered adaptive score on the audio clock, on at 35% | ST-275–ST-278 |
 
 ## Open tasks
-
-### ST-231 — [REFACTOR] Replace the snake trail with one shark position
-
-**Goal:** Sharks carry a breadcrumb trail resampled every tick that always yields one point, plus two always-false fields.
-
-**Scope**
-- In the engine, replace `path`, `segments`, `sampleTrail`, `segmentCount`, `SEGMENT_SPACING` and `TAIL_MARGIN` with a single `position`, and delete `boosting` and `chargeTicks`.
-- Prediction, actors, radar and audio read `position`. The wire still sends `segments: [position]` until ST-240.
-
-**Acceptance:** Movement, eating, combat and determinism tests pass unchanged.
-
-**Validation:** `npm test -- tests/volumetric-engine.test.ts tests/realtime-3d-network.test.ts tests/shark-combat.test.ts tests/determinism.test.ts`.
-
----
 
 ### ST-232 — [REFACTOR] Rename snake-era names to sharks
 

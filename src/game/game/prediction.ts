@@ -10,25 +10,21 @@ import {
   forwardFromYawPitch,
   moveToward,
   rotateYawToward,
-  sampleTrail,
-  segmentCount,
   swimSpeedForLungeTicks,
 } from "../../engine/index.js";
 import type { Vec3 } from "../../engine/index.js";
-import type { NetSnake } from "../../protocol/index.js";
+import type { ClientSnake } from "../net/clientState.js";
 import type { LocalInput } from "./useLocalInput.js";
 
 const SPEED = MOVE.BASE_SPEED * TICKS_PER_SECOND;
 const TURN = MOVE.TURN_RATE * TICKS_PER_SECOND;
 const PITCH = MOVE.PITCH_RATE * TICKS_PER_SECOND;
-const CRUMB_STEP = MOVE.SEGMENT_SPACING * 0.5;
 const RECONCILE_PER_SECOND = 5;
 const MAX_RECONCILE_SPEED = SPEED * 0.65;
 const TELEPORT_ERROR = 8;
 
 export interface PredictionResult {
-  segments: Vec3[];
-  head: Vec3;
+  position: Vec3;
   yaw: number;
   pitch: number;
 }
@@ -42,34 +38,29 @@ export interface PredictionWorld {
 
 export class LocalPredictor {
   private head: Vec3 = { x: 0, y: 0, z: 0 };
-  private crumbs: Vec3[] = [];
   private yaw = 0;
   private pitch = 0;
-  private length: number = MOVE.MIN_LENGTH;
   private alive = false;
 
   reset(): void {
     this.alive = false;
-    this.crumbs = [];
   }
 
-  private seed(auth: NetSnake): void {
-    this.head = { ...auth.segments[0] };
-    this.crumbs = auth.segments.slice(1).map((s) => ({ ...s }));
+  private seed(auth: ClientSnake): void {
+    this.head = { ...auth.position! };
     this.yaw = auth.yaw;
     this.pitch = auth.pitch;
-    this.length = auth.length;
     this.alive = true;
   }
 
   step(
-    auth: NetSnake | null | undefined,
+    auth: ClientSnake | null | undefined,
     input: LocalInput,
     dt: number,
     staleness: number,
     world?: PredictionWorld,
   ): PredictionResult | null {
-    if (!auth || !auth.alive || auth.segments.length === 0) {
+    if (!auth || !auth.alive || !auth.position) {
       this.alive = false;
       return null;
     }
@@ -78,7 +69,6 @@ export class LocalPredictor {
       return this.build();
     }
 
-    this.length = auth.length;
     const frameStep = Math.min(dt, 0.05);
     this.yaw = rotateYawToward(this.yaw, input.targetYaw, TURN * frameStep);
     this.pitch = clampPitch(moveToward(this.pitch, input.targetPitch, PITCH * frameStep));
@@ -99,9 +89,9 @@ export class LocalPredictor {
     const authSpeed = swimSpeedForLungeTicks(auth.lungeTicks) * TICKS_PER_SECOND * frenzyMultiplier;
     const authForward = forwardFromYawPitch(auth.yaw, auth.pitch);
     const authNow: Vec3 = {
-      x: auth.segments[0].x + authForward.x * authSpeed * staleness,
-      y: auth.segments[0].y + authForward.y * authSpeed * staleness,
-      z: auth.segments[0].z + authForward.z * authSpeed * staleness,
+      x: auth.position.x + authForward.x * authSpeed * staleness,
+      y: auth.position.y + authForward.y * authSpeed * staleness,
+      z: auth.position.z + authForward.z * authSpeed * staleness,
     };
     const error = distance3(authNow, next);
     if (error > TELEPORT_ERROR) {
@@ -117,26 +107,10 @@ export class LocalPredictor {
     }
 
     this.head = next;
-    const lead = this.crumbs[0];
-    if (!lead || distance3(next, lead) >= CRUMB_STEP) this.crumbs.unshift({ ...next });
-
-    const needLen = (segmentCount(this.length) + 2) * MOVE.SEGMENT_SPACING;
-    let acc = 0;
-    let cut = this.crumbs.length;
-    for (let i = 1; i < this.crumbs.length; i += 1) {
-      acc += distance3(this.crumbs[i], this.crumbs[i - 1]);
-      if (acc >= needLen) {
-        cut = i + 1;
-        break;
-      }
-    }
-    if (this.crumbs.length > cut) this.crumbs.length = cut;
     return this.build();
   }
 
   private build(): PredictionResult {
-    const path = [this.head, ...this.crumbs];
-    const segments = sampleTrail(path, segmentCount(this.length), this.yaw, this.pitch);
-    return { segments, head: this.head, yaw: this.yaw, pitch: this.pitch };
+    return { position: this.head, yaw: this.yaw, pitch: this.pitch };
   }
 }

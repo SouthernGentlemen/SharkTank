@@ -23,8 +23,7 @@ function join(state: ReturnType<typeof createRoom>, id: string, isBot = false): 
 
 function place(shark: Snake, x: number, y: number, z: number): void {
   const point = { x, y, z };
-  shark.path = [{ ...point }];
-  shark.segments = [{ ...point }];
+  shark.position = { ...point };
 }
 
 function prey(
@@ -88,7 +87,7 @@ describe("ST-121 full-3D bot hunting and evasion", () => {
     climbing.pitch = climbing.targetPitch = 0;
     step(high);
     expect(climbing.targetPitch).toBeGreaterThan(0.5);
-    expect(climbing.segments[0].y).toBeGreaterThan(-8);
+    expect(climbing.position.y).toBeGreaterThan(-8);
 
     const low = createRoom({ seed: "bot-depth-low", oceanRadius: 100, seabedY: -20, surfaceY: 20 });
     low.food = [prey("lower-reef", "reef", 10, -8, 0), ...farPrey(PREY_BUDGET.ambient - 1)];
@@ -98,7 +97,7 @@ describe("ST-121 full-3D bot hunting and evasion", () => {
     diving.pitch = diving.targetPitch = 0;
     step(low);
     expect(diving.targetPitch).toBeLessThan(-0.5);
-    expect(diving.segments[0].y).toBeLessThan(8);
+    expect(diving.position.y).toBeLessThan(8);
   });
 
   it("turns inward from the outer wall and pitches away from surface and seabed before collision", () => {
@@ -204,8 +203,8 @@ describe("ST-121 full-3D bot hunting and evasion", () => {
     }
 
     expect(JSON.stringify(first)).toBe(JSON.stringify(second));
-    const living = Object.values(first.snakes).filter((shark) => shark.alive && shark.segments[0]);
-    expect(new Set(living.map((shark) => Math.round(shark.segments[0].y))).size).toBeGreaterThan(4);
+    const living = Object.values(first.snakes).filter((shark) => shark.alive && shark.position);
+    expect(new Set(living.map((shark) => Math.round(shark.position.y))).size).toBeGreaterThan(4);
     expect(living.some((shark) => Math.abs(shark.pitch) > 0.08)).toBe(true);
   });
 

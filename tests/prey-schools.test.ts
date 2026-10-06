@@ -39,8 +39,7 @@ function join(state: ReturnType<typeof createRoom>, id: string, isBot = false): 
 
 function place(shark: Snake, x: number, y: number, z: number): void {
   const point = { x, y, z };
-  shark.path = [{ ...point }];
-  shark.segments = [{ ...point }];
+  shark.position = { ...point };
 }
 
 function prey(overrides: Partial<Prey> & Pick<Prey, "id" | "kind" | "x" | "y" | "z">): Prey {
