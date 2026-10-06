@@ -92,7 +92,7 @@ Tasks follow these defaults unless the owner changes them before the task starts
 | Snapshot weight | ≤ 14 KB typical per-session; ≤ 25 KB unfiltered stress fixture | ≤ 14 KB typical × 10 Hz | ST-241 |
 | Steering send | ≤ 20 Hz, 0.015 rad deadband, trailing final send | 20 Hz, 0.015 rad, trailing final send | ST-237 |
 | Pitch on release | Auto-levels at ~1.2 rad/s by default; optional held pitch | Auto-levels at ~1.2 rad/s | ST-244 |
-| Surface and seabed | Pitch snapped to 0 | Proportional glide band (3 units) | ST-245 |
+| Surface and seabed | Shared proportional pitch limit over the final 3 units | Proportional glide band (3 units) | ST-245 |
 | Shark overlap | Instant heading snap | Positional push, headings kept | ST-246 |
 | Wall | Death on contact | Inward current from 4 units inside, no death | ST-247 |
 | Eating | Body centre, radius 1.2 + prey r, 2 chomps/tick | Mouth, 1.2 + 0.55 × scale + prey r, swept, 4 chomps/tick | ST-255 |
@@ -105,18 +105,6 @@ Tasks follow these defaults unless the owner changes them before the task starts
 | Music | Six-note loop on `setInterval`, off by default | Layered adaptive score on the audio clock, on at 35% | ST-275–ST-278 |
 
 ## Open tasks
-
-### ST-245 — [FIX] Glide along the surface and seabed instead of snapping pitch
-
-**Goal:** Pitch snaps to zero on contact while the client keeps requesting it, which jitters.
-
-**Scope:** One engine helper limits climb or dive pitch in proportion to the remaining gap inside a 3-unit band. The Room, the predictor and the input clamp all use it.
-
-**Acceptance:** A 45° climb levels smoothly into the surface in both the Room and prediction (test).
-
-**Validation:** `npm test -- tests/volumetric-engine.test.ts tests/realtime-3d-network.test.ts tests/determinism.test.ts`.
-
----
 
 ### ST-246 — [FIX] Separate overlapping sharks softly instead of snapping headings
 

@@ -7,6 +7,8 @@ import {
   TICKS_PER_SECOND,
   PREY_BUDGET,
   applyAction,
+  step,
+  glidePitch,
   createRoom,
   normalizeYaw,
   type Shark,
@@ -448,5 +450,47 @@ describe("ST-241 session prey visibility", () => {
     expect(toNetState(room, "missing").food).toEqual(toNetState(room, "a").food);
     const worker = readFileSync(new URL("../src/worker/room-do.ts", import.meta.url), "utf8");
     expect(worker.match(/toNetState\(this.room, session.id\)/g)).toHaveLength(2);
+  });
+});
+
+
+describe("ST-245 depth gliding", () => {
+  it("limits only outward pitch in the three-unit band", () => {
+    const ocean = { seabedY: -12, surfaceY: 12 };
+    expect(glidePitch(Math.PI / 4, 0, ocean)).toBe(Math.PI / 4);
+    expect(glidePitch(MAX_PITCH, 10.5, ocean)).toBeCloseTo(MAX_PITCH / 2);
+    expect(glidePitch(-MAX_PITCH, -10.5, ocean)).toBeCloseTo(-MAX_PITCH / 2);
+    expect(glidePitch(Math.PI / 4, 12, ocean)).toBe(0);
+    expect(glidePitch(-Math.PI / 4, 12, ocean)).toBe(-Math.PI / 4);
+    expect(glidePitch(Math.PI / 4, -12, ocean)).toBe(Math.PI / 4);
+  });
+
+  it.each([1, -1])("smoothly levels a 45 degree swim with Room/prediction parity (%s)", (sign) => {
+    const room = createRoom({ seed: "depth-glide", oceanRadius: 1000 });
+    room.food = [];
+    const shark = join(room, "pilot");
+    place(shark, 0, sign * 9, 0);
+    shark.yaw = shark.targetYaw = 0;
+    shark.pitch = shark.targetPitch = sign * Math.PI / 4;
+    const input = { targetYaw: 0, targetPitch: shark.targetPitch, boosting: false };
+    const predictor = new LocalPredictor();
+    const world = { ...room.ocean, tick: room.tick, frenzyUntilTick: 0 };
+    predictor.step(toClientShark({ ...toNetState(room).sharks[0], position: { ...shark.position } }), input, 0, 0, world);
+    let previous = Math.abs(shark.pitch);
+    for (let tick = 0; tick < 80; tick++) {
+      const auth = { ...toNetState(room).sharks[0], position: { ...shark.position }, pitch: shark.pitch };
+      step(room);
+      // Extrapolate the pre-step snapshot by the exact authoritative step so reconciliation is neutral.
+      const predicted = predictor.step(toClientShark({ ...auth, pitch: shark.pitch }), input, 1 / TICKS_PER_SECOND, 1 / TICKS_PER_SECOND, { ...world, tick: room.tick })!;
+      expect(predicted.pitch).toBeCloseTo(shark.pitch, 10);
+      expect(predicted.position.y).toBeCloseTo(shark.position.y, 10);
+      expect(Math.abs(shark.pitch)).toBeLessThanOrEqual(previous);
+      expect(previous - Math.abs(shark.pitch)).toBeLessThan(0.21);
+      expect(shark.position.y).toBeGreaterThan(room.ocean.seabedY);
+      expect(shark.position.y).toBeLessThan(room.ocean.surfaceY);
+      previous = Math.abs(shark.pitch);
+    }
+    expect(previous).toBeLessThan(0.001);
+    expect(shark.alive).toBe(true);
   });
 });
