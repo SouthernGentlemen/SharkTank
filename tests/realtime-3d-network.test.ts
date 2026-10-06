@@ -422,3 +422,31 @@ describe("ST-122 realtime combat protocol", () => {
     expect(protocolSource.toLowerCase()).not.toContain("rocket");
   });
 });
+
+
+describe("ST-241 session prey visibility", () => {
+  it("uses each living viewer's 3D radius and the centre while dead, without mutating authority", () => {
+    const room = createRoom({ seed: "visibility" });
+    const a = join(room, "a"), b = join(room, "b");
+    place(a, 60, 0, 0); place(b, -60, 0, 0);
+    const template = room.food[0];
+    room.food = [
+      { ...template, id: "a-only", x: 80, y: 0, z: 0 },
+      { ...template, id: "b-only", x: -80, y: 0, z: 0 },
+      { ...template, id: "edge", x: 60, y: 72, z: 0 },
+      { ...template, id: "outside", x: 60, y: 72.1, z: 0 },
+      { ...template, id: "centre", x: 0, y: 0, z: 0 },
+    ];
+    const before = JSON.stringify(room);
+    const full = toNetState(room), visible = toNetState(room, "a");
+    expect(visible.food.map((p) => p[0])).toEqual(["a-only", "edge", "centre"].map(preyWireId));
+    expect(toNetState(room, "b").food.map((p) => p[0])).toEqual(["b-only", "centre"].map(preyWireId));
+    expect({ ...visible, food: full.food }).toEqual(full);
+    expect(JSON.stringify(room)).toBe(before);
+    a.alive = false;
+    expect(toNetState(room, "a").food.map((p) => p[0])).toEqual([preyWireId("centre")]);
+    expect(toNetState(room, "missing").food).toEqual(toNetState(room, "a").food);
+    const worker = readFileSync(new URL("../src/worker/room-do.ts", import.meta.url), "utf8");
+    expect(worker.match(/toNetState\(this.room, session.id\)/g)).toHaveLength(2);
+  });
+});

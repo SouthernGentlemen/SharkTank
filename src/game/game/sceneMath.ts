@@ -88,7 +88,7 @@ const QUALITY = {
     geometryDetail: 6,
     ringSegments: 64,
     fogNear: 30,
-    fogFar: 150,
+    fogFar: 60,
     burstParticleBudget: 192,
   },
   medium: {
@@ -97,7 +97,7 @@ const QUALITY = {
     geometryDetail: 8,
     ringSegments: 96,
     fogNear: 38,
-    fogFar: 190,
+    fogFar: 65,
     burstParticleBudget: 320,
   },
   high: {
@@ -106,7 +106,7 @@ const QUALITY = {
     geometryDetail: 12,
     ringSegments: 128,
     fogNear: 46,
-    fogFar: 230,
+    fogFar: 70,
     burstParticleBudget: 512,
   },
 } as const;

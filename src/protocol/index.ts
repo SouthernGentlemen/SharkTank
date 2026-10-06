@@ -273,8 +273,15 @@ function round(value: number, places = 2): number {
   return Math.round(value * factor) / factor;
 }
 
-/** Build the on-the-wire snapshot from authoritative RoomState. */
-export function toNetState(state: RoomState): WireState {
+/** Session visibility never changes the authoritative prey population. */
+export const PREY_SNAPSHOT_RADIUS = 72;
+
+/** Omit viewerId only for full-room tooling and protocol fixtures. */
+export function toNetState(state: RoomState, viewerId?: string): WireState {
+  const viewer = viewerId ? state.sharks[viewerId] : undefined;
+  const centre = viewer?.alive ? viewer.position : { x: 0, y: 0, z: 0 };
+  const food = viewerId === undefined ? state.food : state.food.filter((prey) =>
+    Math.hypot(prey.x - centre.x, prey.y - centre.y, prey.z - centre.z) <= PREY_SNAPSHOT_RADIUS);
   return {
     tick: state.tick,
     arenaRadius: round(state.ocean.radius, 1),
@@ -305,7 +312,7 @@ export function toNetState(state: RoomState): WireState {
       score: s.score,
       alive: s.alive,
     })),
-    food: state.food.map(encodePrey),
+    food: food.map(encodePrey),
 
     explosions: (state.explosions ?? []).map((burst) => ({
       id: burst.id,

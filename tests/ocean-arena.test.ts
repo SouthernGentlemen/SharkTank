@@ -6,7 +6,7 @@ import {
   resolveOceanArenaCues,
   resolveOceanEnvironmentQuality,
 } from "../src/game/game/oceanArena.js";
-import { OCEAN_CUES } from "../src/game/game/sceneMath.js";
+import { OCEAN_CUES, resolveSceneQuality } from "../src/game/game/sceneMath.js";
 import {
   DEFAULT_SEABED_Y,
   DEFAULT_SURFACE_Y,
@@ -90,4 +90,12 @@ describe("ST-118 stylized ocean arena", () => {
     expect(worker).not.toContain("@react-three/fiber");
     expect(worker).not.toContain('from "three"');
   });
+});
+
+it("ST-241 fog hides the prey visibility boundary at every quality", () => {
+  for (const quality of ["low", "medium", "high"] as const) {
+    const fog = resolveSceneQuality(quality);
+    expect(fog.fogFar).toBeLessThanOrEqual(70);
+    expect(fog.fogNear).toBeLessThan(fog.fogFar);
+  }
 });

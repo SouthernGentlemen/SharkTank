@@ -55,7 +55,7 @@ export class Room {
       session.name = sanitizeDisplayName(msg.name); session.skin = SKINS.some((s) => s.id === msg.skin) ? msg.skin : "cyan"; session.joined = true;
       applyAction(this.room, { type: "join", playerId: session.id, name: session.name, skin: session.skin });
       session.wasAlive = this.room.sharks[session.id]?.alive ?? false;
-      this.send(ws, { t: "welcome", youId: session.id, roomId: this.roomId, state: toNetState(this.room) }); return;
+      this.send(ws, { t: "welcome", youId: session.id, roomId: this.roomId, state: toNetState(this.room, session.id) }); return;
     }
     if (msg.t === "ping") { this.send(ws, { t: "pong", ts: msg.ts }); return; }
     if (msg.t === "input" && session.joined) applyAction(this.room, clientInputToAction(msg.action, session.id));
@@ -85,7 +85,11 @@ export class Room {
       }
       session.wasAlive = alive;
     }
-    if (this.room.tick % STATE_BROADCAST_EVERY === 0) this.broadcast({ t: "state", state: toNetState(this.room) });
+    if (this.room.tick % STATE_BROADCAST_EVERY === 0) {
+      for (const session of [...this.sessions.values()]) if (session.joined) {
+        this.send(session.ws, { t: "state", state: toNetState(this.room, session.id) });
+      }
+    }
     if (this.room.tick % LEADERBOARD_EVERY === 0) this.broadcast({ t: "leaderboard", entries: leaderboard(this.room, 10) });
   }
   private send(ws: WebSocket, msg: ServerMessagePayload): void { try { ws.send(JSON.stringify(withRealtimeProtocol(msg))); } catch { this.dropSession(ws); } }
