@@ -90,7 +90,7 @@ Tasks follow these defaults unless the owner changes them before the task starts
 | --- | --- | --- | --- |
 | Remote interpolation | 150 ms shared delay, rate estimation, bounded clock correction and ≤ 120 ms extrapolation | 1.5 × snapshot interval (150 ms), drift-locked, ≤ 120 ms extrapolation | ST-233–ST-235 |
 | Snapshot weight | ~30 KB × 10 Hz ≈ 295 KB/s | ≤ 14 KB typical × 10 Hz | ST-240–ST-241 |
-| Steering send | ≤ 10 Hz, 0.05/0.04 rad deadband | 20 Hz, 0.015 rad, trailing final send | ST-237 |
+| Steering send | ≤ 20 Hz, 0.015 rad deadband, trailing final send | 20 Hz, 0.015 rad, trailing final send | ST-237 |
 | Pitch on release | Held | Auto-levels at ~1.2 rad/s | ST-244 |
 | Surface and seabed | Pitch snapped to 0 | Proportional glide band (3 units) | ST-245 |
 | Shark overlap | Instant heading snap | Positional push, headings kept | ST-246 |
@@ -105,18 +105,6 @@ Tasks follow these defaults unless the owner changes them before the task starts
 | Music | Six-note loop on `setInterval`, off by default | Layered adaptive score on the audio clock, on at 35% | ST-275–ST-278 |
 
 ## Open tasks
-
-### ST-237 — [PERF] Send steering intent at 20 Hz with a trailing final update
-
-**Goal:** The Room steers from stale, coarse targets.
-
-**Scope:** A pure `shouldSendOrientation` enforces a 50 ms minimum interval and 0.015 rad thresholds, and always sends the final value within 100 ms after input settles.
-
-**Acceptance:** Helper tests pass, with at most 20 orientation messages per second.
-
-**Validation:** `npm test -- tests/realtime-3d-network.test.ts` plus the helper test.
-
----
 
 ### ST-238 — [FEAT] Predict the dash locally the instant it is pressed
 

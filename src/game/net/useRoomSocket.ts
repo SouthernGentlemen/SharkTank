@@ -4,11 +4,12 @@
 // Auto-reconnects with backoff.
 
 import { useCallback, useEffect, useRef, useState } from "react";
-import { clampPitch, normalizeYaw, shortestYawDelta } from "../../engine/index.js";
+import { clampPitch, normalizeYaw } from "../../engine/index.js";
 import { parseRealtimeServerMessage, withRealtimeProtocol, type ClientMessagePayload, type NetState, type ScoreEntry } from "../../protocol/index.js";
 import { connectionAfterClose, connectionAfterWelcome, type ConnectionStatus } from "./roomConnectionState.js";
 
 import { bracketSnapshots, SnapshotClock, type InterpFrame } from "./snapshotTimeline.js";
+import { OrientationSender } from "./orientationSender.js";
 import { toClientState, type ClientState } from "./clientState.js";
 
 export type { ConnectionStatus } from "./roomConnectionState.js";
@@ -65,8 +66,7 @@ export function useRoomSocket(
   const timelineClockRef = useRef(new SnapshotClock());
   const wsRef = useRef<WebSocket | null>(null);
   const retryNowRef = useRef<() => void>(() => {});
-  const lastOrientationRef = useRef({ yaw: Infinity, pitch: Infinity });
-  const lastOrientationSentAtRef = useRef(0);
+  const orientationSenderRef = useRef<OrientationSender | null>(null);
   const lastBoostRef = useRef<boolean>(false);
   const youIdRef = useRef<string | null>(null);
   const identityRef = useRef(identity);
@@ -127,6 +127,8 @@ export function useRoomSocket(
       clearReconnectTimer();
       if (!keepFullStatus) setStatus(failedAttempts === 0 ? "connecting" : "reconnecting");
       const ws = new WebSocket(wsUrl(roomId, roomName));
+      orientationSenderRef.current?.reset();
+      youIdRef.current = null;
       wsRef.current = ws;
 
       ws.onopen = () => {
@@ -148,6 +150,7 @@ export function useRoomSocket(
         const msg = parsed.message;
         switch (msg.t) {
           case "welcome": {
+            orientationSenderRef.current?.reset();
             const transition = connectionAfterWelcome();
             failedAttempts = transition.failedAttempts;
             setStatus(transition.status);
@@ -169,6 +172,7 @@ export function useRoomSocket(
       };
 
       ws.onclose = (event) => {
+        orientationSenderRef.current?.reset();
         if (event.code === 1008 && event.reason === "realtime schema mismatch") {
           closedByUs = true;
           setStatus("incompatible");
@@ -195,6 +199,7 @@ export function useRoomSocket(
 
     const onPageHide = () => {
       closedByUs = true;
+      orientationSenderRef.current?.reset();
       clearReconnectTimer();
       wsRef.current?.close();
     };
@@ -203,6 +208,7 @@ export function useRoomSocket(
 
     return () => {
       closedByUs = true;
+      orientationSenderRef.current?.reset();
       retryNowRef.current = () => {};
       clearReconnectTimer();
       window.removeEventListener("pagehide", onPageHide);
@@ -219,15 +225,14 @@ export function useRoomSocket(
     (yaw: number, pitch: number) => {
       const safeYaw = normalizeYaw(yaw);
       const safePitch = clampPitch(pitch);
-      const now = performance.now();
-      const last = lastOrientationRef.current;
-      const changed = !Number.isFinite(last.yaw)
-        || Math.abs(shortestYawDelta(last.yaw, safeYaw)) >= 0.05
-        || Math.abs(last.pitch - safePitch) >= 0.04;
-      if (now - lastOrientationSentAtRef.current < 100 || !changed) return;
-      lastOrientationSentAtRef.current = now;
-      lastOrientationRef.current = { yaw: safeYaw, pitch: safePitch };
-      send({ t: "input", action: { type: "setOrientation", yaw: safeYaw, pitch: safePitch } });
+      if (!orientationSenderRef.current) {
+        orientationSenderRef.current = new OrientationSender((orientation) => {
+          if (wsRef.current?.readyState !== WebSocket.OPEN || !youIdRef.current) return false;
+          send({ t: "input", action: { type: "setOrientation", ...orientation } });
+          return true;
+        });
+      }
+      orientationSenderRef.current.update({ yaw: safeYaw, pitch: safePitch });
     },
     [send],
   );
