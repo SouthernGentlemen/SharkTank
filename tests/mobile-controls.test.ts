@@ -16,7 +16,7 @@ import {
   simpleTouchPitch,
   touchAxesForState,
   touchLayoutForFlightSide,
-  touchNeedsLandscape,
+  touchIsPortrait,
 } from "../src/game/game/mobileControls.js";
 import { advanceCameraLookOffsets } from "../src/game/game/desktopControls.js";
 
@@ -107,11 +107,11 @@ describe("ST-117 dual-stick mobile controls", () => {
     });
   });
 
-  it("mirrors the complete standard/left-handed layout and enforces landscape policy", () => {
+  it("mirrors the complete standard/left-handed layout and detects portrait without blocking play", () => {
     expect(touchLayoutForFlightSide("left")).toEqual({ flight: "left", look: "right", actions: "right" });
     expect(touchLayoutForFlightSide("right")).toEqual({ flight: "right", look: "left", actions: "left" });
-    expect(touchNeedsLandscape(844, 390)).toBe(false);
-    expect(touchNeedsLandscape(390, 844)).toBe(true);
+    expect(touchIsPortrait(844, 390)).toBe(false);
+    expect(touchIsPortrait(390, 844)).toBe(true);
   });
 
   it("wires capture, viewport cleanup, safe areas, settings modes and no legacy touch fallback", () => {
@@ -138,7 +138,9 @@ describe("ST-117 dual-stick mobile controls", () => {
     expect(input).toContain("releaseAllTouchInput");
     expect(screen).toContain("canUseAbilityPointer");
     expect(screen).toContain("onPointerCancel");
-    expect(screen).toContain("portraitLocked");
+    expect(screen).toContain('window.addEventListener("orientationchange", release)');
+    expect(screen).toContain('window.addEventListener("orientationchange", cancel)');
+    expect(screen).not.toContain("!portrait");
     expect(settings).toContain('touchControls: "auto"');
     expect(settings).toContain('touchControls: "auto" | "on" | "off"');
 
@@ -147,7 +149,8 @@ describe("ST-117 dual-stick mobile controls", () => {
     }
     expect(css).toContain(".game-screen--flight-left");
     expect(css).toContain(".game-screen--flight-right");
-    expect(css).toContain(".touch-rotate-affordance");
+    expect(css).toContain(".game-screen--portrait .ability-rail");
+    expect(controls).not.toContain("Rotate to landscape");
     expect(css).not.toContain(".game-screen { touch-action: none; }");
   });
 });
@@ -158,8 +161,8 @@ describe("Simple touch steering", () => {
     expect(DEFAULT_SETTINGS.controls.touchScheme).toBe("simple");
     for (const flightSide of ["left", "right"] as const) {
       const inputRef = { current: makeTwinStickState() };
-      const simple = renderToStaticMarkup(createElement(TouchControls, { inputRef, flightSide, scheme: "simple", enabled: true, portraitLocked: false }));
-      const dual = renderToStaticMarkup(createElement(TouchControls, { inputRef, flightSide, scheme: "dual", enabled: true, portraitLocked: false }));
+      const simple = renderToStaticMarkup(createElement(TouchControls, { inputRef, flightSide, scheme: "simple", enabled: true, portrait: true }));
+      const dual = renderToStaticMarkup(createElement(TouchControls, { inputRef, flightSide, scheme: "dual", enabled: true, portrait: true }));
       expect(simple).toContain(`touch-stick-zone--${flightSide} touch-stick-zone--flight`);
       expect(simple).not.toContain("touch-stick-zone--look");
       expect(dual).toContain("touch-stick-zone--look");
@@ -171,7 +174,7 @@ describe("Simple touch steering", () => {
     expect(read("../src/game/ui/Settings.tsx")).toContain('update("controls", { touchScheme: v })');
     const controls = read("../src/game/ui/TouchControls.tsx");
     expect(controls).toContain('scheme === "dual" && <TouchStick');
-    expect(controls).toContain('key={`${scheme}-${flightSide}`}');
+    expect(controls).toContain('key={`${scheme}-${flightSide}-${portrait}`}');
     expect(controls).toContain('floating ? e.clientX - rect.left');
     expect(read("../src/game/game/useLocalInput.ts")).toContain('simpleTouch || touchLookActive ? null : pointerLook.current');
   });

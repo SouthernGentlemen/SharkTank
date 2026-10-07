@@ -106,21 +106,6 @@ Tasks follow these defaults unless the owner changes them before the task starts
 
 ## Open tasks
 
-### ST-253 — [FEAT] Allow portrait play with a portrait control layout
-
-**Goal:** Portrait currently shows no controls at all.
-
-**Scope**
-- Replace the portrait gate with a portrait layout: flight stick lower-left, Bite and Dash bottom-right, compact HUD.
-- A pure framing helper widens the view for tall aspect ratios.
-- Rewrite the `touchNeedsLandscape` tests and update docs.
-
-**Acceptance:** Portrait is playable, and rotation still releases held input safely.
-
-**Validation:** `npm test -- tests/mobile-controls.test.ts tests/full-3d-authority-acceptance.test.ts tests/full-3d-documentation-contract.test.ts tests/swimming-camera.test.ts`.
-
----
-
 ### ST-254 — [REFACTOR] Share one size curve and mouth and body geometry between engine and renderer
 
 **Goal:** Hit boxes and visuals must agree on how big a shark is and where its mouth is.

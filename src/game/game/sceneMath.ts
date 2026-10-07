@@ -282,3 +282,9 @@ export function cameraFovForSpeed(
   const ratio = Math.max(0, Math.min(1, (speed - baseSpeed) / span));
   return CAMERA_PROJECTION.fov + ratio * 3.5;
 }
+
+/** Preserve a useful horizontal view on tall screens, with bounded distortion. */
+export function cameraFovForAspect(fov: number, aspect: number): number {
+  if (!Number.isFinite(aspect) || aspect <= 0 || aspect >= 1) return fov;
+  return Math.min(100, 2 * Math.atan(Math.tan(fov * Math.PI / 360) / aspect) * 180 / Math.PI);
+}

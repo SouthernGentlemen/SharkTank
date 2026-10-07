@@ -146,7 +146,7 @@ export function touchLayoutForFlightSide(flight: TouchSide): TouchLayout {
   return { flight, look: other, actions: other };
 }
 
-export function touchNeedsLandscape(width: number, height: number): boolean {
+export function touchIsPortrait(width: number, height: number): boolean {
   if (!Number.isFinite(width) || !Number.isFinite(height) || width <= 0 || height <= 0) return false;
   return height > width;
 }

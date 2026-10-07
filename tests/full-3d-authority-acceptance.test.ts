@@ -33,7 +33,7 @@ import {
   releaseAllTouchInput,
   touchAxesForState,
   touchLayoutForFlightSide,
-  touchNeedsLandscape,
+  touchIsPortrait,
 } from "../src/game/game/mobileControls.js";
 import { LocalPredictor } from "../src/game/game/prediction.js";
 
@@ -378,8 +378,8 @@ describe("ST-129 full-3D authority acceptance wall", () => {
 
     expect(touchLayoutForFlightSide("left")).toEqual({ flight: "left", look: "right", actions: "right" });
     expect(touchLayoutForFlightSide("right")).toEqual({ flight: "right", look: "left", actions: "left" });
-    expect(touchNeedsLandscape(844, 390)).toBe(false);
-    expect(touchNeedsLandscape(390, 844)).toBe(true);
+    expect(touchIsPortrait(844, 390)).toBe(false);
+    expect(touchIsPortrait(390, 844)).toBe(true);
 
     const controls = read("../src/game/ui/TouchControls.tsx");
     const screen = read("../src/game/ui/GameScreen.tsx");

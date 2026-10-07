@@ -32,7 +32,7 @@ import { HelpOverlay } from "./HelpOverlay.js";
 import { PauseMenu } from "./PauseMenu.js";
 import { SharkLabels } from "./SharkLabels.js";
 import { Captions } from "./Captions.js";
-import { TouchControls, useTouchControls, useTouchPortraitLock } from "./TouchControls.js";
+import { TouchControls, useTouchControls, useTouchPortraitLayout } from "./TouchControls.js";
 
 export interface GameScreenProps {
   room: { id: string; name: string };
@@ -54,7 +54,7 @@ export function GameScreen({ room, identity, onAuthoritativeResult, onQuit }: Ga
   const touch = useTouchControls(settings);
   const stickSide = settings.controls.stickSide;
   const touchLayout = touchLayoutForFlightSide(stickSide);
-  const portraitLocked = useTouchPortraitLock(touch);
+  const portrait = useTouchPortraitLayout(touch);
   const roundUi = useRoundPresentation(socket, onAuthoritativeResult);
   const [dismissedResultRound, setDismissedResultRound] = useState(0);
   const hasAnnouncedEntry = useRef(false);
@@ -106,13 +106,13 @@ export function GameScreen({ room, identity, onAuthoritativeResult, onQuit }: Ga
   const dialogOpen = settingsOpen || helpOpen || paused;
   const connectionBlocked = socket.status === "full" || socket.status === "unreachable";
   const inputEnabled = !dialogOpen && !socket.death && socket.status === "open";
-  const gameplayEnabled = inputEnabled && !portraitLocked && roundUi?.phase !== "result";
+  const gameplayEnabled = inputEnabled && roundUi?.phase !== "result";
 
   return (
     <main
       id="main"
       className={touch
-        ? `game-screen game-screen--touch game-screen--flight-${touchLayout.flight} game-screen--actions-${touchLayout.actions} game-screen--scheme-${settings.controls.touchScheme}${portraitLocked ? " game-screen--portrait-lock" : ""}`
+        ? `game-screen game-screen--touch game-screen--flight-${touchLayout.flight} game-screen--actions-${touchLayout.actions} game-screen--scheme-${settings.controls.touchScheme}${portrait ? " game-screen--portrait" : ""}`
         : "game-screen"}
     >
       <GameViewport socket={socket} settings={settings} inputEnabled={gameplayEnabled} labelsRef={labelsRef} touchInputRef={touchInputRef} touchControls={touch} />
@@ -128,7 +128,7 @@ export function GameScreen({ room, identity, onAuthoritativeResult, onQuit }: Ga
         <DashButton socket={socket} compact={touch} keyName={keyLabel(settings.controls.keybinds.boost)} touchInputRef={touchInputRef} enabled={gameplayEnabled} />
         <BiteButton socket={socket} compact={touch} keyName={keyLabel(settings.controls.keybinds.bite)} touchInputRef={touchInputRef} enabled={gameplayEnabled} />
       </div>
-      {touch && <TouchControls inputRef={touchInputRef} flightSide={stickSide} scheme={settings.controls.touchScheme} enabled={gameplayEnabled} portraitLocked={portraitLocked} />}
+      {touch && <TouchControls inputRef={touchInputRef} flightSide={stickSide} scheme={settings.controls.touchScheme} enabled={gameplayEnabled} portrait={portrait} />}
       {settings.audio.captions && <Captions caption={caption} />}
 
       {roundUi?.phase === "result" && dismissedResultRound !== roundUi.number && !dialogOpen && !connectionBlocked && (
@@ -347,9 +347,15 @@ function DashButton({ socket, compact, keyName, touchInputRef, enabled }: Abilit
       if (document.visibilityState === "hidden") release();
     };
     window.addEventListener("blur", release);
+    window.addEventListener("resize", release);
+    window.addEventListener("orientationchange", release);
+    window.visualViewport?.addEventListener("resize", release);
     document.addEventListener("visibilitychange", onVisibility);
     return () => {
       window.removeEventListener("blur", release);
+      window.removeEventListener("resize", release);
+      window.removeEventListener("orientationchange", release);
+      window.visualViewport?.removeEventListener("resize", release);
       document.removeEventListener("visibilitychange", onVisibility);
       release();
     };
@@ -405,9 +411,15 @@ function BiteButton({ socket, compact, keyName, touchInputRef, enabled }: Abilit
     };
     const cancel = () => { release(); buffer.current.clear(); };
     window.addEventListener("blur", cancel);
+    window.addEventListener("resize", cancel);
+    window.addEventListener("orientationchange", cancel);
+    window.visualViewport?.addEventListener("resize", cancel);
     document.addEventListener("visibilitychange", onVisibility);
     return () => {
       window.removeEventListener("blur", cancel);
+      window.removeEventListener("resize", cancel);
+      window.removeEventListener("orientationchange", cancel);
+      window.visualViewport?.removeEventListener("resize", cancel);
       document.removeEventListener("visibilitychange", onVisibility);
       release();
     };
