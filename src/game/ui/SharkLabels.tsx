@@ -7,6 +7,7 @@ import { useEffect, useRef, useState } from "react";
 import { resolveClientPerformanceProfile } from "../game/performance.js";
 import type { SceneQuality } from "../game/sceneMath.js";
 import type { SharkLabel } from "../game/Scene.js";
+import { EDIBILITY_PRESENTATION } from "./edibility.js";
 
 export function SharkLabels({
   labelsRef,
@@ -30,25 +31,30 @@ export function SharkLabels({
 
   return (
     <svg className="shark-label-layer" width="100%" height="100%" aria-hidden="true">
-      {labels.map((l) => (
-        <g
-          key={l.id}
-          className={`shark-label${l.me ? " is-me" : ""}${l.apex ? " is-apex" : ""}`}
-          transform={`translate(${l.x} ${l.y - 28})`}
-        >
-          <rect
-            x="-68"
-            y="-12"
-            width="136"
-            height="24"
-            rx="6"
-            fill={l.color}
-            stroke={l.me ? "#fff" : l.apex ? "#ffd54a" : "rgba(0,0,0,0.35)"}
-            strokeWidth={l.me || l.apex ? 2 : 1}
-          />
-          <text x="0" y="4" textAnchor="middle">{l.name}{l.apex ? " · APEX" : ""}</text>
-        </g>
-      ))}
+      {labels.map((l) => {
+        const relation = l.edibility ? EDIBILITY_PRESENTATION[l.edibility] : null;
+        return (
+          <g
+            key={l.id}
+            className={`shark-label${l.me ? " is-me" : ""}${l.apex ? " is-apex" : ""}`}
+            transform={`translate(${l.x} ${l.y - 28})`}
+          >
+            <rect
+              x="-68"
+              y="-12"
+              width="136"
+              height="24"
+              rx="6"
+              fill={l.color}
+              stroke={l.me ? "#fff" : l.apex ? "#ffd54a" : "rgba(0,0,0,0.35)"}
+              strokeWidth={l.me || l.apex ? 2 : 1}
+            />
+            <text x="0" y="4" textAnchor="middle">
+              {relation ? `${relation.glyph} ` : ""}{l.name}{l.apex ? " · APEX" : ""}
+            </text>
+          </g>
+        );
+      })}
     </svg>
   );
 }

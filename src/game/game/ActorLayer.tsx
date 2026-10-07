@@ -20,6 +20,11 @@ import type { CameraFollowTarget } from "./CameraRig.js";
 import { cadenceDue, resolveClientPerformanceProfile } from "./performance.js";
 import { LocalPredictor } from "./prediction.js";
 import {
+  EDIBILITY_PRESENTATION,
+  edibilityFor,
+  type Edibility,
+} from "../ui/edibility.js";
+import {
   advanceBankRoll,
   snapshotYawRate,
   smoothYawRate,
@@ -41,6 +46,11 @@ const FALLBACK = new THREE.Color("#33b679");
 const EYE_WHITE = new THREE.Color("#ffffff");
 const PUPIL = new THREE.Color("#0b0a14");
 const skinBody = new Map(SKINS.map((skin) => [skin.id, new THREE.Color(skin.color)]));
+const edibilityColors = {
+  prey: new THREE.Color(EDIBILITY_PRESENTATION.prey.color),
+  even: new THREE.Color(EDIBILITY_PRESENTATION.even.color),
+  threat: new THREE.Color(EDIBILITY_PRESENTATION.threat.color),
+} satisfies Record<Edibility, THREE.Color>;
 
 function setPartMatrix(
   mesh: THREE.InstancedMesh,
@@ -90,6 +100,7 @@ export interface SharkLabel {
   color: string;
   me: boolean;
   apex: boolean;
+  edibility: Edibility | null;
   distance: number;
 }
 
@@ -115,6 +126,7 @@ export function ActorLayer({
   const dorsalFinMesh = useRef<THREE.InstancedMesh>(null);
   const pectoralLeftMesh = useRef<THREE.InstancedMesh>(null);
   const pectoralRightMesh = useRef<THREE.InstancedMesh>(null);
+  const rimMesh = useRef<THREE.InstancedMesh>(null);
   const eyeMesh = useRef<THREE.InstancedMesh>(null);
   const pupilMesh = useRef<THREE.InstancedMesh>(null);
   const apexMarkerRef = useRef<THREE.Mesh>(null);
@@ -144,11 +156,12 @@ export function ActorLayer({
     const dorsalFin = dorsalFinMesh.current;
     const pectoralLeft = pectoralLeftMesh.current;
     const pectoralRight = pectoralRightMesh.current;
+    const rim = rimMesh.current;
     const eyes = eyeMesh.current;
     const pupils = pupilMesh.current;
     if (
       !body || !head || !snout || !peduncle || !tailFin || !dorsalFin
-      || !pectoralLeft || !pectoralRight || !eyes || !pupils
+      || !pectoralLeft || !pectoralRight || !rim || !eyes || !pupils
     ) return;
 
     const sharkParts = [
@@ -181,6 +194,7 @@ export function ActorLayer({
     const reducedMotion = settings.a11y.motion === "reduced";
     const alpha = reducedMotion ? 1 : frame.alpha;
     const apexId = state.round.phase === "apex" ? state.round.apexId : null;
+    const me = state.sharks.find((shark) => shark.id === socket.youId && shark.alive) ?? null;
     const apexMarker = apexMarkerRef.current;
     let apexVisible = false;
 
@@ -212,6 +226,7 @@ export function ActorLayer({
       camera.getWorldDirection(cameraForward);
     }
     let sharkCount = 0;
+    let rimCount = 0;
     let eyeCount = 0;
 
     for (const shark of state.sharks) {
@@ -223,6 +238,7 @@ export function ActorLayer({
       const previousShark = prevById.get(shark.id);
       const bodyColor = skinBody.get(shark.skin) ?? FALLBACK;
       const sharkScale = sharkScaleForLength(shark.length);
+      const relation = !isMe && me ? edibilityFor(me, shark) : null;
 
       let yaw: number;
       let pitch: number;
@@ -350,6 +366,17 @@ export function ActorLayer({
         0.36, 0.9, 0.25,
       );
 
+      if (relation) {
+        setPartMatrix(
+          rim, rimCount, root.matrix, part, composed,
+          0, 0, 0,
+          0, animation.bodyYaw, 0,
+          1.82, 0.66, 0.74,
+        );
+        rim.setColorAt(rimCount, edibilityColors[relation]);
+        rimCount += 1;
+      }
+
       const activityGlow = isMe ? 0.18 : 0;
       const glow = Math.max(activityGlow, shark.id === apexId ? 0.42 : 0);
       const renderColor = glow ? tempColor.copy(bodyColor).lerp(WHITE, glow) : bodyColor;
@@ -395,9 +422,10 @@ export function ActorLayer({
                 name: isMe ? `${shark.name} (you)` : shark.name,
                 x: Math.max(52, Math.min(size.width - 52, x)),
                 y: Math.max(52, Math.min(size.height - 6, y)),
-                color: `#${bodyColor.getHexString()}`,
+                color: relation ? EDIBILITY_PRESENTATION[relation].color : `#${bodyColor.getHexString()}`,
                 me: isMe,
                 apex: isApex,
+                edibility: relation,
                 distance: labelDistance,
               });
             }
@@ -409,6 +437,7 @@ export function ActorLayer({
     if (apexMarker && !apexVisible) apexMarker.visible = false;
 
     commitInstances(sharkParts, sharkCount);
+    commitInstances([rim], rimCount);
     eyes.count = eyeCount;
     eyes.instanceMatrix.needsUpdate = true;
     if (eyes.instanceColor) eyes.instanceColor.needsUpdate = true;
@@ -526,6 +555,10 @@ export function ActorLayer({
       <instancedMesh ref={pectoralRightMesh} args={[undefined, undefined, MAX_SHARKS]} frustumCulled={false}>
         <coneGeometry args={[1, 1, 3]} />
         <meshBasicMaterial toneMapped={false} />
+      </instancedMesh>
+      <instancedMesh ref={rimMesh} args={[undefined, undefined, MAX_SHARKS]} frustumCulled={false}>
+        <sphereGeometry args={[1, sharkQuality.radialSegments, sharkQuality.radialSegments]} />
+        <meshBasicMaterial side={THREE.BackSide} toneMapped={false} transparent opacity={0.82} depthWrite={false} />
       </instancedMesh>
       <instancedMesh ref={eyeMesh} args={[undefined, undefined, MAX_EYES]} frustumCulled={false}>
         <sphereGeometry args={[1, 8, 8]} />

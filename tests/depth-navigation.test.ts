@@ -7,6 +7,10 @@ import {
   cueDescription,
   describeRelativeTarget,
 } from "../src/game/ui/DepthRadar.js";
+import {
+  EDIBILITY_PRESENTATION,
+  edibilityFor,
+} from "../src/game/ui/edibility.js";
 
 const read = (path: string) => readFileSync(new URL(path, import.meta.url), "utf8");
 
@@ -57,6 +61,17 @@ function state(): ClientState {
 }
 
 describe("ST-126 depth-aware competitive cues", () => {
+  it("classifies the exact 1.5x edibility boundary with a non-color glyph for every state", () => {
+    expect(edibilityFor({ length: 15 }, { length: 10 })).toBe("prey");
+    expect(edibilityFor({ length: 14.99 }, { length: 10 })).toBe("even");
+    expect(edibilityFor({ length: 10 }, { length: 15 })).toBe("threat");
+    expect(edibilityFor({ length: 10 }, { length: 14.99 })).toBe("even");
+
+    expect(EDIBILITY_PRESENTATION.prey).toMatchObject({ glyph: "▼", label: "eat" });
+    expect(EDIBILITY_PRESENTATION.even).toMatchObject({ glyph: "■", label: "even" });
+    expect(EDIBILITY_PRESENTATION.threat).toMatchObject({ glyph: "▲", label: "danger" });
+  });
+
   it("describes heading-relative direction, vertical relationship and proximity in full XYZ", () => {
     expect(describeRelativeTarget(
       { x: 0, y: 0, z: 0 },
@@ -96,7 +111,7 @@ describe("ST-126 depth-aware competitive cues", () => {
       bearing: "behind",
       vertical: "above",
     });
-    expect(cueDescription(nav.cues.find((item) => item.kind === "rival")!)).toMatch(/larger rival: Hunter.*below/i);
+    expect(cueDescription(nav.cues.find((item) => item.kind === "rival")!)).toMatch(/■ even: Hunter.*below/i);
   });
 
   it("keeps the touch view bounded while preserving the same information hierarchy", () => {
@@ -150,6 +165,9 @@ describe("ST-126 depth-aware competitive cues", () => {
     expect(actor).toContain("labelDistance <= 54");
     expect(actor).toContain("labels.length = 7");
     expect(labels).toContain('l.apex ? " · APEX" : ""');
+    expect(labels).toContain("relation.glyph");
+    expect(actor).toContain("edibilityFor(me, shark)");
+    expect(actor).toContain("EDIBILITY_PRESENTATION[relation].color");
     expect(css).toContain(".game-screen--touch .game-depth-radar");
     expect(css).toContain("width:min(300px,36vw)");
     expect(css).toContain("bottom:calc(12px + var(--safe-b))");
