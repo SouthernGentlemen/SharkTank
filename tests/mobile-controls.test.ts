@@ -12,6 +12,7 @@ import {
   moveStickPointer,
   radialStickVector,
   releaseAllTouchInput,
+  simpleTouchPitch,
   touchAxesForState,
   touchLayoutForFlightSide,
   touchNeedsLandscape,
@@ -181,5 +182,34 @@ describe("Simple touch steering", () => {
     expect(touchAxesForState(state, false, false, "dual").lookYaw).toBe(-0.6);
     releaseAllTouchInput(state);
     expect(canUseAbilityPointer(state, 2)).toBe(true);
+  });
+});
+
+describe("Simple target pitch", () => {
+  it("maps up/down proportionally to bounded angles without accumulating", () => {
+    expect(simpleTouchPitch(-1)).toBe(0.85);
+    expect(simpleTouchPitch(1)).toBe(-0.85);
+    expect(simpleTouchPitch(-0.5)).toBe(0.425);
+    expect(simpleTouchPitch(5)).toBe(-0.85);
+    expect(simpleTouchPitch(-5)).toBe(0.85);
+    for (let frame = 0; frame < 120; frame += 1) expect(simpleTouchPitch(-0.5)).toBe(0.425);
+    expect(simpleTouchPitch(NaN)).toBeCloseTo(0);
+  });
+  it("levels on pointer release and cleanup while preserving yaw rate and Dual axes", () => {
+    const state = makeTwinStickState();
+    beginStickPointer(state, "flight", 1);
+    moveStickPointer(state, "flight", 1, 28, -40);
+    expect(simpleTouchPitch(state.flight.y)).toBeGreaterThan(0);
+    expect(touchAxesForState(state, false, false, "simple").yaw).toBe(state.flight.x);
+    endStickPointer(state, "flight", 1);
+    expect(simpleTouchPitch(state.flight.y)).toBeCloseTo(0);
+    beginStickPointer(state, "flight", 2);
+    moveStickPointer(state, "flight", 2, 0, 56);
+    releaseAllTouchInput(state);
+    expect(simpleTouchPitch(state.flight.y)).toBeCloseTo(0);
+    const input = read("../src/game/game/useLocalInput.ts");
+    expect(input).toContain('controls.touchScheme === "simple"');
+    expect(input).toContain("simplePitch ? 0 : axes.pitch");
+    expect(input).toContain("simpleTouchPitch(touchInputRef.current.flight.y)");
   });
 });

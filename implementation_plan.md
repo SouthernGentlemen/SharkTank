@@ -106,18 +106,6 @@ Tasks follow these defaults unless the owner changes them before the task starts
 
 ## Open tasks
 
-### ST-251 — [FEAT] Map the Simple stick's vertical axis to a climb or dive angle
-
-**Goal:** Push up to climb, let go to level.
-
-**Scope:** In Simple, vertical deflection sets a target climb or dive angle (up to about 0.85 rad) that returns to level on release. Horizontal deflection stays a yaw rate.
-
-**Acceptance:** Mapping tests pass; Dual and keyboard are unchanged.
-
-**Validation:** `npm test -- tests/mobile-controls.test.ts tests/swimming-camera.test.ts`.
-
----
-
 ### ST-252 — [FEAT] Move Bite and Dash into the thumb arc with cooldown rings
 
 **Goal:** On touch, the ability buttons sit over the leaderboard and out of reach.
