@@ -4,7 +4,7 @@ SharkTank keeps accessible interaction in the semantic DOM around the React Thre
 
 ## Current behavior
 
-The keyboard map covers W/S pitch, A/D yaw, Arrow-key camera look, burst, bite, pause, respawn and exit. Mobile controls use independent pointers for flight, look and abilities.
+The keyboard map covers W/S pitch, A/D yaw, Arrow-key camera look, burst, bite, pause, respawn and exit. Simple mobile controls use independent pointers for flight and abilities; Advanced adds a separate look pointer.
 
 Menus, HUD, leaderboard, settings, dialogs, captions, live announcements, projected shark labels and depth cues remain semantic HTML/React. The WebGL view has an accessible description of the active controls.
 
@@ -44,3 +44,5 @@ Local shark reconciliation uses a shared visual offset for the mesh, labels and 
 Per-session welcome and state snapshots retain every shark, effect and round field, but include only prey within 72 units of the living player's position (the tank centre while dead or absent). The server still simulates every prey. All quality presets finish fog by 70 units. Prey disappearance produces an eat sound or caption only within 12 units of a living shark mouth. Typical 32-shark session snapshots fit within 14 KB.
 
 The chase camera follows closer and higher, framing a level-swimming shark in the lower third with more water ahead. Follow distance still scales with shark size and speed, and camera/aim positions stay clamped inside the water. Reduced motion still disables speed-based camera expansion and snaps directly to the follow pose.
+
+Touch steering defaults to Simple: one floating flight stick starts anywhere in the chosen flight half, with automatic camera recentring and no look stick. Advanced dual-stick retains independent flight and camera look. Controls Settings switches schemes live and saves the choice on this device; switching releases active stick gestures. Desktop controls and the current landscape requirement are unchanged.

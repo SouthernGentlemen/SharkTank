@@ -179,7 +179,7 @@ export function useLocalInput(
         controls.invertSteer,
       );
       const touch = touchControls && touchInputRef
-        ? touchAxesForState(touchInputRef.current, controls.turnAssist, controls.invertSteer)
+        ? touchAxesForState(touchInputRef.current, controls.turnAssist, controls.invertSteer, controls.touchScheme)
         : { yaw: 0, pitch: 0, lookYaw: 0, lookPitch: 0 };
       keyboardSteering.current = advanceKeyboardSteering(keyboardSteering.current, desktop, dt);
       const axes = {
@@ -209,12 +209,13 @@ export function useLocalInput(
         pitchRef.current = assisted.pitch;
       }
       if (me?.position && state) pitchRef.current = glidePitch(pitchRef.current, me.position.y, state);
+      const simpleTouch = touchControls && controls.touchScheme === "simple";
       const touchLookActive = touchControls && touchInputRef?.current.look.pointerId !== null;
       cameraLook.current = advanceCameraLookOffsets(
         cameraLook.current,
-        axes,
+        simpleTouch ? { lookYaw: 0, lookPitch: 0 } : axes,
         dt,
-        touchLookActive ? null : pointerLook.current,
+        simpleTouch || touchLookActive ? null : pointerLook.current,
       );
 
       setOrientation(yawRef.current, pitchRef.current);

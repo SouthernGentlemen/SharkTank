@@ -30,8 +30,8 @@ export function HelpOverlay({ onClose }: { onClose: () => void }) {
 
         {touch ? (
           <div className="control-grid">
-            <Control icon="steer" label="Fly"><span>{stick} flight stick</span><small>Up/down pitches to climb or dive; left/right yaws while the shark keeps swimming forward.</small></Control>
-            <Control icon="steer" label="Look"><span>{look} look stick</span><small>Offsets the chase camera in four directions; release to recenter behind the shark.</small></Control>
+            <Control icon="steer" label="Fly"><span>{stick} flight stick</span><small>Start anywhere in the flight half. Up/down pitches to climb or dive; left/right yaws while the shark keeps swimming forward.</small></Control>
+            {settings.controls.touchScheme === "dual" ? <Control icon="steer" label="Look"><span>{look} look stick</span><small>Offsets the chase camera in four directions; release to recenter behind the shark.</small></Control> : <Control icon="steer" label="Camera"><span>Automatic recenter</span><small>Simple steering keeps the camera behind your shark. Choose Advanced dual-stick in Controls for independent look.</small></Control>}
             <Control icon="dash" label="Dash"><span>{pads} pad</span><small>2s cooldown · half that during a frenzy</small></Control>
             <Control icon="bite" label="Bite"><span>{pads} pad</span><small>Directional close-range attack · aim with the shark</small></Control>
             <Control icon="menu" label="Tools"><span>Gear button</span><small>Exit, audio, display, and full settings</small></Control>

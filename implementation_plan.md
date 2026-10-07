@@ -106,21 +106,6 @@ Tasks follow these defaults unless the owner changes them before the task starts
 
 ## Open tasks
 
-### ST-250 — [FEAT] Make one-thumb Simple steering the touch default
-
-**Goal:** Two-stick 3D flight is demanding for casual phone players.
-
-**Scope**
-- Add `controls.touchScheme: "simple" | "dual"`, defaulting to `simple`.
-- Simple shows one floating flight stick that may start anywhere in the flight half, the camera recentres automatically, and the look stick is hidden. Dual keeps today's sticks.
-- Update Help, labels, docs and contract tests.
-
-**Acceptance:** The scheme switches live; Dual is unchanged; tests cover both.
-
-**Validation:** `npm test -- tests/mobile-controls.test.ts tests/full-3d-authority-acceptance.test.ts tests/full-3d-product-acceptance.test.ts tests/full-3d-documentation-contract.test.ts`.
-
----
-
 ### ST-251 — [FEAT] Map the Simple stick's vertical axis to a climb or dive angle
 
 **Goal:** Push up to climb, let go to level.

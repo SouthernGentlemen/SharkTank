@@ -65,7 +65,9 @@ export function GameViewport({
 
   const k = settings.controls.keybinds;
   const label = touchControls
-    ? "Shark Tank 3D gameplay view. The flight stick pitches and yaws. The opposite stick looks around. Dash and bite remain separate touch controls. Gameplay status, leaderboard, and 3D navigation cues are available in the surrounding DOM interface."
+    ? settings.controls.touchScheme === "simple"
+      ? "Shark Tank 3D gameplay view. Simple steering: start a floating flight stick anywhere in the flight half to pitch and yaw. The camera recentres automatically. Dash and bite are separate touch controls. Gameplay status and navigation cues are in the surrounding DOM interface."
+      : "Shark Tank 3D gameplay view. The flight stick pitches and yaws. The opposite stick looks around. Dash and bite remain separate touch controls. Gameplay status, leaderboard, and 3D navigation cues are available in the surrounding DOM interface."
     : `Shark Tank 3D gameplay view. ${keyLabel(k.pitchUp)} and ${keyLabel(k.pitchDown)} pitch up or down; ${keyLabel(k.yawLeft)} and ${keyLabel(k.yawRight)} yaw left or right. ${keyLabel(k.lookUp)}, ${keyLabel(k.lookDown)}, ${keyLabel(k.lookLeft)}, and ${keyLabel(k.lookRight)} look around. ${keyLabel(k.boost)} bursts, ${keyLabel(k.bite)} bites, ${keyLabel(k.pause)} pauses, and mouse look is optional. Gameplay status, leaderboard, and 3D navigation cues are available in the surrounding DOM interface.`;
 
   return (

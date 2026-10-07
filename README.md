@@ -45,7 +45,7 @@ In-memory engine schema 11 and realtime protocol 12 are current.
 
 Desktop flight uses **W/S pitch**, **A/D yaw**, and the **Arrow keys look** around the chase camera. **Space bursts**, **F bites**, and **Escape pauses**. Mouse movement may mirror camera look but is not required for play.
 
-Mobile uses **dual-stick** control: one stick owns pitch/yaw and the other owns camera look. Bite and burst keep independent simultaneous pointers.
+Mobile defaults to **Simple** one-thumb pitch/yaw with automatic camera recentring. Advanced **dual-stick** adds independent camera look. Bite and burst keep independent simultaneous pointers.
 
 Combat is directional bite plus burst. Feeding Frenzy and Apex are server-owned round phases.
 
@@ -93,3 +93,5 @@ The arena wall is a non-lethal returning current: it turns shark headings inward
 The chase camera follows closer and higher, framing a level-swimming shark in the lower third with more water ahead. Follow distance still scales with shark size and speed, and camera/aim positions stay clamped inside the water. Reduced motion still disables speed-based camera expansion and snaps directly to the follow pose.
 
 Client aim assist gently nudges steering toward prey or living sharks at most two-thirds your length, within a 20° cone and 14 units. Its combined angular correction is capped at 0.25 rad/s. It defaults on with touch controls and off with keyboard controls; an explicit Controls Settings toggle persists on the device. Hits, damage and score remain server-owned.
+
+Touch steering defaults to Simple: one floating flight stick starts anywhere in the chosen flight half, with automatic camera recentring and no look stick. Advanced dual-stick retains independent flight and camera look. Controls Settings switches schemes live and saves the choice on this device; switching releases active stick gestures. Desktop controls and the current landscape requirement are unchanged.

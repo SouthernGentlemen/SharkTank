@@ -54,7 +54,7 @@ Automated contracts do not substitute for these real-browser observations.
 
 Use a physical coarse-pointer phone or tablet.
 
-1. Hold flight and look controls simultaneously and verify independent response.
+1. Verify Simple starts a floating flight stick anywhere in the chosen flight half, hides the look stick and recentres the camera. Switch live to Advanced, then hold flight and look controls simultaneously and verify independent response.
 2. Activate burst and bite while both controls remain held.
 3. Switch the flight-stick side and repeat.
 4. Rotate between portrait and landscape and confirm input releases/recovery are safe.
@@ -96,3 +96,5 @@ The arena wall is a non-lethal returning current: it turns shark headings inward
 
 The chase camera follows closer and higher, framing a level-swimming shark in the lower third with more water ahead. Follow distance still scales with shark size and speed, and camera/aim positions stay clamped inside the water. Reduced motion still disables speed-based camera expansion and snaps directly to the follow pose.
 Camera projection tests cover cruise and burst at minimum, spawn and maximum presentation scales across four headings; existing tests retain pitch, look controls and water-bound checks. Real-browser visual acceptance remains NOT RUN until performed on the exact candidate.
+
+Touch steering defaults to Simple: one floating flight stick starts anywhere in the chosen flight half, with automatic camera recentring and no look stick. Advanced dual-stick retains independent flight and camera look. Controls Settings switches schemes live and saves the choice on this device; switching releases active stick gestures. Desktop controls and the current landscape requirement are unchanged.

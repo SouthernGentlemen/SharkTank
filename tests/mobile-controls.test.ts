@@ -1,3 +1,7 @@
+import { createElement } from "react";
+import { renderToStaticMarkup } from "react-dom/server";
+import { TouchControls } from "../src/game/ui/TouchControls.js";
+import { DEFAULT_SETTINGS } from "../src/game/settings/SettingsContext.js";
 import { readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
 import {
@@ -143,5 +147,39 @@ describe("ST-117 dual-stick mobile controls", () => {
     expect(css).toContain(".game-screen--flight-right");
     expect(css).toContain(".touch-rotate-affordance");
     expect(css).not.toContain(".game-screen { touch-action: none; }");
+  });
+});
+
+
+describe("Simple touch steering", () => {
+  it("renders one flight stick in Simple and both mirrored sticks in Advanced", () => {
+    expect(DEFAULT_SETTINGS.controls.touchScheme).toBe("simple");
+    for (const flightSide of ["left", "right"] as const) {
+      const inputRef = { current: makeTwinStickState() };
+      const simple = renderToStaticMarkup(createElement(TouchControls, { inputRef, flightSide, scheme: "simple", enabled: true, portraitLocked: false }));
+      const dual = renderToStaticMarkup(createElement(TouchControls, { inputRef, flightSide, scheme: "dual", enabled: true, portraitLocked: false }));
+      expect(simple).toContain(`touch-stick-zone--${flightSide} touch-stick-zone--flight`);
+      expect(simple).not.toContain("touch-stick-zone--look");
+      expect(dual).toContain("touch-stick-zone--look");
+      expect(dual).toContain("Release to recenter");
+    }
+  });
+  it("defaults to Simple and exposes a live advanced choice", () => {
+    expect(read("../src/game/settings/SettingsContext.tsx")).toContain('touchScheme: "simple"');
+    expect(read("../src/game/ui/Settings.tsx")).toContain('update("controls", { touchScheme: v })');
+    const controls = read("../src/game/ui/TouchControls.tsx");
+    expect(controls).toContain('scheme === "dual" && <TouchStick');
+    expect(controls).toContain('key={`${scheme}-${flightSide}`}');
+    expect(controls).toContain('floating ? e.clientX - rect.left');
+    expect(read("../src/game/game/useLocalInput.ts")).toContain('simpleTouch || touchLookActive ? null : pointerLook.current');
+  });
+  it("preserves flight intent and suppresses stale look in Simple, retaining Dual look", () => {
+    const state = makeTwinStickState();
+    state.flight = { pointerId: 1, x: 0.8, y: -0.5 };
+    state.look = { pointerId: 2, x: -0.6, y: 0.4 };
+    expect(touchAxesForState(state, false, false, "simple")).toEqual({ yaw: 0.8, pitch: 0.5, lookYaw: 0, lookPitch: 0 });
+    expect(touchAxesForState(state, false, false, "dual").lookYaw).toBe(-0.6);
+    releaseAllTouchInput(state);
+    expect(canUseAbilityPointer(state, 2)).toBe(true);
   });
 });

@@ -91,6 +91,7 @@ export interface Settings {
     invertSteer: boolean;
     /** Independent on-screen flight/look sticks plus ability pads. "auto" follows (pointer: coarse). */
     touchControls: "auto" | "on" | "off";
+    touchScheme: "simple" | "dual";
     /** Physical side of the flight stick. The look stick/actions mirror to the opposite side. */
     stickSide: "right" | "left";
     /**
@@ -119,6 +120,7 @@ export const DEFAULT_SETTINGS: Settings = {
     turnAssist: false,
     invertSteer: false,
     touchControls: "auto",
+    touchScheme: "simple",
     stickSide: "left",
     singleKeyShortcuts: true,
   },
@@ -189,6 +191,7 @@ function normalizeSettings(value: unknown): Settings {
       ...DEFAULT_SETTINGS.controls,
       ...controls,
       keybinds: cleanBinds,
+      touchScheme: controls.touchScheme === "dual" ? "dual" : "simple",
     },
     a11y: {
       ...DEFAULT_SETTINGS.a11y,

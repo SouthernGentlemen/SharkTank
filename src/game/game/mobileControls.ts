@@ -1,4 +1,5 @@
 export type TouchStickKind = "flight" | "look";
+export type TouchScheme = "simple" | "dual";
 export type TouchSide = "left" | "right";
 
 export interface TouchStickState {
@@ -122,6 +123,7 @@ export function touchAxesForState(
   state: TwinStickState,
   turnAssist = false,
   invertSteer = false,
+  scheme: TouchScheme = "dual",
 ): TouchAxes {
   const assist = turnAssist ? 0.6 : 1;
   const yawDirection = invertSteer ? -1 : 1;
@@ -129,9 +131,9 @@ export function touchAxesForState(
     yaw: state.flight.x * assist * yawDirection,
     // Browser Y grows downward. Stick-up is therefore negative Y but positive pitch.
     pitch: -state.flight.y * assist,
-    lookYaw: state.look.x,
+    lookYaw: scheme === "dual" ? state.look.x : 0,
     // Desktop look-up is negative camera pitch, so screen-up maps naturally to negative Y.
-    lookPitch: state.look.y,
+    lookPitch: scheme === "dual" ? state.look.y : 0,
   };
 }
 
