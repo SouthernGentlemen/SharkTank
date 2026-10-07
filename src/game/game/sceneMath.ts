@@ -238,15 +238,15 @@ export function chaseCameraPose(
   const cameraForward = forwardFromYawPitch(yaw + look.yaw, pitch + look.pitch);
   const size = Math.max(0.7, Math.min(2.8, options.sharkScale ?? 1));
   const speed = speedRatio(options);
-  const distance = 13.5 + size * 3.2 + speed * 3.5;
-  const lift = 3.8 + size * 1.4;
-  const lookAhead = 4.5 + size * 0.65 + speed * 3.2;
+  const distance = 9 + size * 3.2 + speed * 3.5;
+  const lift = 5 + size * 1.4;
+  const lookAhead = 7 + size * 0.65 + speed * 3.2;
 
   out.position.x = target.x - cameraForward.x * distance;
   out.position.y = target.y - cameraForward.y * distance + lift;
   out.position.z = target.z - cameraForward.z * distance;
   out.lookAt.x = target.x + forward.x * lookAhead;
-  out.lookAt.y = target.y + forward.y * lookAhead + 0.65;
+  out.lookAt.y = target.y + forward.y * lookAhead + 2.5;
   out.lookAt.z = target.z + forward.z * lookAhead;
 
   clampCameraPoint(out.position, options, 1.25, 1.5);

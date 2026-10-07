@@ -106,18 +106,6 @@ Tasks follow these defaults unless the owner changes them before the task starts
 
 ## Open tasks
 
-### ST-248 — [FEAT] Frame the chase camera closer and higher
-
-**Goal:** The local shark reads as a small silhouette seen from directly behind.
-
-**Scope:** Retune `chaseCameraPose` so the shark sits in the lower third of the frame with more water visible ahead, keeping size and speed scaling and the bounds clamps.
-
-**Acceptance:** Camera pose tests are updated; reduced motion is unchanged.
-
-**Validation:** `npm test -- tests/swimming-camera.test.ts tests/game-scene-skeleton.test.ts tests/desktop-controls.test.ts`.
-
----
-
 ### ST-249 — [FEAT] Add gentle aim assist toward prey and bite targets
 
 **Goal:** Lining up a moving fish in 3D by thumb is hard.

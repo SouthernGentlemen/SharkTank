@@ -1,5 +1,6 @@
 import { readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
+import { PerspectiveCamera, Vector3 } from "three";
 import {
   MAX_PITCH,
   MOVE,
@@ -105,6 +106,37 @@ describe("ST-115 shark swimming and chase camera", () => {
       roll = advanceBankRoll(roll, rate, 1 / 60);
     }
     expect(Math.abs(roll)).toBeLessThan(0.002);
+  });
+
+  it("frames the shark closer and higher in the lower third with water ahead", () => {
+    for (const yaw of [0, Math.PI / 2, Math.PI, -Math.PI / 2]) {
+      for (const sharkScale of [0.7, 1, 2.8]) {
+        for (const speed of [11, 28]) {
+          const pose = chaseCameraPose({ x: 0, y: 0, z: 0 }, yaw, 0, makeChaseCameraPose(), {
+            sharkScale, speed,
+          });
+          const camera = new PerspectiveCamera(cameraFovForSpeed(speed, 11, 28), 16 / 9);
+          camera.position.set(pose.position.x, pose.position.y, pose.position.z);
+          camera.lookAt(pose.lookAt.x, pose.lookAt.y, pose.lookAt.z);
+          camera.updateMatrixWorld();
+          const projected = new Vector3().project(camera);
+          // NDC -1..-1/3 is the lower third; keep the shark clear of the bottom edge.
+          expect(projected.y).toBeGreaterThan(-0.7);
+          expect(projected.y).toBeLessThan(-1 / 3);
+          expect(projected.x).toBeCloseTo(0);
+          expect(Math.hypot(pose.position.x, pose.position.z))
+            .toBeLessThan(13.5 + sharkScale * 3.2 + (speed === 28 ? 3.5 : 0));
+          expect(pose.position.y).toBeGreaterThan(3.8 + sharkScale * 1.4);
+        }
+      }
+    }
+  });
+
+  it("keeps reduced-motion camera speed scaling disabled", () => {
+    const target = { x: 0, y: 0, z: 0 };
+    const slow = chaseCameraPose(target, 0, 0, makeChaseCameraPose(), { speed: 11, reducedMotion: true });
+    const fast = chaseCameraPose(target, 0, 0, makeChaseCameraPose(), { speed: 28, reducedMotion: true });
+    expect(fast).toEqual(slow);
   });
 
   it("keeps the chase camera readable through pitch/turn, scales distance, and bounds it to water", () => {
