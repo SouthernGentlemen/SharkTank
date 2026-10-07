@@ -1,5 +1,5 @@
 import { resolveQuality, type QualityChoice } from "../game/quality.js";
-import { sharkScaleForLength } from "../game/sharkPresentation.js";
+import { sharkScaleForLength } from "../../engine/sharkGeometry.js";
 
 export interface AudioPoint {
   x: number;

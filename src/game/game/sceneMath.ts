@@ -1,5 +1,5 @@
 import { resolveQuality } from "./quality.js";
-import { TICKS_PER_SECOND, shortestYawDelta, clampPitch, lerpYawShortest, normalizeYaw } from "../../engine/index.js";
+import { SHARK_GEOMETRY, TICKS_PER_SECOND, shortestYawDelta, clampPitch, lerpYawShortest, normalizeYaw } from "../../engine/index.js";
 
 export type SceneQuality = import("./quality.js").QualityChoice;
 
@@ -240,7 +240,9 @@ export function chaseCameraPose(
   const speed = speedRatio(options);
   const distance = 9 + size * 3.2 + speed * 3.5;
   const lift = 5 + size * 1.4;
-  const lookAhead = 7 + size * 0.65 + speed * 3.2;
+  // Preserve the existing framing, measured ahead of the shared mouth landmark.
+  const lookBeyondMouth = 7 - size * 1.25 + speed * 3.2;
+  const lookAhead = SHARK_GEOMETRY.mouth * size + lookBeyondMouth;
 
   out.position.x = target.x - cameraForward.x * distance;
   out.position.y = target.y - cameraForward.y * distance + lift;
