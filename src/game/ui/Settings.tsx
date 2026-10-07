@@ -11,6 +11,8 @@ import {
   useSettings,
   type Keybinds,
 } from "../settings/SettingsContext.js";
+import { useTouchControls } from "./TouchControls.js";
+import { aimAssistEnabled } from "../game/aimAssist.js";
 import { useFocusTrap } from "../a11y/useFocusTrap.js";
 
 type Tab = "graphics" | "audio" | "controls" | "accessibility";
@@ -174,6 +176,7 @@ const REBINDABLE: Array<{ key: keyof Keybinds; label: string }> = [
 
 function ControlsPanel() {
   const { settings, update } = useSettings();
+  const touch = useTouchControls(settings);
   const [listening, setListening] = useState<keyof Keybinds | null>(null);
   const [conflict, setConflict] = useState<string | null>(null);
 
@@ -217,6 +220,7 @@ function ControlsPanel() {
         ))}
       </ul>
       {conflict && <p className="settings-note" role="alert">{conflict}</p>}
+      <Toggle label="Aim assist" hint="Gently steer toward nearby food and smaller sharks. Defaults on for touch, off for keyboard." checked={aimAssistEnabled(settings.controls.aimAssist, touch)} onChange={(v) => update("controls", { aimAssist: v })} />
       <Toggle label="Auto-level pitch" hint="Return to level when pitch input is idle. Turn off to hold your pitch." checked={settings.controls.autoLevel} onChange={(v) => update("controls", { autoLevel: v })} />
       <Toggle label="Turn assist" hint="Gentler, slower steering." checked={settings.controls.turnAssist} onChange={(v) => update("controls", { turnAssist: v })} />
       <Toggle label="Invert yaw steering" checked={settings.controls.invertSteer} onChange={(v) => update("controls", { invertSteer: v })} />

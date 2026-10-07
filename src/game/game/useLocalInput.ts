@@ -16,6 +16,7 @@ import {
   desktopAxesForPressed,
   type CameraLook,
 } from "./desktopControls.js";
+import { assistAim, aimAssistEnabled } from "./aimAssist.js";
 import { applyCameraRelativeSteering } from "./sceneMath.js";
 import {
   releaseAllTouchInput,
@@ -199,6 +200,14 @@ export function useLocalInput(
       pitchRef.current = autoLevelPitch(steered.pitch, axes.pitch, dt, controls.autoLevel);
       const state = stateRef.current;
       const me = state?.sharks.find((shark) => shark.id === youId);
+      if (me?.alive && state) {
+        const assisted = assistAim(
+          { yaw: yawRef.current, pitch: pitchRef.current }, me, state, dt,
+          aimAssistEnabled(controls.aimAssist, touchControls),
+        );
+        yawRef.current = assisted.yaw;
+        pitchRef.current = assisted.pitch;
+      }
       if (me?.position && state) pitchRef.current = glidePitch(pitchRef.current, me.position.y, state);
       const touchLookActive = touchControls && touchInputRef?.current.look.pointerId !== null;
       cameraLook.current = advanceCameraLookOffsets(

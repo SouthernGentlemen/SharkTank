@@ -84,6 +84,8 @@ export interface Settings {
   };
   controls: {
     keybinds: Keybinds;
+    /** null follows the touch/keyboard default; explicit choices persist. */
+    aimAssist: boolean | null;
     autoLevel: boolean; // ease idle pitch toward level
     turnAssist: boolean; // gentler steering — accessibility aid
     invertSteer: boolean;
@@ -112,6 +114,7 @@ export const DEFAULT_SETTINGS: Settings = {
   audio: { master: 0.8, sfx: 0.9, music: 0, captions: false },
   controls: {
     keybinds: { ...DEFAULT_KEYBINDS },
+    aimAssist: null,
     autoLevel: true,
     turnAssist: false,
     invertSteer: false,
