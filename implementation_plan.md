@@ -106,18 +106,6 @@ Tasks follow these defaults unless the owner changes them before the task starts
 
 ## Open tasks
 
-### ST-255 — [FEAT] Eat from the mouth with a size-scaled, swept radius
-
-**Goal:** Prey the snout visibly touches is not eaten, and dashes can pass fish between ticks.
-
-**Scope:** Eat when prey is within `1.2 + 0.55 × scale` plus prey radius of the capsule from the previous tick's mouth position to the current one. Allow 4 chomps per tick for humans and 2 for bots.
-
-**Acceptance:** Snout contact eats, prey beside the tail does not, and a dash through a line of bait eats every fish in the capsule (tests).
-
-**Validation:** `npm test -- tests/prey-schools.test.ts tests/volumetric-engine.test.ts tests/determinism.test.ts`.
-
----
-
 ### ST-256 — [FEAT] Land bites anywhere on the victim's body with a wider cone
 
 **Goal:** A bite that visibly lands on a tail misses.

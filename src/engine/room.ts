@@ -18,6 +18,7 @@ import {
   rotateYawToward,
   yawPitchToward,
 } from "./geometry3d.js";
+import { mouthPoint, sharkScaleForLength } from "./sharkGeometry.js";
 import { nextRandom, seedToNumber } from "./rng.js";
 import type { Action, DeathAction, OceanVolume, Prey, PreyKind, RoomState, RoundState, ScoreEntry, Shark, Vec3 } from "./types.js";
 
@@ -47,8 +48,7 @@ const SPAWN_MEDIAN_SHARE = 0.45;
 const MAX_SPAWN_LENGTH = START_LENGTH * 2.6;
 const MIN_LENGTH = 6; // can't boost below this
 const HEAD_RADIUS = 0.7; // collision radius of the head
-const EAT_RADIUS = 1.2;
-const MAX_CHOMPS_PER_TICK = 2;
+const MAX_CHOMPS_PER_TICK = 4;
 const RESPAWN_DELAY = TICKS_PER_SECOND; // one second dead before respawn is allowed
 const SPAWN_GRACE = Math.round(TICKS_PER_SECOND * 6); // enough time to orient and use an ability before size combat starts
 export const PREY_KINDS = ["bait", "reef", "chum", "carcass"] as const satisfies readonly PreyKind[];
@@ -779,14 +779,19 @@ export function step(state: RoomState): RoomState {
     for (const bot of bots) steerBot(state, bot, botView);
   }
 
-  // Move every living shark.
+  // Capture each mouth before movement so the sweep includes turning this tick.
+  const previousMouths = new Map<string, Vec3>();
   for (const s of Object.values(state.sharks)) {
-    if (s.alive) moveShark(state, s);
+    if (s.alive) {
+      previousMouths.set(s.id, mouthPoint(s));
+      moveShark(state, s);
+    }
   }
 
-  // Eating.
+  // Eating sweeps the mouth across the tick so bursts cannot skip prey.
   for (const s of Object.values(state.sharks)) {
-    if (s.alive) eat(state, s);
+    const previousMouth = previousMouths.get(s.id);
+    if (s.alive && previousMouth) eat(state, s, previousMouth);
   }
 
   // Physical overlap is non-lethal. Combat damage only comes from explicit bite actions.
@@ -838,13 +843,26 @@ function moveShark(state: RoomState, s: Shark): void {
   }, state.ocean);
 }
 
-function eat(state: RoomState, s: Shark): void {
-  const head = s.position;
-  const maxChomps = s.isBot ? 1 : MAX_CHOMPS_PER_TICK;
+function eat(state: RoomState, s: Shark, previousMouth: Vec3): void {
+  const mouth = mouthPoint(s);
+  const radius = 1.2 + 0.55 * sharkScaleForLength(s.length);
+  const dx = mouth.x - previousMouth.x;
+  const dy = mouth.y - previousMouth.y;
+  const dz = mouth.z - previousMouth.z;
+  const sweepSquared = dx * dx + dy * dy + dz * dz;
+  const maxChomps = s.isBot ? 2 : MAX_CHOMPS_PER_TICK;
   let chomps = 0;
   state.food = state.food.filter((f) => {
     const foodPosition: Vec3 = { x: f.x, y: f.y, z: f.z };
-    if (chomps < maxChomps && distance3(foodPosition, head) <= EAT_RADIUS + f.r) {
+    const projection = sweepSquared === 0 ? 0 : Math.max(0, Math.min(1,
+      ((f.x - previousMouth.x) * dx + (f.y - previousMouth.y) * dy + (f.z - previousMouth.z) * dz) / sweepSquared,
+    ));
+    const closest = {
+      x: previousMouth.x + projection * dx,
+      y: previousMouth.y + projection * dy,
+      z: previousMouth.z + projection * dz,
+    };
+    if (chomps < maxChomps && distanceSquared3(foodPosition, closest) <= (radius + f.r) ** 2) {
       chomps += 1;
       s.score += f.value;
       s.length += Math.min(0.6, f.value * 0.18);
