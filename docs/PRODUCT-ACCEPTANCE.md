@@ -55,7 +55,7 @@ Automated contracts do not substitute for these real-browser observations.
 Use a physical coarse-pointer phone or tablet.
 
 1. Verify Simple starts a floating flight stick anywhere in the chosen flight half, hides the look stick and recentres the camera. Switch live to Advanced, then hold flight and look controls simultaneously and verify independent response.
-2. Activate burst and bite while both controls remain held.
+2. In Simple, hold the stick up/down and verify a steady climb/dive angle, then release and verify leveling with Auto-level both on and off. Activate burst and bite while both Advanced controls remain held.
 3. Switch the flight-stick side and repeat.
 4. Rotate between portrait and landscape and confirm input releases/recovery are safe.
 5. Verify controls, captions and round actions remain reachable around safe-area cutouts.
@@ -98,3 +98,5 @@ The chase camera follows closer and higher, framing a level-swimming shark in th
 Camera projection tests cover cruise and burst at minimum, spawn and maximum presentation scales across four headings; existing tests retain pitch, look controls and water-bound checks. Real-browser visual acceptance remains NOT RUN until performed on the exact candidate.
 
 Touch steering defaults to Simple: one floating flight stick starts anywhere in the chosen flight half, with automatic camera recentring and no look stick. Advanced dual-stick retains independent flight and camera look. Controls Settings switches schemes live and saves the choice on this device; switching releases active stick gestures. Desktop controls and the current landscape requirement are unchanged.
+
+Simple touch vertical deflection sets a proportional climb or dive target up to 0.85 rad; releasing the stick targets level even when Auto-level is off. Horizontal deflection remains a yaw rate. Advanced dual-stick and keyboard pitch retain their existing rate controls. Server movement and water-bound pitch limits remain authoritative.

@@ -20,6 +20,7 @@ import { assistAim, aimAssistEnabled } from "./aimAssist.js";
 import { applyCameraRelativeSteering } from "./sceneMath.js";
 import {
   releaseAllTouchInput,
+  simpleTouchPitch,
   touchAxesForState,
   type TwinStickState,
 } from "./mobileControls.js";
@@ -189,15 +190,20 @@ export function useLocalInput(
         lookPitch: clampAxis(desktop.lookPitch + touch.lookPitch),
       };
 
+      const simpleTouch = touchControls && controls.touchScheme === "simple";
+      const simplePitch = simpleTouch && touchInputRef && desktop.pitch === 0
+        && keyboardSteering.current.pitch === 0;
       const steered = applyCameraRelativeSteering(
         yawRef.current,
         pitchRef.current,
         axes.yaw,
-        axes.pitch,
+        simplePitch ? 0 : axes.pitch,
         dt,
       );
       yawRef.current = steered.yaw;
-      pitchRef.current = autoLevelPitch(steered.pitch, axes.pitch, dt, controls.autoLevel);
+      pitchRef.current = simplePitch
+        ? simpleTouchPitch(touchInputRef.current.flight.y)
+        : autoLevelPitch(steered.pitch, axes.pitch, dt, controls.autoLevel);
       const state = stateRef.current;
       const me = state?.sharks.find((shark) => shark.id === youId);
       if (me?.alive && state) {
@@ -209,7 +215,6 @@ export function useLocalInput(
         pitchRef.current = assisted.pitch;
       }
       if (me?.position && state) pitchRef.current = glidePitch(pitchRef.current, me.position.y, state);
-      const simpleTouch = touchControls && controls.touchScheme === "simple";
       const touchLookActive = touchControls && touchInputRef?.current.look.pointerId !== null;
       cameraLook.current = advanceCameraLookOffsets(
         cameraLook.current,

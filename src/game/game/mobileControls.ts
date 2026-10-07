@@ -150,3 +150,10 @@ export function touchNeedsLandscape(width: number, height: number): boolean {
   if (!Number.isFinite(width) || !Number.isFinite(height) || width <= 0 || height <= 0) return false;
   return height > width;
 }
+
+/** Simple flight uses an absolute climb/dive target rather than a pitch rate. */
+export function simpleTouchPitch(verticalDeflection: number): number {
+  const axis = Number.isFinite(verticalDeflection)
+    ? Math.max(-1, Math.min(1, verticalDeflection)) : 0;
+  return -axis * 0.85;
+}
