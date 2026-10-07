@@ -6,6 +6,11 @@ import { useEffect, useState } from "react";
 import type { NetPrey } from "../../protocol/index.js";
 import type { ClientState } from "../net/clientState.js";
 import type { RoomSocket } from "../net/useRoomSocket.js";
+import {
+  EDIBILITY_PRESENTATION,
+  edibilityFor,
+  type Edibility,
+} from "./edibility.js";
 
 export type RelativeBearing =
   | "ahead"
@@ -33,6 +38,7 @@ export interface DepthCue extends RelativeTargetDescription {
   kind: DepthCueKind;
   label: string;
   detail: string;
+  edibility?: Edibility;
 }
 
 export interface DepthNavigationState {
@@ -101,8 +107,9 @@ function cue(
   origin: { x: number; y: number; z: number },
   yaw: number,
   target: { x: number; y: number; z: number },
+  edibility?: Edibility,
 ): DepthCue {
-  return { id, kind, label, detail, ...describeRelativeTarget(origin, yaw, target) };
+  return { id, kind, label, detail, edibility, ...describeRelativeTarget(origin, yaw, target) };
 }
 
 const cuePriority: Record<DepthCueKind, number> = {
@@ -111,6 +118,17 @@ const cuePriority: Record<DepthCueKind, number> = {
   rival: 2,
   prey: 3,
 };
+
+const edibilityPriority: Record<Edibility, number> = {
+  threat: 0,
+  even: 1,
+  prey: 2,
+};
+
+export function edibilityText(edibility: Edibility): string {
+  const presentation = EDIBILITY_PRESENTATION[edibility];
+  return `${presentation.glyph} ${presentation.label}`;
+}
 
 export function buildDepthNavigation(
   state: ClientState | null,
@@ -130,7 +148,17 @@ export function buildDepthNavigation(
   } else if (apexId) {
     const apex = state.sharks.find((shark) => shark.id === apexId && shark.alive && shark.position);
     if (apex?.position) {
-      cues.push(cue(apex.id, "apex", apex.name, "Apex target", head, me.yaw, apex.position));
+      const edibility = edibilityFor(me, apex);
+      cues.push(cue(
+        apex.id,
+        "apex",
+        apex.name,
+        `${edibilityText(edibility)} · Apex target`,
+        head,
+        me.yaw,
+        apex.position,
+        edibility,
+      ));
     }
   }
 
@@ -151,20 +179,24 @@ export function buildDepthNavigation(
     .map((shark) => ({
       shark,
       relation: describeRelativeTarget(head, me.yaw, shark.position!),
-      larger: shark.length >= me.length * 1.08,
+      edibility: edibilityFor(me, shark),
     }))
     .filter(({ relation }) => relation.distance <= RIVAL_RANGE)
-    .sort((a, b) => Number(b.larger) - Number(a.larger) || a.relation.distance - b.relation.distance)
+    .sort((a, b) => (
+      edibilityPriority[a.edibility] - edibilityPriority[b.edibility]
+      || a.relation.distance - b.relation.distance
+    ))
     .slice(0, compact ? 1 : 2);
-  for (const { shark, larger } of rivals) {
+  for (const { shark, edibility } of rivals) {
     cues.push(cue(
       shark.id,
       "rival",
       shark.name,
-      larger ? "larger rival" : "nearby rival",
+      edibilityText(edibility),
       head,
       me.yaw,
       shark.position!,
+      edibility,
     ));
   }
 
