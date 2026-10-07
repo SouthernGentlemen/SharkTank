@@ -232,6 +232,12 @@ function ControlsPanel() {
         options={[{ v: "auto", l: "Auto (touch devices)" }, { v: "on", l: "Always on" }, { v: "off", l: "Off" }]}
       />
       <Choice
+        label="Touch steering"
+        value={settings.controls.touchScheme}
+        onChange={(v) => update("controls", { touchScheme: v })}
+        options={[{ v: "simple", l: "Simple (one thumb)" }, { v: "dual", l: "Advanced (dual-stick)" }]}
+      />
+      <Choice
         label="Touch layout"
         value={settings.controls.stickSide}
         onChange={(v) => update("controls", { stickSide: v })}

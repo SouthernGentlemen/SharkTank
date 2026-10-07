@@ -127,7 +127,7 @@ export function GameScreen({ room, identity, onAuthoritativeResult, onQuit }: Ga
         <DashButton socket={socket} compact={touch} keyName={keyLabel(settings.controls.keybinds.boost)} touchInputRef={touchInputRef} enabled={gameplayEnabled} />
         <BiteButton socket={socket} compact={touch} keyName={keyLabel(settings.controls.keybinds.bite)} touchInputRef={touchInputRef} enabled={gameplayEnabled} />
       </div>
-      {touch && <TouchControls inputRef={touchInputRef} flightSide={stickSide} enabled={gameplayEnabled} portraitLocked={portraitLocked} />}
+      {touch && <TouchControls inputRef={touchInputRef} flightSide={stickSide} scheme={settings.controls.touchScheme} enabled={gameplayEnabled} portraitLocked={portraitLocked} />}
       {settings.audio.captions && <Captions caption={caption} />}
 
       {roundUi?.phase === "result" && dismissedResultRound !== roundUi.number && !dialogOpen && !connectionBlocked && (

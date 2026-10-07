@@ -15,6 +15,7 @@ import {
   touchLayoutForFlightSide,
   touchNeedsLandscape,
   type TouchSide,
+  type TouchScheme,
   type TouchStickKind,
   type TwinStickState,
 } from "../game/mobileControls.js";
@@ -78,6 +79,7 @@ export function useTouchPortraitLock(active: boolean): boolean {
 export interface TouchControlsProps {
   inputRef: React.MutableRefObject<TwinStickState>;
   flightSide: TouchSide;
+  scheme: TouchScheme;
   enabled: boolean;
   portraitLocked: boolean;
 }
@@ -85,6 +87,7 @@ export interface TouchControlsProps {
 export function TouchControls({
   inputRef,
   flightSide,
+  scheme,
   enabled,
   portraitLocked,
 }: TouchControlsProps) {
@@ -109,8 +112,8 @@ export function TouchControls({
 
   return (
     <div className="touch-control-surface" aria-label="Touch gameplay controls">
-      <TouchStick inputRef={inputRef} kind="flight" side={layout.flight} enabled={enabled} />
-      <TouchStick inputRef={inputRef} kind="look" side={layout.look} enabled={enabled} />
+      <TouchStick inputRef={inputRef} key={`${scheme}-${flightSide}`} kind="flight" side={layout.flight} floating={scheme === "simple"} enabled={enabled} />
+      {scheme === "dual" && <TouchStick inputRef={inputRef} kind="look" side={layout.look} enabled={enabled} />}
     </div>
   );
 }
@@ -120,11 +123,13 @@ function TouchStick({
   kind,
   side,
   enabled,
+  floating = false,
 }: {
   inputRef: React.MutableRefObject<TwinStickState>;
   kind: TouchStickKind;
   side: TouchSide;
   enabled: boolean;
+  floating?: boolean;
 }) {
   const zoneRef = useRef<HTMLDivElement>(null);
   const pointerId = useRef<number | null>(null);
@@ -175,8 +180,8 @@ function TouchStick({
     pointerId.current = e.pointerId;
     try { zoneRef.current?.setPointerCapture(e.pointerId); } catch { /* pointer ended */ }
     const pad = BASE_RADIUS + 6;
-    const x = clamp(e.clientX - rect.left, pad, rect.width - pad);
-    const y = clamp(e.clientY - rect.top, pad, rect.height - pad);
+    const x = floating ? e.clientX - rect.left : clamp(e.clientX - rect.left, pad, rect.width - pad);
+    const y = floating ? e.clientY - rect.top : clamp(e.clientY - rect.top, pad, rect.height - pad);
     setBase({ x, y });
     setKnob({ x: 0, y: 0 });
   };
@@ -200,7 +205,7 @@ function TouchStick({
   };
 
   const label = kind === "flight"
-    ? "Flight stick. Drag up or down to pitch and left or right to yaw."
+    ? "Flight stick. Start anywhere in the flight half. Drag up or down to pitch and left or right to yaw."
     : "Camera look stick. Drag to look around. Release to recenter behind the shark.";
   const hint = kind === "flight" ? "FLIGHT" : "LOOK";
 
