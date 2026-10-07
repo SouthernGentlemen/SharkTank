@@ -18,7 +18,7 @@ import {
   rotateYawToward,
   yawPitchToward,
 } from "./geometry3d.js";
-import { mouthPoint, sharkScaleForLength } from "./sharkGeometry.js";
+import { bodySegment, mouthPoint, sharkScaleForLength } from "./sharkGeometry.js";
 import { nextRandom, seedToNumber } from "./rng.js";
 import type { Action, DeathAction, OceanVolume, Prey, PreyKind, RoomState, RoundState, ScoreEntry, Shark, Vec3 } from "./types.js";
 
@@ -145,10 +145,10 @@ const EXPLOSION_TICKS = 24;
 export const COMBAT = {
   maxHealth: 100,
   biteCooldownTicks: 14,
-  biteRange: 3.4,
-  biteRangeLengthScale: 0.02,
-  biteRangeSizeBonusMax: 0.8,
-  biteConeCos: Math.cos(Math.PI * (50 / 180)),
+  biteRange: 1.8,
+  biteRangeScale: 0.3,
+  victimBodyRadiusScale: 0.62,
+  biteConeCos: Math.cos(Math.PI * (65 / 180)),
   baseDamage: 34,
   minSizeDamageScale: 0.85,
   maxSizeDamageScale: 1.2,
@@ -872,12 +872,20 @@ function eat(state: RoomState, s: Shark, previousMouth: Vec3): void {
   });
 }
 
+/** Mouth-to-body surface distance and the corresponding cone target. */
+function biteContact(attacker: Shark, victim: Shark): { point: Vec3; distance: number } {
+  const mouth = mouthPoint(attacker);
+  const { start, end } = bodySegment(victim);
+  const dx = end.x - start.x, dy = end.y - start.y, dz = end.z - start.z;
+  const t = Math.max(0, Math.min(1, (
+    (mouth.x - start.x) * dx + (mouth.y - start.y) * dy + (mouth.z - start.z) * dz
+  ) / (dx * dx + dy * dy + dz * dz)));
+  const point = { x: start.x + t * dx, y: start.y + t * dy, z: start.z + t * dz };
+  return { point, distance: Math.max(0, distance3(mouth, point) - COMBAT.victimBodyRadiusScale * sharkScaleForLength(victim.length)) };
+}
+
 function biteRangeFor(s: Shark): number {
-  const sizeBonus = Math.min(
-    COMBAT.biteRangeSizeBonusMax,
-    Math.max(0, s.length - START_LENGTH) * COMBAT.biteRangeLengthScale,
-  );
-  return COMBAT.biteRange + sizeBonus;
+  return COMBAT.biteRange + COMBAT.biteRangeScale * sharkScaleForLength(s.length);
 }
 
 function biteDamage(attacker: Shark, victim: Shark): number {
@@ -903,17 +911,19 @@ function resolveBite(state: RoomState, attacker: Shark): void {
       || !candidate.alive
       || state.tick < candidate.invulnTick
     ) continue;
-    const head = candidate.position;
+    const contact = biteContact(attacker, candidate);
+    if (contact.distance > range) continue;
+    const head = contact.point;
     const dx = head.x - origin.x;
     const dy = head.y - origin.y;
     const dz = head.z - origin.z;
     const distance = Math.sqrt(dx * dx + dy * dy + dz * dz);
-    if (distance <= 1e-6 || distance > range) continue;
+    if (distance <= 1e-6) continue;
     const dot = (forward.x * dx + forward.y * dy + forward.z * dz) / distance;
     if (dot < COMBAT.biteConeCos) continue;
-    if (distance < targetDistance || (distance === targetDistance && candidate.id < (target?.id ?? ""))) {
+    if (contact.distance < targetDistance || (contact.distance === targetDistance && candidate.id < (target?.id ?? ""))) {
       target = candidate;
-      targetDistance = distance;
+      targetDistance = contact.distance;
     }
   }
 
@@ -1204,7 +1214,7 @@ function steerBot(state: RoomState, s: Shark, view: BotWorldView): void {
     s.targetYaw = target.yaw;
     s.targetPitch = target.pitch;
     if (wantsBurst) applyAction(state, { type: "setBoost", playerId: s.id, on: true });
-    if (shouldHuntRival && targetDistance <= biteRangeFor(s)) {
+    if (shouldHuntRival && quarry && biteContact(s, quarry).distance <= biteRangeFor(s)) {
       applyAction(state, { type: "bite", playerId: s.id });
     }
   } else if ((state.tick + botPhase(s.id)) % BOT_AI_BUDGET.wanderInterval === 0) {
