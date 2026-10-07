@@ -123,6 +123,9 @@ describe("ST-117 dual-stick mobile controls", () => {
     expect(controls).not.toContain("angle: Math.atan2");
     expect(controls).not.toContain("onClick");
 
+    expect(input).toContain("aimAssistEnabled(controls.aimAssist, touchControls)");
+    expect(input).toContain("assistAim(");
+    expect(settings).toContain("aimAssist: null");
     expect(input).toContain("touchAxesForState");
     expect(input).toContain("applyCameraRelativeSteering");
     expect(input).toContain("advanceCameraLookOffsets");

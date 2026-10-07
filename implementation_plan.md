@@ -106,18 +106,6 @@ Tasks follow these defaults unless the owner changes them before the task starts
 
 ## Open tasks
 
-### ST-249 — [FEAT] Add gentle aim assist toward prey and bite targets
-
-**Goal:** Lining up a moving fish in 3D by thumb is hard.
-
-**Scope:** A pure assist nudges the steering target, by a bounded amount per second, toward prey or an edible-sized shark within 20° of the heading and 14 units ahead. It defaults on for touch and off for keyboard, with a Settings toggle.
-
-**Acceptance:** Tests show no assist outside the cone, bounded strength, and no assist when disabled.
-
-**Validation:** `npm test -- tests/mobile-controls.test.ts` plus the helper test.
-
----
-
 ### ST-250 — [FEAT] Make one-thumb Simple steering the touch default
 
 **Goal:** Two-stick 3D flight is demanding for casual phone players.
