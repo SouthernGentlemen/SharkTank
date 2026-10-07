@@ -13,7 +13,7 @@ import {
   moveStickPointer,
   releaseAllTouchInput,
   touchLayoutForFlightSide,
-  touchNeedsLandscape,
+  touchIsPortrait,
   type TouchSide,
   type TouchScheme,
   type TouchStickKind,
@@ -51,16 +51,16 @@ function viewportSize(): { width: number; height: number } {
   };
 }
 
-export function useTouchPortraitLock(active: boolean): boolean {
-  const [locked, setLocked] = useState(() => {
+export function useTouchPortraitLayout(active: boolean): boolean {
+  const [portrait, setPortrait] = useState(() => {
     const size = viewportSize();
-    return active && touchNeedsLandscape(size.width, size.height);
+    return active && touchIsPortrait(size.width, size.height);
   });
 
   useEffect(() => {
     const sync = () => {
       const size = viewportSize();
-      setLocked(active && touchNeedsLandscape(size.width, size.height));
+      setPortrait(active && touchIsPortrait(size.width, size.height));
     };
     sync();
     window.addEventListener("resize", sync);
@@ -73,7 +73,7 @@ export function useTouchPortraitLock(active: boolean): boolean {
     };
   }, [active]);
 
-  return locked;
+  return portrait;
 }
 
 export interface TouchControlsProps {
@@ -81,7 +81,7 @@ export interface TouchControlsProps {
   flightSide: TouchSide;
   scheme: TouchScheme;
   enabled: boolean;
-  portraitLocked: boolean;
+  portrait: boolean;
 }
 
 export function TouchControls({
@@ -89,30 +89,20 @@ export function TouchControls({
   flightSide,
   scheme,
   enabled,
-  portraitLocked,
+  portrait,
 }: TouchControlsProps) {
   const layout = touchLayoutForFlightSide(flightSide);
 
   useEffect(() => {
-    if (!enabled || portraitLocked) releaseAllTouchInput(inputRef.current);
-  }, [enabled, portraitLocked, inputRef]);
+    releaseAllTouchInput(inputRef.current);
+  }, [enabled, portrait, inputRef]);
   useEffect(() => () => releaseAllTouchInput(inputRef.current), [inputRef]);
 
   if (!enabled) return null;
-  if (portraitLocked) {
-    return (
-      <div className="touch-rotate-affordance" role="status" aria-live="polite">
-        <div className="touch-rotate-card">
-          <strong>Rotate to landscape</strong>
-          <span>Twin-stick play needs more horizontal room. Menus and navigation remain available.</span>
-        </div>
-      </div>
-    );
-  }
 
   return (
     <div className="touch-control-surface" aria-label="Touch gameplay controls">
-      <TouchStick inputRef={inputRef} key={`${scheme}-${flightSide}`} kind="flight" side={layout.flight} floating={scheme === "simple"} enabled={enabled} />
+      <TouchStick inputRef={inputRef} key={`${scheme}-${flightSide}-${portrait}`} kind="flight" side={layout.flight} floating={scheme === "simple"} enabled={enabled} />
       {scheme === "dual" && <TouchStick inputRef={inputRef} kind="look" side={layout.look} enabled={enabled} />}
     </div>
   );

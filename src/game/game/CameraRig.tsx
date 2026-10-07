@@ -6,6 +6,7 @@ import type { LocalInput } from "./useLocalInput.js";
 import {
   CAMERA_PROJECTION,
   cameraFovForSpeed,
+  cameraFovForAspect,
   chaseCameraPose,
   makeChaseCameraPose,
   smoothChaseCameraPose,
@@ -101,9 +102,10 @@ export function CameraRig({
     );
 
     if (camera instanceof THREE.PerspectiveCamera) {
-      const targetFov = follow.active
+      const baseFov = follow.active
         ? cameraFovForSpeed(follow.speed, follow.baseSpeed, follow.boostSpeed, reducedMotion)
         : CAMERA_PROJECTION.fov;
+      const targetFov = cameraFovForAspect(baseFov, camera.aspect);
       const blend = reducedMotion ? 1 : 1 - Math.exp(-5 * Math.min(dt, 0.05));
       const nextFov = camera.fov + (targetFov - camera.fov) * blend;
       if (Math.abs(nextFov - camera.fov) > 0.001) {

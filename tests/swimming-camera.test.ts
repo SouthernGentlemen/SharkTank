@@ -19,6 +19,7 @@ import {
   smoothYawRate,
   applyCameraRelativeSteering,
   cameraFovForSpeed,
+  cameraFovForAspect,
   chaseCameraPose,
   makeChaseCameraPose,
   smoothChaseCameraPose,
@@ -106,6 +107,21 @@ describe("ST-115 shark swimming and chase camera", () => {
       roll = advanceBankRoll(roll, rate, 1 / 60);
     }
     expect(Math.abs(roll)).toBeLessThan(0.002);
+  });
+
+  it("widens tall framing, preserves landscape and bounds extreme aspect ratios", () => {
+    const base = cameraFovForSpeed(11, 11, 28);
+    expect(cameraFovForAspect(base, 16 / 9)).toBe(base);
+    expect(cameraFovForAspect(base, 1)).toBe(base);
+    const portrait = cameraFovForAspect(base, 390 / 844);
+    expect(portrait).toBeGreaterThan(base);
+    expect(portrait).toBeLessThanOrEqual(100);
+    expect(cameraFovForAspect(base, 0.1)).toBe(100);
+    for (const invalid of [0, -1, NaN, Infinity]) expect(cameraFovForAspect(base, invalid)).toBe(base);
+    const horizontal = (fov: number) => 2 * Math.atan(Math.tan(fov * Math.PI / 360) * 390 / 844);
+    expect(horizontal(portrait)).toBeGreaterThan(horizontal(base));
+    expect(readFileSync(new URL("../src/game/game/CameraRig.tsx", import.meta.url), "utf8"))
+      .toContain("cameraFovForAspect(baseFov, camera.aspect)");
   });
 
   it("frames the shark closer and higher in the lower third with water ahead", () => {

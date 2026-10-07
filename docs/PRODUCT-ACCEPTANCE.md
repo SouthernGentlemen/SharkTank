@@ -57,7 +57,7 @@ Use a physical coarse-pointer phone or tablet.
 1. Verify Simple starts a floating flight stick anywhere in the chosen flight half, hides the look stick and recentres the camera. Switch live to Advanced, then hold flight and look controls simultaneously and verify independent response.
 2. In Simple, hold the stick up/down and verify a steady climb/dive angle, then release and verify leveling with Auto-level both on and off. Activate burst and bite while both Advanced controls remain held.
 3. Switch the flight-stick side and repeat.
-4. Rotate between portrait and landscape and confirm input releases/recovery are safe.
+4. Play in portrait with Simple and Advanced, verify flight, Bite, Dash and compact HUD, then rotate while holding sticks and abilities and confirm input releases/recovery are safe.
 5. Verify controls, captions and round actions remain reachable around safe-area cutouts.
 
 Browser device emulation may help layout debugging but does not satisfy the physical multi-touch rows.
@@ -97,8 +97,10 @@ The arena wall is a non-lethal returning current: it turns shark headings inward
 The chase camera follows closer and higher, framing a level-swimming shark in the lower third with more water ahead. Follow distance still scales with shark size and speed, and camera/aim positions stay clamped inside the water. Reduced motion still disables speed-based camera expansion and snaps directly to the follow pose.
 Camera projection tests cover cruise and burst at minimum, spawn and maximum presentation scales across four headings; existing tests retain pitch, look controls and water-bound checks. Real-browser visual acceptance remains NOT RUN until performed on the exact candidate.
 
-Touch steering defaults to Simple: one floating flight stick starts anywhere in the chosen flight half, with automatic camera recentring and no look stick. Advanced dual-stick retains independent flight and camera look. Controls Settings switches schemes live and saves the choice on this device; switching releases active stick gestures. Desktop controls and the current landscape requirement are unchanged.
+Touch steering defaults to Simple: one floating flight stick starts anywhere in the chosen flight half, with automatic camera recentring and no look stick. Advanced dual-stick retains independent flight and camera look. Controls Settings switches schemes live and saves the choice on this device; switching releases active stick gestures. Desktop controls are unchanged.
 
 Simple touch vertical deflection sets a proportional climb or dive target up to 0.85 rad; releasing the stick targets level even when Auto-level is off. Horizontal deflection remains a yaw rate. Advanced dual-stick and keyboard pitch retain their existing rate controls. Server movement and water-bound pitch limits remain authoritative.
 
 Touch Bite is an 88 px round pad in the bottom corner opposite flight, with Dash above and inward. Advanced places the arc above the look pad. Radial rings and spoken labels show authoritative cooldowns; pads accept cooldown presses, with one bite buffered only during the final 200 ms. Pause, disconnect, rotation and hidden-page cleanup discard buffered intent. The Room still enforces cooldowns.
+
+Portrait touch play uses a lower-left flight stick and bottom-right Bite and Dash by default; the flight-side setting mirrors the layout. Advanced keeps its look stick above the action pads. The HUD is compact, and tall aspect ratios widen camera framing up to 100° without changing server state. Rotation releases held sticks, ability pointers and buffered bites before play resumes.
