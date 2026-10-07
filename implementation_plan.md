@@ -106,21 +106,6 @@ Tasks follow these defaults unless the owner changes them before the task starts
 
 ## Open tasks
 
-### ST-256 — [FEAT] Land bites anywhere on the victim's body with a wider cone
-
-**Goal:** A bite that visibly lands on a tail misses.
-
-**Scope**
-- A bite lands when the mouth is within `1.8 + 0.3 × attacker scale` of the victim's body surface (closest point on `bodySegment`, minus 0.62 × victim scale).
-- The target point must lie inside a 65° cone from the attacker's position, and the nearest valid victim wins.
-- Bots use the same reach.
-
-**Acceptance:** Tail and flank bites land; bites aimed away miss (tests).
-
-**Validation:** `npm test -- tests/shark-combat.test.ts tests/bot-ai-3d.test.ts tests/determinism.test.ts`.
-
----
-
 ### ST-257 — [FEAT] Devour much smaller sharks in one bite and regenerate health
 
 **Goal:** Every kill needs three or more bites and health never recovers.

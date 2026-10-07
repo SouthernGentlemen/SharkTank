@@ -50,8 +50,9 @@ describe("ST-122 directional shark combat", () => {
     expect(COMBAT).toMatchObject({
       maxHealth: 100,
       biteCooldownTicks: 14,
-      biteRange: 3.4,
-      biteRangeSizeBonusMax: 0.8,
+      biteRange: 1.8,
+      biteRangeScale: 0.3,
+      victimBodyRadiusScale: 0.62,
       baseDamage: 34,
       minSizeDamageScale: 0.85,
       maxSizeDamageScale: 1.2,
@@ -62,7 +63,7 @@ describe("ST-122 directional shark combat", () => {
       killGrowthMin: 0.4,
       killGrowthMax: 1,
     });
-    expect(COMBAT.biteConeCos).toBeCloseTo(Math.cos(Math.PI * (50 / 180)));
+    expect(COMBAT.biteConeCos).toBeCloseTo(Math.cos(Math.PI * (65 / 180)));
   });
 
   it("only hits an authoritative target in the forward cone and range", () => {
@@ -85,6 +86,42 @@ describe("ST-122 directional shark combat", () => {
     expect(behind.health).toBe(100);
     expect(far.health).toBe(100);
     expect(state.explosions).toContainEqual(expect.objectContaining({ kind: "bite", x: 3 }));
+  });
+
+  it.each([
+    ["tail", 6, 0, 0, 0, 0, true],
+    ["flank", 2, 0, 3, Math.PI / 2, 0, true],
+    ["pitched body", 2, 3, 0, 0, Math.PI / 2, true],
+    ["wide cone", 2, 0, 2.7, 0, 0, true],
+    ["aimed away", -6, 0, 0, Math.PI, 0, false],
+    ["out of reach", 10, 0, 0, 0, 0, false],
+  ])("checks mouth-to-body contact: %s", (_, x, y, z, yaw, pitch, hits) => {
+    const state = createRoom({ seed: "body-contact" });
+    const attacker = join(state, "a");
+    const victim = join(state, "v");
+    attacker.length = victim.length = 10;
+    place(attacker, 0, 0, 0);
+    place(victim, x, y, z, yaw, pitch);
+    ready(attacker); ready(victim);
+    applyAction(state, { type: "bite", playerId: attacker.id });
+    expect(victim.health).toBe(hits ? 66 : 100);
+  });
+
+  it("chooses the nearest body surface with stable id ties", () => {
+    const state = createRoom({ seed: "body-nearest" });
+    const attacker = join(state, "attacker");
+    const farther = join(state, "farther");
+    const z = join(state, "z");
+    const a = join(state, "a");
+    for (const shark of [attacker, farther, z, a]) { shark.length = 10; ready(shark); }
+    place(attacker, 0, 0, 0);
+    place(farther, 2, 0, 5, Math.PI / 2);
+    place(z, 6, 0, 0);
+    place(a, 6, 0, 0);
+    applyAction(state, { type: "bite", playerId: attacker.id });
+    expect(a.health).toBe(66);
+    expect(z.health).toBe(100);
+    expect(farther.health).toBe(100);
   });
 
   it("keeps bite cooldown authoritative and equal-size fights multi-hit", () => {
@@ -263,7 +300,7 @@ describe("ST-122 directional shark combat", () => {
     const bot = join(state, "hunter", true);
     const victim = join(state, "victim");
     place(bot, 0, 0, 0);
-    place(victim, 3, 0, 0);
+    place(victim, 6, 0, 0);
     ready(bot); ready(victim);
     bot.length = 20;
     victim.length = 10;
