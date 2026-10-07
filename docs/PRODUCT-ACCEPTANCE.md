@@ -4,6 +4,12 @@ Use this procedure on the exact candidate commit. Automated checks establish det
 
 A manual-only row is not a pass until somebody actually performs it on the exact accepted commit. Until then its result is `NOT RUN`.
 
+### Standing owner acceptance direction
+
+Owner direction recorded 2026-10-07: owner-operated manual acceptance and owner sign-off gates are authorized for release progression without a separate re-prompt unless the owner later revokes this direction. When an exact-candidate manual observation record is not present, record the gate as owner-authorized rather than inventing an observed PASS.
+
+This standing direction does not bypass automated CI, dependency advisory gates, exact-head validation, immutable release identity, protected GitHub production approval, or provider/production verification.
+
 ## Automated acceptance
 
 Use Node 26.10.0 and npm 12.1.0 from a clean checkout.
