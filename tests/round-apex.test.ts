@@ -174,11 +174,13 @@ describe("ST-124 authoritative round and Apex loop", () => {
     hunter.biteCooldownTick = 0;
     state.round.apexId = apex.id;
     const scoreBefore = hunter.score;
+    const lengthBefore = hunter.length;
+    const scoreReward = Math.min(60, Math.max(5, Math.round(apex.score * 0.25)));
+    const growthReward = Math.min(8, Math.max(0.5, apex.length * 0.25));
     applyAction(state, { type: "bite", playerId: hunter.id });
     expect(apex.alive).toBe(false);
-    expect(hunter.score - scoreBefore).toBeGreaterThanOrEqual(
-      ROUND_RULES.apexKillBonusScore + COMBAT.killScoreMin,
-    );
+    expect(hunter.score - scoreBefore).toBe(ROUND_RULES.apexKillBonusScore + scoreReward);
+    expect(hunter.length - lengthBefore).toBeCloseTo(ROUND_RULES.apexKillBonusGrowth + growthReward);
 
     const tie = createRoom({ seed: "st-124-tie" });
     const zulu = join(tie, "zulu");

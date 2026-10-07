@@ -149,17 +149,17 @@ export const COMBAT = {
   biteRangeScale: 0.3,
   victimBodyRadiusScale: 0.62,
   biteConeCos: Math.cos(Math.PI * (65 / 180)),
-  baseDamage: 34,
-  minSizeDamageScale: 0.85,
-  maxSizeDamageScale: 1.2,
-  burstDamageMultiplier: 1.15,
-  maxDamage: 42,
-  killScoreLengthScale: 0.12,
-  killScoreMin: 3,
-  killScoreMax: 10,
-  killGrowthLengthScale: 0.025,
-  killGrowthMin: 0.4,
-  killGrowthMax: 1,
+  devourLengthRatio: 1.5,
+  baseDamage: 50,
+  burstDamage: 60,
+  nibbleDamage: 20,
+  healthRegenPerSecond: 4,
+  killScoreScale: 0.25,
+  killScoreMin: 5,
+  killScoreMax: 60,
+  killGrowthLengthScale: 0.25,
+  killGrowthMin: 0.5,
+  killGrowthMax: 8,
 } as const;
 
 /** Cosmetic catalog. Colorblind-safe, high-contrast hues; shared by server + client. */
@@ -771,6 +771,11 @@ export function step(state: RoomState): RoomState {
   // Prey movement is authoritative and deterministic. Client animation only interpolates this state.
   stepPrey(state);
 
+  // Regenerate living sharks on the fixed simulation clock; result windows stay frozen.
+  for (const shark of Object.values(state.sharks)) {
+    if (shark.alive) shark.health = Math.min(COMBAT.maxHealth, shark.health + COMBAT.healthRegenPerSecond / TICKS_PER_SECOND);
+  }
+
   // Bots plan from one bounded authoritative view, then move through the same
   // yaw/pitch and burst rules as every other shark.
   const bots = Object.values(state.sharks).filter((s) => s.alive && s.isBot);
@@ -889,12 +894,9 @@ function biteRangeFor(s: Shark): number {
 }
 
 function biteDamage(attacker: Shark, victim: Shark): number {
-  const sizeScale = Math.max(
-    COMBAT.minSizeDamageScale,
-    Math.min(COMBAT.maxSizeDamageScale, Math.sqrt(Math.max(0.01, attacker.length / Math.max(0.01, victim.length)))),
-  );
-  const burstScale = attacker.lungeTicks > 0 ? COMBAT.burstDamageMultiplier : 1;
-  return Math.min(COMBAT.maxDamage, Math.round(COMBAT.baseDamage * sizeScale * burstScale));
+  if (attacker.length >= victim.length * COMBAT.devourLengthRatio) return COMBAT.maxHealth;
+  if (victim.length >= attacker.length * COMBAT.devourLengthRatio) return COMBAT.nibbleDamage;
+  return attacker.lungeTicks > 0 ? COMBAT.burstDamage : COMBAT.baseDamage;
 }
 
 function resolveBite(state: RoomState, attacker: Shark): void {
@@ -943,7 +945,7 @@ function resolveBite(state: RoomState, attacker: Shark): void {
 
   const scoreReward = Math.max(
     COMBAT.killScoreMin,
-    Math.min(COMBAT.killScoreMax, Math.round(target.length * COMBAT.killScoreLengthScale)),
+    Math.min(COMBAT.killScoreMax, Math.round(target.score * COMBAT.killScoreScale)),
   );
   const growthReward = Math.max(
     COMBAT.killGrowthMin,
