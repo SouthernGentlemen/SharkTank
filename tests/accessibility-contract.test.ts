@@ -178,7 +178,7 @@ describe("full-3D accessibility re-proof", () => {
     expect(theme).toContain(".scrim--respawn{z-index:100");
     expect(theme).toContain(".round-result-layer{position:absolute;inset:0;z-index:200");
     expect(theme).toContain("--tap-min: 44px");
-    expect(theme).toContain(".game-screen--touch .ability-button{width:76px;min-height:76px");
+    expect(theme).toContain(".game-screen--touch .ability-button{position:absolute;width:88px;height:88px;min-height:88px");
     for (const inset of ["top", "right", "bottom", "left"]) {
       expect(theme).toContain(`env(safe-area-inset-${inset}`);
     }

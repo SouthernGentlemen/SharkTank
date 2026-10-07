@@ -1,3 +1,4 @@
+import { BiteBuffer } from "../src/game/game/biteBuffer.js";
 import { createElement } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 import { TouchControls } from "../src/game/ui/TouchControls.js";
@@ -211,5 +212,44 @@ describe("Simple target pitch", () => {
     expect(input).toContain('controls.touchScheme === "simple"');
     expect(input).toContain("simplePitch ? 0 : axes.pitch");
     expect(input).toContain("simpleTouchPitch(touchInputRef.current.flight.y)");
+  });
+});
+
+// Authoritative tick readiness, a bounded single slot, and lifecycle cancellation.
+describe("bite intent buffer", () => {
+  it("buffers only the final 200 ms and consumes exactly once", () => {
+    const buffer = new BiteBuffer();
+    expect(buffer.press(0, 201)).toBe(false);
+    expect(buffer.consume(201, 0)).toBe(false);
+    expect(buffer.press(300, 200)).toBe(false);
+    expect(buffer.press(310, 100)).toBe(false);
+    expect(buffer.consume(400, 50)).toBe(false);
+    expect(buffer.consume(500, 0)).toBe(true);
+    expect(buffer.consume(501, 0)).toBe(false);
+    expect(buffer.press(600, 0)).toBe(true);
+  });
+  it("drops stale and cancelled presses", () => {
+    const buffer = new BiteBuffer();
+    buffer.press(0, 100);
+    expect(buffer.consume(301, 0)).toBe(false);
+    buffer.press(400, 100);
+    buffer.clear();
+    expect(buffer.consume(500, 0)).toBe(false);
+  });
+  it("keeps the arc below the HUD and board at the acceptance sizes", () => {
+    const css = read("../src/game/ui/theme.css");
+    expect(css).toContain("bottom:calc(144px + var(--safe-b))");
+    expect(css).toContain("max-height:calc(100dvh - 244px)");
+    expect(css).toContain("width:88px;height:88px;min-height:88px");
+    for (const [width, height] of [[740,360],[844,390]]) {
+      // Advanced is the highest arc. Its upper Dash is inward of the HUD;
+      // the outer Bite starts below the HUD. Dash is inward of the board.
+      const arcTop = height - 144 - 172;
+      const dashInnerEdge = width - 12 - 204;
+      expect(arcTop + 84).toBeGreaterThan(96);
+      expect(height - 244 + 6).toBeLessThan(arcTop + 84);
+      expect(dashInnerEdge + 72).toBeLessThan(width - 12 - 124);
+      expect(dashInnerEdge).toBeGreaterThan(width * .56);
+    }
   });
 });

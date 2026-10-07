@@ -8,6 +8,7 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import { FRENZY_RULES, TICKS_PER_SECOND, frenzyTiming, roundTicksLeft } from "../../engine/index.js";
+import { BiteBuffer } from "../game/biteBuffer.js";
 import { GameViewport } from "../game/GameViewport.js";
 import type { SharkLabel } from "../game/Scene.js";
 import {
@@ -111,7 +112,7 @@ export function GameScreen({ room, identity, onAuthoritativeResult, onQuit }: Ga
     <main
       id="main"
       className={touch
-        ? `game-screen game-screen--touch game-screen--flight-${touchLayout.flight} game-screen--actions-${touchLayout.actions}${portraitLocked ? " game-screen--portrait-lock" : ""}`
+        ? `game-screen game-screen--touch game-screen--flight-${touchLayout.flight} game-screen--actions-${touchLayout.actions} game-screen--scheme-${settings.controls.touchScheme}${portraitLocked ? " game-screen--portrait-lock" : ""}`
         : "game-screen"}
     >
       <GameViewport socket={socket} settings={settings} inputEnabled={gameplayEnabled} labelsRef={labelsRef} touchInputRef={touchInputRef} touchControls={touch} />
@@ -355,7 +356,7 @@ function DashButton({ socket, compact, keyName, touchInputRef, enabled }: Abilit
   }, [enabled, release]);
 
   const pointerDown = (e: React.PointerEvent<HTMLButtonElement>) => {
-    if (!compact || e.pointerType === "mouse" || pointerId.current !== null || cooldown > 0 || !enabled) return;
+    if (!compact || e.pointerType === "mouse" || pointerId.current !== null || !enabled) return;
     if (!canUseAbilityPointer(touchInputRef.current, e.pointerId)) return;
     e.preventDefault();
     pointerId.current = e.pointerId;
@@ -370,54 +371,80 @@ function DashButton({ socket, compact, keyName, touchInputRef, enabled }: Abilit
   };
   const click = () => {
     if (performance.now() - lastTouchAt.current < 800) return;
-    if (!enabled || cooldown > 0) return;
+    if (!enabled) return;
     socket.setBoost(true);
     socket.setBoost(false);
   };
 
-  return <button type="button" className="ability-button dash-button" disabled={cooldown > 0 || !enabled} onPointerDown={pointerDown} onPointerUp={pointerEnd} onPointerCancel={pointerEnd} onLostPointerCapture={pointerEnd} onClick={click} aria-label={cooldown ? `Dash cooling down, ${cooldown} seconds` : "Dash"} title={cooldown ? `Dash: ${cooldown}s` : `Dash · ${keyName}`}><DashIcon /><span>{cooldown ? `${cooldown}s` : "DASH"}</span>{!compact && <small>{keyName}</small>}</button>;
+  return <button type="button" className="ability-button dash-button" disabled={!enabled} onPointerDown={pointerDown} onPointerUp={pointerEnd} onPointerCancel={pointerEnd} onLostPointerCapture={pointerEnd} onClick={click} aria-label={cooldown ? `Dash cooling down, ${cooldown.toFixed(1)} seconds` : "Dash"} title={cooldown ? `Dash: ${cooldown.toFixed(1)}s` : `Dash · ${keyName}`}><CooldownRing remaining={cooldown} total={2} /><DashIcon /><span>{cooldown ? `${cooldown.toFixed(1)}s` : "DASH"}</span>{!compact && <small>{keyName}</small>}</button>;
 }
 
 function BiteButton({ socket, compact, keyName, touchInputRef, enabled }: AbilityButtonProps) {
   const cooldown = useAbilityCooldown(socket, "biteCooldownTick");
+  const buffer = useRef(new BiteBuffer());
+  const press = () => {
+    if (buffer.current.press(performance.now(), abilityRemaining(socket, "biteCooldownTick") * 1000)) socket.bite();
+  };
+  useEffect(() => {
+    const poll = setInterval(() => {
+      if (enabled && buffer.current.consume(performance.now(), abilityRemaining(socket, "biteCooldownTick") * 1000)) socket.bite();
+    }, 25);
+    const clear = () => buffer.current.clear();
+    window.addEventListener("resize", clear);
+    window.addEventListener("orientationchange", clear);
+    return () => { clearInterval(poll); clear(); window.removeEventListener("resize", clear); window.removeEventListener("orientationchange", clear); };
+  }, [enabled, socket.stateRef, socket.youId, socket.bite]);
   const pointerId = useRef<number | null>(null);
   const lastTouchAt = useRef(-Infinity);
   const release = useCallback(() => { pointerId.current = null; }, []);
 
   useEffect(() => {
-    if (!enabled) release();
+    if (!enabled) { release(); buffer.current.clear(); }
     const onVisibility = () => {
-      if (document.visibilityState === "hidden") release();
+      if (document.visibilityState === "hidden") { release(); buffer.current.clear(); }
     };
-    window.addEventListener("blur", release);
+    const cancel = () => { release(); buffer.current.clear(); };
+    window.addEventListener("blur", cancel);
     document.addEventListener("visibilitychange", onVisibility);
     return () => {
-      window.removeEventListener("blur", release);
+      window.removeEventListener("blur", cancel);
       document.removeEventListener("visibilitychange", onVisibility);
       release();
     };
   }, [enabled, release]);
 
   const pointerDown = (e: React.PointerEvent<HTMLButtonElement>) => {
-    if (!compact || e.pointerType === "mouse" || pointerId.current !== null || cooldown > 0 || !enabled) return;
+    if (!compact || e.pointerType === "mouse" || pointerId.current !== null || !enabled) return;
     if (!canUseAbilityPointer(touchInputRef.current, e.pointerId)) return;
     e.preventDefault();
     pointerId.current = e.pointerId;
     lastTouchAt.current = performance.now();
     try { e.currentTarget.setPointerCapture(e.pointerId); } catch { /* pointer ended */ }
-    socket.bite();
+    press();
   };
   const pointerEnd = (e: React.PointerEvent<HTMLButtonElement>) => {
     if (e.pointerId !== pointerId.current) return;
     e.preventDefault();
+    if (e.type === "pointercancel") buffer.current.clear();
     release();
   };
   const click = () => {
     if (performance.now() - lastTouchAt.current < 800) return;
-    if (enabled && cooldown <= 0) socket.bite();
+    if (enabled) press();
   };
 
-  return <button type="button" className="ability-button bite-button" disabled={cooldown > 0 || !enabled} onPointerDown={pointerDown} onPointerUp={pointerEnd} onPointerCancel={pointerEnd} onLostPointerCapture={pointerEnd} onClick={click} aria-label={cooldown ? `Bite cooling down, ${cooldown} seconds` : "Bite"} title={cooldown ? `Bite: ${cooldown}s` : `Directional bite · ${keyName}`}><BiteIcon /><span>{cooldown ? `${cooldown}s` : "BITE"}</span>{!compact && <small>{keyName}</small>}</button>;
+  return <button type="button" className="ability-button bite-button" disabled={!enabled} onPointerDown={pointerDown} onPointerUp={pointerEnd} onPointerCancel={pointerEnd} onLostPointerCapture={pointerEnd} onClick={click} aria-label={cooldown ? `Bite cooling down, ${cooldown.toFixed(1)} seconds` : "Bite"} title={cooldown ? `Bite: ${cooldown.toFixed(1)}s` : `Directional bite · ${keyName}`}><CooldownRing remaining={cooldown} total={14 / TICKS_PER_SECOND} /><BiteIcon /><span>{cooldown ? `${cooldown.toFixed(1)}s` : "BITE"}</span>{!compact && <small>{keyName}</small>}</button>;
+}
+
+function abilityRemaining(socket: ReturnType<typeof useRoomSocket>, field: "dashCooldownTick" | "biteCooldownTick"): number {
+  const state = socket.stateRef.current;
+  const shark = state?.sharks.find((item) => item.id === socket.youId);
+  return state && shark ? Math.max(0, (shark[field] - state.tick) / TICKS_PER_SECOND) : Infinity;
+}
+
+export function CooldownRing({ remaining, total }: { remaining: number; total: number }) {
+  const progress = Math.max(0, Math.min(1, remaining / total));
+  return <svg className="cooldown-ring" viewBox="0 0 100 100" aria-hidden="true"><circle cx="50" cy="50" r="46" pathLength="1" /><circle cx="50" cy="50" r="46" pathLength="1" strokeDasharray={`${progress} 1`} /></svg>;
 }
 
 function useAbilityCooldown(socket: ReturnType<typeof useRoomSocket>, field: "dashCooldownTick" | "biteCooldownTick") {
@@ -427,12 +454,12 @@ function useAbilityCooldown(socket: ReturnType<typeof useRoomSocket>, field: "da
       const state = socket.stateRef.current;
       const shark = state?.sharks.find((item) => item.id === socket.youId);
       const next = state && shark
-        ? Math.max(0, Math.ceil((shark[field] - state.tick) / TICKS_PER_SECOND))
+        ? Math.max(0, (shark[field] - state.tick) / TICKS_PER_SECOND)
         : 0;
       setCooldown((previous) => previous === next ? previous : next);
     };
     update();
-    const id = setInterval(update, 150);
+    const id = setInterval(update, 50);
     return () => clearInterval(id);
   }, [socket.stateRef, socket.youId, field]);
   return cooldown;
