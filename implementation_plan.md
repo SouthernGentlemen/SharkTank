@@ -107,16 +107,6 @@ Tasks follow these defaults unless the owner changes them before the task starts
 
 ## Open tasks
 
-### ST-259 — [OPS] Release the controls and combat update as v2.3.0
-
-**Goal:** Ship ST-244 through ST-258.
-
-**Scope:** Semantic minor release after the owner records the manual rows: landscape and portrait, Simple and Dual, thumb-arc abilities, keyboard easing and the new combat.
-
-**Acceptance:** `v2.3.0` is live. Protected approval is honored; stop and report if it is pending.
-
----
-
 ### ST-260 — [FEAT] Make the tank bigger with one shared ocean constant
 
 **Goal:** The ocean is small, and its size is defined in five places.
