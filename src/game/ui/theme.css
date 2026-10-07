@@ -311,7 +311,7 @@ body {
   --safe-r: env(safe-area-inset-right, 0px);
   --safe-t: env(safe-area-inset-top, 0px);
 }
-.game-screen--touch .game-viewport,.touch-stick-zone,.game-screen--touch .ability-button{touch-action:none}
+.game-screen--touch .game-viewport,.touch-stick-zone,
 
 /* ── Read-only overlays ── */
 /* These sit directly on the game canvas, which renders the same dark tank in every theme,
@@ -417,11 +417,11 @@ body {
 .touch-stick-zone--right .stick-hint{left:calc(100% - 86px)}
 .stick-visual{position:absolute;inset:0;overflow:visible;pointer-events:none}.stick-live-base{fill:rgba(11,10,20,.46);stroke:rgba(34,230,255,.62);stroke-width:2}.touch-stick-zone--look .stick-live-base{stroke:rgba(255,213,74,.68)}.stick-live-knob{stroke:rgba(255,255,255,.9);stroke-width:2;filter:drop-shadow(0 6px 9px rgba(0,0,0,.45))}
 
-/* Actions occupy the upper opposite quadrant, outside the lower stick travel area.
+/* Actions occupy the thumb arc opposite flight.
    Mirroring the flight side swaps flight, look, actions and tools as one complete layout. */
-.game-screen--touch .ability-rail{grid-auto-flow:column;gap:10px;top:calc(82px + var(--safe-t));bottom:auto}
+
 .game-screen--touch .game-tools{bottom:calc(12px + var(--safe-b))}
-.game-screen--touch .ability-button{width:84px;min-height:84px;grid-template-columns:1fr;grid-template-rows:1fr auto;justify-items:center;gap:2px;padding:8px;border-radius:20px}
+
 .game-screen--touch .ability-button svg{grid-row:auto;width:38px;height:38px}
 .game-screen--touch .ability-button span{font-size:.66rem;letter-spacing:.06em}
 .game-screen--touch .game-depth-radar{top:auto;right:auto;bottom:calc(12px + var(--safe-b));left:50%;transform:translateX(-50%);width:min(300px,36vw);max-height:96px;padding:6px 8px}
@@ -460,13 +460,13 @@ body {
   .ability-rail{right:calc(6px + var(--safe-r));bottom:calc(140px + var(--safe-b))}
   .ability-button{width:112px;min-height:94px;border-radius:16px;padding:10px;grid-template-columns:42px 1fr}
   .ability-button svg{width:42px;height:42px}
-  .game-screen--touch .ability-rail{top:calc(68px + var(--safe-t));bottom:auto}
+
   .game-screen--flight-right .ability-rail{left:calc(6px + var(--safe-l))}
   .game-screen--flight-left .ability-rail{right:calc(6px + var(--safe-r))}
   .game-screen--touch .game-tools{bottom:calc(96px + var(--safe-b))}
   .game-screen--flight-right .game-tools{left:calc(6px + var(--safe-l))}
   .game-screen--flight-left .game-tools{right:calc(6px + var(--safe-r))}
-  .game-screen--touch .ability-button{width:76px;min-height:76px;padding:6px}
+
   .game-screen--touch .ability-button svg{width:34px;height:34px}
   .stick-base{left:calc(100% - 78px);top:calc(100% - 78px);width:118px;height:118px;margin:-59px 0 0 -59px}
   .touch-stick-zone--left .stick-base{left:78px}
@@ -481,7 +481,7 @@ body {
 }
 /* Very short viewports (landscape phones): the pads and the tools trigger cannot stack. */
 @media (max-height: 430px) {
-  .game-screen--touch .ability-rail{top:calc(58px + var(--safe-t));bottom:auto}
+
   .game-screen--touch .game-tools{bottom:auto;top:calc(50% - 30px)}
   .game-screen--touch .gearbox__popover{bottom:auto;top:60px}
   .touch-stick-zone{top:max(calc(34% + var(--safe-t)),96px)}
@@ -577,3 +577,17 @@ body {
   .game-leaderboard__apex{margin-left:3px;padding:0 3px;font-size:.48rem}
   .round-result-card{padding:18px}
 }
+
+/* Thumb arc: mirrored with flight side; Advanced clears the look pad. */
+.game-screen--touch .ability-rail{top:auto;bottom:calc(12px + var(--safe-b));width:204px;height:172px;display:block}
+.game-screen--touch.game-screen--scheme-dual .ability-rail{bottom:calc(144px + var(--safe-b))}
+.game-screen--touch .ability-button{position:absolute;width:88px;height:88px;min-height:88px;grid-template-columns:1fr;grid-template-rows:1fr auto;justify-items:center;gap:2px;padding:8px;border-radius:50%}
+.game-screen--touch .bite-button{bottom:0;right:0}
+.game-screen--touch .dash-button{top:0;left:0;width:72px;height:72px;min-height:72px}
+.game-screen--flight-right .bite-button{right:auto;left:0}
+.game-screen--flight-right .dash-button{left:auto;right:0}
+.game-screen--touch .game-leaderboard{width:124px!important;max-height:calc(100dvh - 244px);padding:6px!important}
+.game-screen.game-screen--touch .game-tools{left:50%;right:auto;top:calc(110px + var(--safe-t));bottom:auto;transform:translateX(-50%)}
+.ability-button svg.cooldown-ring{position:absolute;inset:0;width:100%;height:100%;pointer-events:none;transform:rotate(-90deg);stroke-width:3}
+.cooldown-ring circle:first-child{opacity:.25}
+.cooldown-ring circle:last-child{stroke:currentColor}

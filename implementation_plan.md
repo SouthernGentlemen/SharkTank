@@ -106,21 +106,6 @@ Tasks follow these defaults unless the owner changes them before the task starts
 
 ## Open tasks
 
-### ST-252 — [FEAT] Move Bite and Dash into the thumb arc with cooldown rings
-
-**Goal:** On touch, the ability buttons sit over the leaderboard and out of reach.
-
-**Scope**
-- Place a round Bite button (at least 88 px) in the bottom corner opposite the flight stick, with Dash above and inside it; in Dual, place them above the look stick.
-- Show cooldowns as radial rings with accessible labels.
-- Accept presses during cooldown and buffer one bite pressed within 200 ms of expiry. The Room still enforces cooldown.
-
-**Acceptance:** No overlap with the leaderboard or HUD at 740×360 and 844×390 (CSS contract); pointer ownership is unchanged; buffer tests pass.
-
-**Validation:** `npm test -- tests/mobile-controls.test.ts tests/accessibility-contract.test.ts tests/shark-combat.test.ts`.
-
----
-
 ### ST-253 — [FEAT] Allow portrait play with a portrait control layout
 
 **Goal:** Portrait currently shows no controls at all.
