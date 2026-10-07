@@ -5,6 +5,8 @@ import { useMemo, useRef } from "react";
 import * as THREE from "three";
 import {
   forwardFromYawPitch,
+  sharkScaleForLength,
+  SHARK_GEOMETRY,
   MOVE,
   SKINS,
   TICKS_PER_SECOND,
@@ -27,7 +29,6 @@ import {
 import {
   resolveSharkAnimation,
   resolveSharkPresentationQuality,
-  sharkScaleForLength,
 } from "./sharkPresentation.js";
 import type { LocalInput } from "./useLocalInput.js";
 
@@ -314,9 +315,9 @@ export function ActorLayer({
       );
       setPartMatrix(
         snout, sharkCount, root.matrix, part, composed,
-        2.08, -0.04, 0,
+        SHARK_GEOMETRY.snoutTip - SHARK_GEOMETRY.snoutRadius, -0.04, 0,
         0, -animation.bodyYaw * 0.22, 0,
-        0.48, 0.42, 0.52,
+        SHARK_GEOMETRY.snoutRadius, 0.42, 0.52,
       );
       setPartMatrix(
         peduncle, sharkCount, root.matrix, part, composed,
@@ -326,7 +327,7 @@ export function ActorLayer({
       );
       setPartMatrix(
         tailFin, sharkCount, root.matrix, part, composed,
-        -2.45, 0, animation.tailYaw * 0.24,
+        SHARK_GEOMETRY.tail, 0, animation.tailYaw * 0.24,
         0, animation.tailYaw, 0,
         0.23, 0.98, 0.68,
       );

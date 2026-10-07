@@ -106,21 +106,6 @@ Tasks follow these defaults unless the owner changes them before the task starts
 
 ## Open tasks
 
-### ST-254 — [REFACTOR] Share one size curve and mouth and body geometry between engine and renderer
-
-**Goal:** Hit boxes and visuals must agree on how big a shark is and where its mouth is.
-
-**Scope**
-- Move `sharkScaleForLength` into the engine.
-- Add `mouthPoint`, about 1.9 × scale ahead of the position, and `bodySegment`, which runs from the snout tip (about 2.56 × scale ahead) to the tail (about 2.45 × scale behind).
-- The renderer and camera import them. No rule changes yet.
-
-**Acceptance:** Scale values are identical to today, and the engine imports no Three or DOM code.
-
-**Validation:** `npm test -- tests/shark-models.test.ts tests/volumetric-engine.test.ts`.
-
----
-
 ### ST-255 — [FEAT] Eat from the mouth with a size-scaled, swept radius
 
 **Goal:** Prey the snout visibly touches is not eaten, and dashes can pass fish between ticks.

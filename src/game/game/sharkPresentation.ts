@@ -18,11 +18,6 @@ export function resolveSharkPresentationQuality(
   return QUALITY[resolveQuality(quality)];
 }
 
-export function sharkScaleForLength(length: number): number {
-  const safeLength = Number.isFinite(length) ? Math.max(0, length) : 0;
-  return Math.min(2.5, 0.72 + Math.sqrt(safeLength) * 0.12);
-}
-
 export interface SharkAnimationInput {
   seconds: number;
   actorId: string;
