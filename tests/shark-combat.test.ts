@@ -53,15 +53,15 @@ describe("ST-122 directional shark combat", () => {
       biteRange: 1.8,
       biteRangeScale: 0.3,
       victimBodyRadiusScale: 0.62,
-      baseDamage: 34,
-      minSizeDamageScale: 0.85,
-      maxSizeDamageScale: 1.2,
-      burstDamageMultiplier: 1.15,
-      maxDamage: 42,
-      killScoreMin: 3,
-      killScoreMax: 10,
-      killGrowthMin: 0.4,
-      killGrowthMax: 1,
+      baseDamage: 50,
+      devourLengthRatio: 1.5,
+      burstDamage: 60,
+      nibbleDamage: 20,
+      healthRegenPerSecond: 4,
+      killScoreMin: 5,
+      killScoreMax: 60,
+      killGrowthMin: 0.5,
+      killGrowthMax: 8,
     });
     expect(COMBAT.biteConeCos).toBeCloseTo(Math.cos(Math.PI * (65 / 180)));
   });
@@ -82,7 +82,7 @@ describe("ST-122 directional shark combat", () => {
 
     applyAction(state, { type: "bite", playerId: attacker.id });
 
-    expect(front.health).toBe(66);
+    expect(front.health).toBe(50);
     expect(behind.health).toBe(100);
     expect(far.health).toBe(100);
     expect(state.explosions).toContainEqual(expect.objectContaining({ kind: "bite", x: 3 }));
@@ -104,7 +104,7 @@ describe("ST-122 directional shark combat", () => {
     place(victim, x, y, z, yaw, pitch);
     ready(attacker); ready(victim);
     applyAction(state, { type: "bite", playerId: attacker.id });
-    expect(victim.health).toBe(hits ? 66 : 100);
+    expect(victim.health).toBe(hits ? 50 : 100);
   });
 
   it("chooses the nearest body surface with stable id ties", () => {
@@ -119,12 +119,12 @@ describe("ST-122 directional shark combat", () => {
     place(z, 6, 0, 0);
     place(a, 6, 0, 0);
     applyAction(state, { type: "bite", playerId: attacker.id });
-    expect(a.health).toBe(66);
+    expect(a.health).toBe(50);
     expect(z.health).toBe(100);
     expect(farther.health).toBe(100);
   });
 
-  it("keeps bite cooldown authoritative and equal-size fights multi-hit", () => {
+  it("keeps bite cooldown authoritative and two equal-size bites total 100 damage", () => {
     const state = createRoom({ seed: "multi-bite", oceanRadius: 100 });
     state.food = farFood(PREY_BUDGET.ambient);
     const attacker = join(state, "attacker");
@@ -136,68 +136,75 @@ describe("ST-122 directional shark combat", () => {
     state.tick = 100;
 
     applyAction(state, { type: "bite", playerId: attacker.id });
-    expect(victim.health).toBe(66);
+    expect(victim.health).toBe(50);
     expect(attacker.biteCooldownTick).toBe(114);
 
     applyAction(state, { type: "bite", playerId: attacker.id });
-    expect(victim.health).toBe(66);
+    expect(victim.health).toBe(50);
 
     state.tick = 114;
     applyAction(state, { type: "bite", playerId: attacker.id });
-    expect(victim.health).toBe(32);
-    expect(victim.alive).toBe(true);
 
-    state.tick = 128;
-    applyAction(state, { type: "bite", playerId: attacker.id });
     expect(victim.alive).toBe(false);
     expect(victim.health).toBe(0);
     expect(victim.lastDeath).toEqual({
       killerId: attacker.id,
       victimId: victim.id,
       action: "bite",
-      tick: 128,
+      tick: 114,
     });
   });
 
-  it("bounds size advantage and the optional burst damage bonus", () => {
-    const normal = createRoom({ seed: "normal-damage", oceanRadius: 100 });
-    normal.food = farFood(PREY_BUDGET.ambient);
-    const a = join(normal, "a");
-    const b = join(normal, "b");
-    place(a, 0, 0, 0);
-    place(b, 3, 0, 0);
-    ready(a); ready(b);
-    normal.tick = 50;
-    applyAction(normal, { type: "bite", playerId: "a" });
-    const normalDamage = 100 - b.health;
-    expect(normalDamage).toBe(34);
+  it.each([
+    [15, 10, 0, 0], [14.999, 10, 0, 50],
+    [10, 15, 0, 80], [10, 14.999, 0, 50],
+    [10, 10, 5, 40], [10, 15, 5, 80], [15, 10, 5, 0],
+  ])("applies length tiers and burst damage (%s / %s, lunge %s)", (aLength, vLength, lunge, health) => {
+    const state = createRoom({ seed: "damage-tiers" });
+    const attacker = join(state, "a"); const victim = join(state, "v");
+    place(attacker, 0, 0, 0); place(victim, 3, 0, 0);
+    ready(attacker); ready(victim);
+    attacker.length = aLength; victim.length = vLength; attacker.lungeTicks = lunge;
+    applyAction(state, { type: "bite", playerId: attacker.id });
+    expect(victim.health).toBe(health);
+    expect(victim.alive).toBe(health > 0);
+  });
 
-    const burst = createRoom({ seed: "burst-damage", oceanRadius: 100 });
-    burst.food = farFood(PREY_BUDGET.ambient);
-    const c = join(burst, "c");
-    const d = join(burst, "d");
-    place(c, 0, 0, 0);
-    place(d, 3, 0, 0);
-    ready(c); ready(d);
-    c.lungeTicks = 5;
-    burst.tick = 50;
-    applyAction(burst, { type: "bite", playerId: "c" });
-    const burstDamage = 100 - d.health;
-    expect(burstDamage).toBeGreaterThan(normalDamage);
-    expect(burstDamage).toBeLessThanOrEqual(COMBAT.maxDamage);
+  it.each([[0, 1, 5, 0.5], [42, 12, 11, 3], [1000, 100, 60, 8]])(
+    "bounds score and length rewards (%s score, %s length)", (score, length, reward, growth) => {
+      const state = createRoom({ seed: "rewards" });
+      const a = join(state, "a"); const v = join(state, "v");
+      place(a, 0, 0, 0); place(v, 3, 0, 0); ready(a); ready(v);
+      a.length = length * 1.5; v.length = length; v.score = score;
+      const before = a.length;
+      applyAction(state, { type: "bite", playerId: a.id });
+      expect(v.alive).toBe(false);
+      expect(a.score).toBe(reward); expect(a.length - before).toBeCloseTo(growth);
+    },
+  );
 
-    const size = createRoom({ seed: "size-cap", oceanRadius: 100 });
-    size.food = farFood(PREY_BUDGET.ambient);
-    const giant = join(size, "giant");
-    const small = join(size, "small");
-    place(giant, 0, 0, 0);
-    place(small, 3, 0, 0);
-    ready(giant); ready(small);
-    giant.length = 10_000;
-    size.tick = 50;
-    applyAction(size, { type: "bite", playerId: "giant" });
-    expect(100 - small.health).toBeLessThanOrEqual(COMBAT.maxDamage);
-    expect(small.alive).toBe(true);
+  it("includes regeneration between cooldown-spaced even bites", () => {
+    const state = createRoom({ seed: "even-regen" });
+    state.food = farFood(PREY_BUDGET.ambient);
+    const a = join(state, "a"); const v = join(state, "v");
+    place(a, 0, 0, 0); place(v, 3, 0, 0); ready(a); ready(v);
+    applyAction(state, { type: "bite", playerId: a.id });
+    for (let i = 0; i < COMBAT.biteCooldownTicks; i++) step(state);
+    place(a, 0, 0, 0); place(v, 3, 0, 0);
+    applyAction(state, { type: "bite", playerId: a.id });
+    expect(v.alive).toBe(true); expect(v.health).toBeCloseTo(2.8);
+  });
+
+  it("regenerates 4 HP per second, caps health and leaves dead sharks and results frozen", () => {
+    const state = createRoom({ seed: "regen" });
+    state.food = farFood(PREY_BUDGET.ambient);
+    const a = join(state, "a"); const b = join(state, "b"); const dead = join(state, "dead");
+    place(a, 0, 0, 0); place(b, 0, 5, 30);
+    a.health = 50; b.health = 99; dead.alive = false; dead.health = 0;
+    for (let i = 0; i < TICKS_PER_SECOND; i++) step(state);
+    expect(a.health).toBeCloseTo(54); expect(b.health).toBe(100); expect(dead.health).toBe(0);
+    state.round.phase = "result"; state.round.resultEndTick = state.tick + 10;
+    step(state); expect(a.health).toBeCloseTo(54);
   });
 
   it("ends attacker spawn grace on aggression but protects an invulnerable victim", () => {
@@ -283,6 +290,7 @@ describe("ST-122 directional shark combat", () => {
     attacker.length = 10_000;
     victim.length = 10_000;
     victim.health = 1;
+    victim.score = 1000;
     state.tick = 100;
     const beforeLength = attacker.length;
 

@@ -97,7 +97,7 @@ Tasks follow these defaults unless the owner changes them before the task starts
 | Wall | Inward current over the final 4 units, clamped 0.5 units inside | Inward current from 4 units inside, no death | ST-247 |
 | Eating | Body centre, radius 1.2 + prey r, 2 chomps/tick | Mouth, 1.2 + 0.55 × scale + prey r, swept, 4 chomps/tick | ST-255 |
 | Biting | Centre-to-centre ≤ 3.4 (+0.8), 50° cone | Mouth to victim body surface ≤ 1.8 + 0.3 × scale, 65° cone | ST-256 |
-| Damage | 34–42 per bite, ≥ 3 bites, no regen | Devour at ≥ 1.5× length; 50 (60 burst) even; 20 nibble; 4 HP/s regen | ST-257 |
+| Damage | Devour at ≥ 1.5× length; 50 (60 burst) even; 20 nibble; 4 HP/s regen | Devour at ≥ 1.5× length; 50 (60 burst) even; 20 nibble; 4 HP/s regen | ST-257 |
 | Ocean | Radius 82, column 24, ~200 fish | Radius 120, column 36, ~480 fish | ST-260 |
 | Fish | 2 looks | 8 school looks + tuna, squid, rays, golden fish | ST-263–ST-267 |
 | Coral | 3 rock clusters outside the wall | Reef sites of brain, branching, plate, fan and tube coral plus kelp | ST-261–ST-262 |
@@ -105,24 +105,6 @@ Tasks follow these defaults unless the owner changes them before the task starts
 | Music | Six-note loop on `setInterval`, off by default | Layered adaptive score on the audio clock, on at 35% | ST-275–ST-278 |
 
 ## Open tasks
-
-### ST-257 — [FEAT] Devour much smaller sharks in one bite and regenerate health
-
-**Goal:** Every kill needs three or more bites and health never recovers.
-
-**Scope**
-- Damage:
-  - an attacker at least 1.5× the victim's length devours it in one bite;
-  - otherwise a bite deals 50 (60 with burst), so even fights take two bites;
-  - a victim at least 1.5× the attacker takes 20.
-- Rewards: score `max(5, round(victim score × 0.25))`, capped at 60; growth `victim length × 0.25`, clamped to 0.5–8.
-- Living sharks regain 4 HP/s. The Apex bounty is unchanged.
-
-**Acceptance:** Deterministic tests cover devour, two-bite, nibble, rewards and regeneration.
-
-**Validation:** `npm test -- tests/shark-combat.test.ts tests/round-apex.test.ts tests/bot-ai-3d.test.ts tests/determinism.test.ts`.
-
----
 
 ### ST-258 — [FEAT] Mark which sharks you can eat and which can eat you
 
