@@ -18,6 +18,8 @@ import {
   resolvePreyPresentationQuality,
 } from "../src/game/game/preyPresentation.js";
 
+import { bodySegment, mouthPoint, sharkScaleForLength } from "../src/engine/sharkGeometry.js";
+
 const read = (path: string) => readFileSync(new URL(path, import.meta.url), "utf8");
 
 function insideOcean(
@@ -221,5 +223,69 @@ describe("ST-120 authoritative fish and prey schools", () => {
     expect(wrangler).toContain('"tag": "v1"');
     expect(wrangler).toContain('"class_name": "Room"');
     expect(wrangler).not.toContain('"class_name": "Lobby"');
+  });
+});
+
+
+describe("ST-255 swept mouth consumption", () => {
+  function setup(isBot = false) {
+    const state = createRoom({ seed: "swept-mouth", oceanRadius: 100, seabedY: -20, surfaceY: 20 });
+    const shark = join(state, "eater", isBot);
+    place(shark, 0, 0, 0);
+    shark.yaw = shark.targetYaw = 0;
+    shark.pitch = shark.targetPitch = 0;
+    state.food = Array.from({ length: PREY_BUDGET.ambient }, (_, i) =>
+      prey({ id: `far-${i}`, kind: "carcass", x: 70, y: 0, z: 0 }));
+    return { state, shark };
+  }
+
+  it.each([10, 100, 400])("eats snout contact but leaves tail prey at length %s", (length) => {
+    const { state, shark } = setup();
+    shark.length = length;
+    const { start, end } = bodySegment(shark);
+    state.food.unshift(
+      prey({ id: "snout", kind: "carcass", ...start }),
+      prey({ id: "tail", kind: "carcass", ...end }),
+    );
+    step(state);
+    expect(state.food.some((f) => f.id === "snout")).toBe(false);
+    expect(state.food.some((f) => f.id === "tail")).toBe(true);
+  });
+
+  it("catches a line of bait throughout a dash capsule, including its previous endpoint", () => {
+    const { state, shark } = setup();
+    shark.lungeTicks = 5;
+    const mouth = mouthPoint(shark);
+    const reach = 1.2 + 0.55 * sharkScaleForLength(shark.length) + PREY_SPECS.bait.r;
+    state.food.unshift(...[-reach + 0.05, 0, 0.7, 1.4].map((offset, i) =>
+      prey({ id: `meal-${i}`, kind: "bait", x: mouth.x + offset, y: 0, z: 0, school: -1 })));
+    step(state);
+    expect(state.food.filter((f) => f.id.startsWith("meal-"))).toHaveLength(0);
+    expect(shark.score).toBe(4);
+  });
+
+  it("uses a three-dimensional capsule and includes prey radius", () => {
+    const { state, shark } = setup();
+    shark.yaw = shark.targetYaw = Math.PI / 2;
+    shark.pitch = shark.targetPitch = 0.5;
+    const mouth = mouthPoint(shark);
+    const reach = 1.2 + 0.55 * sharkScaleForLength(shark.length) + PREY_SPECS.carcass.r;
+    state.food.unshift(
+      prey({ id: "inside", kind: "carcass", yaw: Math.PI / 2, x: mouth.x + reach - 0.01, y: mouth.y, z: mouth.z }),
+      prey({ id: "outside", kind: "carcass", yaw: Math.PI / 2, x: mouth.x + reach + 0.01, y: mouth.y, z: mouth.z }),
+    );
+    step(state);
+    expect(state.food.some((f) => f.id === "inside")).toBe(false);
+    expect(state.food.some((f) => f.id === "outside")).toBe(true);
+  });
+
+  it.each([false, true])("bounds chomps for bot=%s", (isBot) => {
+    const { state, shark } = setup(isBot);
+    const mouth = mouthPoint(shark);
+    state.food.unshift(...Array.from({ length: 6 }, (_, i) =>
+      prey({ id: `meal-${i}`, kind: "carcass", ...mouth, value: 1 })));
+    step(state);
+    expect(shark.score).toBe(isBot ? 2 : 4);
+    expect(state.food.filter((f) => f.id.startsWith("meal-"))).toHaveLength(isBot ? 4 : 2);
   });
 });
