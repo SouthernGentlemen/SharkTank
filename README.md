@@ -84,6 +84,8 @@ Local shark reconciliation uses a shared visual offset for the mesh, labels and 
 
 Per-session welcome and state snapshots retain every shark, effect and round field, but include only prey within 72 units of the living player's position (the tank centre while dead or absent). The server still simulates every prey. All quality presets finish fog by 70 units. Prey disappearance produces an eat sound or caption only within 12 units of a living shark mouth. Typical 32-shark session snapshots fit within 14 KB.
 
+The eight protocol-12 school species now have client-only instanced silhouettes and stripes: sardine, anchovy, silverside, clownfish, blue tang, yellow tang, angelfish and parrotfish. Decoded species codes select distinct proportions, body/head/tail palettes and bands; hashed fish IDs give stable ±15% size variation. Visual swim wobble is at most 0.14 units and zero with Reduced motion. Fish carry a slight emissive for fog readability; all X/Y/Z positions, consumption and protocol payloads remain authoritative and unchanged. The 14,000-byte snapshot regression remains enforced.
+
 Graphics quality defaults to Auto: Medium for coarse-pointer or ≤ 4 GB device-memory hints, High otherwise. Saved explicit choices win. A two-second frame average above 1.25 × the 60 Hz target lowers DPR in 0.25 steps to a floor of 1; ten seconds below 0.8 × target raises it toward the preset/device cap. Resolution adaptation preserves quality, actors and cues. Suspension gaps reset sampling.
 
 Shark climb and dive pitch share a proportional limit over the final three units before the surface or seabed. The Room, local prediction and input use the same helper, preserving inward steering and leveling outward movement without contact snapping.

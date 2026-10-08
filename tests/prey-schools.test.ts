@@ -16,6 +16,8 @@ import {
 } from "../src/engine/index.js";
 import { REALTIME_PROTOCOL_VERSION, toNetState, decodeState, preyWireId } from "../src/protocol/index.js";
 import {
+  SCHOOL_LOOKS,
+  preySizeVariation,
   preyVisualFor,
   resolvePreyAnimation,
   resolvePreyPresentationQuality,
@@ -193,7 +195,7 @@ describe("ST-120 authoritative fish and prey schools", () => {
       last = next;
     }
     expect(readFileSync(new URL("../src/game/game/PreyLayer.tsx", import.meta.url), "utf8")).toContain("seconds: clock.elapsedTime");
-    expect(resolvePreyAnimation({ seconds: 42.5 / 20, id: "fish-1", speed: 4, reducedMotion: true })).toEqual({ bodyYaw: 0, tailYaw: 0 });
+    expect(resolvePreyAnimation({ seconds: 42.5 / 20, id: "fish-1", speed: 4, reducedMotion: true })).toEqual({ bodyYaw: 0, tailYaw: 0, wobbleY: 0 });
 
     const low = resolvePreyPresentationQuality("low");
     const high = resolvePreyPresentationQuality("high");
@@ -354,5 +356,56 @@ describe("ST-255 swept mouth consumption", () => {
     step(state);
     expect(shark.score).toBe(isBot ? 2 : 4);
     expect(state.food.filter((f) => f.id.startsWith("meal-"))).toHaveLength(isBot ? 4 : 2);
+  });
+});
+
+
+describe("ST-264 protocol-12 species looks", () => {
+  const species = ["sardine", "anchovy", "silverside", "clownfish", "blue-tang", "yellow-tang", "angelfish", "parrotfish"] as const;
+
+  it("uses the decoded wire species for eight distinguishable palettes, bands and silhouettes", () => {
+    const profiles = species.map((name, code) => {
+      const kind = code < 3 ? "bait" : "reef";
+      const visual = preyVisualFor(kind, kind === "bait" ? 1 : 2, kind === "bait" ? 0.42 : 0.58, name);
+      expect(visual.mode).toBe("fish");
+      expect(visual.stripeCount).toBeGreaterThan(0);
+      expect(visual.bodyColor).toMatch(/^#[0-9a-f]{6}$/);
+      return visual;
+    });
+    expect(Object.keys(SCHOOL_LOOKS)).toEqual(species);
+    expect(new Set(profiles.map((look) => look.bodyColor)).size).toBe(8);
+    expect(new Set(profiles.map((look) => [look.bodyLength, look.bodyHeight, look.bodyWidth].join(","))).size).toBe(8);
+    expect(preyVisualFor("bait", 1, 0.42).bodyColor).toBe(profiles[0].bodyColor);
+    expect(preyVisualFor("reef", 2, 0.58).bodyColor).toBe(profiles[3].bodyColor);
+    const room = createRoom({ seed: "school-style-mapping" });
+    const decoded = decodeState(toNetState(room));
+    for (const actor of decoded.food.filter((candidate) => candidate.kind === "bait" || candidate.kind === "reef")) {
+      expect(species).toContain(actor.species);
+      expect(preyVisualFor(actor.kind, actor.value, actor.r, actor.species).bodyColor)
+        .toBe(SCHOOL_LOOKS[actor.species as keyof typeof SCHOOL_LOOKS].bodyColor);
+    }
+  });
+
+  it("adds only bounded, reproducible instance-scale and cosmetic motion", () => {
+    for (const id of ["school-1", "school-2", "fish-3", "987abc"]) {
+      const size = preySizeVariation(id);
+      expect(size).toBeGreaterThanOrEqual(0.85);
+      expect(size).toBeLessThanOrEqual(1.15);
+      expect(preySizeVariation(id)).toBe(size);
+      for (const seconds of [0, 1, 25, 100]) {
+        const moving = resolvePreyAnimation({ seconds, id, speed: 5, reducedMotion: false });
+        expect(Math.abs(moving.wobbleY)).toBeLessThanOrEqual(0.3);
+        expect(resolvePreyAnimation({ seconds, id, speed: 5, reducedMotion: true }))
+          .toEqual({ bodyYaw: 0, tailYaw: 0, wobbleY: 0 });
+      }
+    }
+    const renderer = read("../src/game/game/PreyLayer.tsx");
+    expect(renderer).toContain("actor.species");
+    expect(renderer).toContain("preySizeVariation(actor.id)");
+    expect(renderer).toContain("pose.y + animation.wobbleY");
+    expect(renderer).toContain("stripeOneMesh");
+    expect(renderer).toContain("stripeTwoMesh");
+    expect(renderer).toContain('emissiveIntensity={0.09}');
+    expect(renderer).not.toContain("setState(");
   });
 });

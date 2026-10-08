@@ -66,3 +66,5 @@ The shared engine `OCEAN` defines the production tank: radius 120, seabed −18 
 Ambient schools are spread uniformly by area outside the central Frenzy volume; Frenzy supplies its central chum. This keeps the larger prey population within the unchanged per-session snapshot budget.
 
 Reef kelp sways only in presentation. Reduced motion sets its vertex-sway amplitude to zero, leaving every coral and kelp landmark visible; coral palettes also vary in shape and size rather than conveying gameplay meaning by colour.
+
+School fish have distinct proportions, tail/head colours and body bands alongside their palette differences. Reduced motion removes fish wobble as well as tail and body oscillation without hiding species or changing server-owned prey position.

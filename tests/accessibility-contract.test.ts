@@ -232,3 +232,18 @@ describe("canonical game surface", () => {
     expect(worker).not.toContain('export { Lobby }');
   });
 });
+
+
+describe("ST-264 species motion accessibility", () => {
+  it("keeps species shape and markings when reduced motion removes wobble", async () => {
+    const { preyVisualFor, resolvePreyAnimation } = await import("../src/game/game/preyPresentation.js");
+    const full = preyVisualFor("reef", 2, 0.58, "clownfish");
+    const reduced = preyVisualFor("reef", 2, 0.58, "clownfish");
+    expect(reduced).toEqual(full);
+    expect(full.stripeCount).toBe(2);
+    expect(resolvePreyAnimation({ seconds: 1.4, id: "fish-1", speed: 2, reducedMotion: true }).wobbleY).toBe(0);
+    const layer = read("../src/game/game/PreyLayer.tsx");
+    expect(layer).toContain('settings.a11y.motion === "reduced"');
+    expect(layer).toContain("animation.wobbleY");
+  });
+});

@@ -107,23 +107,6 @@ Tasks follow these defaults unless the owner changes them before the task starts
 
 ## Open tasks
 
-### ST-264 — [FEAT] Give every school its own species look
-
-**Goal:** Only two fish looks exist.
-
-**Scope**
-- Render the protocol-12 school codes as distinct species:
-  - bait: sardine, anchovy and silverside;
-  - reef: clownfish, blue tang, yellow tang, angelfish and parrotfish.
-- Each species differs in colours, stripes and proportions, with ±15% size variation, wobble (at most 0.3 units) and a slight emissive so fish stay visible in fog.
-- Positions stay authoritative.
-
-**Acceptance:** Species mapping tests pass; reduced motion disables wobble.
-
-**Validation:** `npm test -- tests/prey-schools.test.ts tests/accessibility-contract.test.ts`.
-
----
-
 ### ST-265 — [FEAT] Add tuna schools and gliding rays
 
 **Goal:** Give hunters bigger, faster and rarer prey.
