@@ -22,6 +22,8 @@ npm run audit:dependencies
 git diff --check HEAD^
 ```
 
+ST-271 regression tests cover human-only greeting schools ahead of join, respawn and round reset, about 35% of replenished bait near humans chosen over sorted ids, deterministic replay and unchanged prey/snapshot caps. When later checking real devices, confirm that prey is visible ahead on spawn without covering the DOM HUD.
+
 ST-270 regression tests cover the same 1.15× Pup-to-0.85× Megalodon turn/pitch multiplier in Room and prediction, plus deterministic replay. During future real-device checks, confirm small sharks steer more nimbly than large ones without altering the controls.
 
 The focused product test covers the device-local player record, menu/tank/game lifecycle, death and respawn, score updates, round reset, desktop/mobile input math, quality modes, accessibility presentation hooks, room capacity, prey bounds and Feeding Frenzy.

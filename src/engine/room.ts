@@ -56,6 +56,8 @@ export const PREY_KINDS = ["bait", "reef", "tuna", "ray", "squid", "golden", "ch
 export const PREY_BUDGET = {
   ambient: 480,
   spawnPerTick: 8,
+  humanBaitShare: 0.35,
+  greetingSchoolSize: 4,
   max: 720,
   frenzyChum: 60,
   schools: 24,
@@ -316,7 +318,30 @@ function rayHomeOrbit(school: number, tick: number, ocean: OceanVolume, home: Re
   };
 }
 
-function spawnAmbientFood(state: RoomState, forced: "golden" | null = null): void {
+/** About 35% of ordinary bait replenishment moves near a seeded, id-sorted human. */
+function nearHumanBaitPoint(state: RoomState): Vec3 | null {
+  const humans = Object.values(state.sharks).filter((shark) => shark.alive && !shark.isBot)
+    .sort((a, b) => a.id < b.id ? -1 : a.id > b.id ? 1 : 0);
+  if (!humans.length || rand(state) >= PREY_BUDGET.humanBaitShare) return null;
+  const human = humans[Math.floor(rand(state) * humans.length)];
+  for (let attempt = 0; attempt < 6; attempt += 1) {
+    const distance = randRange(state, 10, 29);
+    const angle = rand(state) * Math.PI * 2;
+    const point: Vec3 = {
+      x: human.position.x + Math.cos(angle) * distance,
+      y: human.position.y + randRange(state, -2, 2),
+      z: human.position.z + Math.sin(angle) * distance,
+    };
+    const radius = state.ocean.radius - PREY_BUDGET.boundaryMargin;
+    if (point.x * point.x + point.z * point.z <= radius * radius) {
+      return clampToOceanVolume(point, state.ocean, PREY_BUDGET.boundaryMargin);
+    }
+  }
+  // At an extreme edge, keep the normal open-water distribution instead.
+  return null;
+}
+
+function spawnAmbientFood(state: RoomState, forced: "golden" | null = null, topUp = false): void {
   const reefHomes = reefHomesFor(state.ocean);
   // Fill small premium-species quotas first, replacing rather than adding to 480 ambient prey.
   // All assignments depend only on committed room state and the seeded RNG.
@@ -393,12 +418,18 @@ function spawnAmbientFood(state: RoomState, forced: "golden" | null = null): voi
       z: home.position.z + Math.sin(angle) * radius,
     };
   } else {
-    // Bait retains its area-uniform open-water spawning outside the central event.
-    const outer = state.ocean.radius - 2;
-    const inner = outer * FRENZY_RULES.volumeRadiusShare;
-    const radius = Math.sqrt(inner * inner + rand(state) * (outer * outer - inner * inner));
-    const angle = rand(state) * Math.PI * 2;
-    p = { x: Math.cos(angle) * radius, y: randomY(state), z: Math.sin(angle) * radius };
+    // Only replenished bait is biased toward humans; initial schools retain
+    // their area-uniform spread, as do all reef and premium prey.
+    const nearHuman = topUp ? nearHumanBaitPoint(state) : null;
+    if (nearHuman) {
+      p = nearHuman;
+    } else {
+      const outer = state.ocean.radius - 2;
+      const inner = outer * FRENZY_RULES.volumeRadiusShare;
+      const radius = Math.sqrt(inner * inner + rand(state) * (outer * outer - inner * inner));
+      const angle = rand(state) * Math.PI * 2;
+      p = { x: Math.cos(angle) * radius, y: randomY(state), z: Math.sin(angle) * radius };
+    }
   }
   const orientation = schoolOrientation(school, state.tick);
   const spec = PREY_SPECS[kind];
@@ -608,6 +639,39 @@ function makeShark(state: RoomState, id: string, name: string, skin: string, isB
   return shark;
 }
 
+/** Rehome four already-visible bait fish ahead of a newly spawned human.
+ *  The ambient count and protocol-12 payload stay unchanged, including on respawn. */
+function greetHumanSpawn(state: RoomState, shark: Shark): void {
+  if (shark.isBot || !shark.alive || state.ocean.radius < 30
+    || state.food.length < PREY_BUDGET.ambient - PREY_BUDGET.spawnPerTick) return;
+  // Prefer bait that the new player could already see, preventing a larger
+  // per-session visibility set at the moment of joining.
+  const candidates = state.food.filter((fish) => fish.kind === "bait")
+    .map((fish) => ({ fish, distance: distance3(fish, shark.position) }))
+    .filter(({ distance }) => distance >= 24 && distance <= 68)
+    .sort((a, b) => a.distance - b.distance
+      || (a.fish.id < b.fish.id ? -1 : a.fish.id > b.fish.id ? 1 : 0));
+  if (candidates.length < PREY_BUDGET.greetingSchoolSize) return;
+  const direction = forwardFromYawPitch(shark.yaw, shark.pitch);
+  const school = Math.floor(rand(state) * PREY_BUDGET.schools);
+  const orientation = schoolOrientation(school, state.tick);
+  for (let i = 0; i < PREY_BUDGET.greetingSchoolSize; i += 1) {
+    const lateral = (i - (PREY_BUDGET.greetingSchoolSize - 1) / 2) * 1.1;
+    const point = clampToOceanVolume({
+      x: shark.position.x + direction.x * 13 - direction.z * lateral,
+      y: shark.position.y + direction.y * 13 + (i % 2 ? 0.45 : -0.45),
+      z: shark.position.z + direction.z * 13 + direction.x * lateral,
+    }, state.ocean, PREY_BUDGET.boundaryMargin);
+    const fish = candidates[i].fish;
+    fish.x = point.x;
+    fish.y = point.y;
+    fish.z = point.z;
+    fish.yaw = orientation.yaw;
+    fish.pitch = orientation.pitch;
+    fish.school = school;
+  }
+}
+
 function validSkin(skin: string | undefined): string {
   return SKINS.some((s) => s.id === skin) ? (skin as string) : DEFAULT_SKIN;
 }
@@ -796,6 +860,10 @@ function resetCompetitiveRound(state: RoomState): void {
     );
   }
   for (let i = 0; i < PREY_BUDGET.ambient; i += 1) spawnAmbientFood(state);
+  for (const shark of Object.values(state.sharks).filter((shark) => !shark.isBot)
+    .sort((a, b) => a.id < b.id ? -1 : a.id > b.id ? 1 : 0)) {
+    greetHumanSpawn(state, shark);
+  }
 }
 
 function advanceRoundLifecycle(state: RoomState): boolean {
@@ -840,6 +908,7 @@ export function applyAction(state: RoomState, action: Action): RoomState {
           joined.respawnTick = state.round.resultEndTick;
         }
         state.sharks[action.playerId] = joined;
+        greetHumanSpawn(state, joined);
       }
       return state;
     }
@@ -887,6 +956,7 @@ export function applyAction(state: RoomState, action: Action): RoomState {
       if (state.round.phase !== "result" && s && !s.alive && state.tick >= s.respawnTick) {
         const fresh = makeShark(state, s.id, s.name, s.skin, s.isBot);
         state.sharks[s.id] = fresh;
+        greetHumanSpawn(state, fresh);
       }
       return state;
     }
@@ -915,7 +985,7 @@ export function step(state: RoomState): RoomState {
 
   // Ambient prey top-up. Population and spawn work remain explicitly bounded.
   for (let i = 0; i < PREY_BUDGET.spawnPerTick && state.food.length < PREY_BUDGET.ambient; i += 1) {
-    spawnAmbientFood(state);
+    spawnAmbientFood(state, null, true);
   }
 
   // Prey movement is authoritative and deterministic. Client animation only interpolates this state.

@@ -90,3 +90,24 @@ describe("deterministic engine", () => {
     expect(JSON.stringify(first)).toBe(JSON.stringify(second));
   });
 });
+
+
+it("ST-271 repeats the same human join, replenishment and respawn school from seeded actions", () => {
+  const run = () => {
+    const state = createRoom({ seed: "human-school-replay" });
+    spawnBots(state, 2);
+    applyAction(state, { type: "join", playerId: "a-human" });
+    applyAction(state, { type: "join", playerId: "z-human" });
+    for (let tick = 0; tick < 12; tick += 1) {
+      const removed = new Set(state.food.filter((fish) => fish.kind === "bait").slice(-8).map((fish) => fish.id));
+      state.food = state.food.filter((fish) => !removed.has(fish.id));
+      step(state);
+    }
+    const human = state.sharks["a-human"];
+    human.alive = false;
+    human.respawnTick = state.tick;
+    applyAction(state, { type: "respawn", playerId: human.id });
+    return JSON.stringify(state);
+  };
+  expect(run()).toBe(run());
+});
