@@ -191,6 +191,24 @@ describe("ST-121 full-3D bot hunting and evasion", () => {
     expect(bot.targetPitch).toBeGreaterThan(0.25);
   });
 
+  it("values tuna and rays over closer bait without changing server-owned pursuit", () => {
+    for (const kind of ["tuna", "ray"] as const) {
+      const state = createRoom({ seed: `bot-premium-${kind}` });
+      state.food = [
+        prey("near-bait", "bait", 3, 0, 0),
+        prey("premium", kind, 10, kind === "ray" ? -3 : 5, 8),
+        ...farPrey(PREY_BUDGET.ambient - 2),
+      ];
+      const bot = join(state, "premium-hunter", true);
+      place(bot, 0, 0, 0);
+      bot.yaw = bot.targetYaw = 0;
+      bot.pitch = bot.targetPitch = 0;
+      step(state);
+      expect(bot.targetYaw).toBeGreaterThan(0.25);
+      expect(bot.targetPitch).toBeCloseTo(kind === "ray" ? -0.23 : 0.35, 1);
+    }
+  });
+
   it("replays seeded 24-bot simulations byte-identically while bots occupy multiple depths", () => {
     const first = createRoom({ id: "deterministic-bots", seed: "st-121-deterministic" });
     const second = createRoom({ id: "deterministic-bots", seed: "st-121-deterministic" });

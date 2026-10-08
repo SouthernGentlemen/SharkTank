@@ -51,13 +51,16 @@ const HEAD_RADIUS = 0.7; // collision radius of the head
 const MAX_CHOMPS_PER_TICK = 4;
 const RESPAWN_DELAY = TICKS_PER_SECOND; // one second dead before respawn is allowed
 const SPAWN_GRACE = Math.round(TICKS_PER_SECOND * 6); // enough time to orient and use an ability before size combat starts
-export const PREY_KINDS = ["bait", "reef", "chum", "carcass"] as const satisfies readonly PreyKind[];
+export const PREY_KINDS = ["bait", "reef", "tuna", "ray", "chum", "carcass"] as const satisfies readonly PreyKind[];
 export const PREY_BUDGET = {
   ambient: 480,
   spawnPerTick: 8,
   max: 720,
   frenzyChum: 60,
   schools: 24,
+  tunaSchools: 2,
+  tunaPerSchool: 5,
+  raysPerReef: 1,
   boundaryMargin: 1.5,
   maxSharksForFlee: 32,
 } as const;
@@ -72,6 +75,8 @@ export const PREY_SPECS: Record<PreyKind, {
 }> = {
   bait: { value: 1, r: 0.42, speed: 0.13, turnRate: 0.1, pitchRate: 0.055, fleeRadius: 9, fleeMultiplier: 1.65 },
   reef: { value: 2, r: 0.58, speed: 0.105, turnRate: 0.075, pitchRate: 0.045, fleeRadius: 8, fleeMultiplier: 1.45 },
+  tuna: { value: 5, r: 1.05, speed: 0.31, turnRate: 0.12, pitchRate: 0.08, fleeRadius: 18, fleeMultiplier: 2.3 },
+  ray: { value: 8, r: 1.3, speed: 0.065, turnRate: 0.052, pitchRate: 0.035, fleeRadius: 6, fleeMultiplier: 1.45 },
   chum: { value: 3, r: 0.78, speed: 0.065, turnRate: 0.04, pitchRate: 0.03, fleeRadius: 0, fleeMultiplier: 1 },
   carcass: { value: 1, r: 0.5, speed: 0.035, turnRate: 0.02, pitchRate: 0.018, fleeRadius: 0, fleeMultiplier: 1 },
 };
@@ -271,10 +276,60 @@ function reefSchoolOrbit(school: number, tick: number, ocean: OceanVolume, home:
   };
 }
 
+/** Two compact schools cruise mid-water outside the central event and away from reef sites. */
+function tunaSchoolCenter(school: number, tick: number, ocean: OceanVolume): Vec3 {
+  const angle = school * 2.399963229728653 + tick * 0.0035;
+  return {
+    x: Math.cos(angle) * ocean.radius * 0.49,
+    y: (ocean.seabedY + ocean.surfaceY) / 2 + ((school % 3) - 1) * 2,
+    z: Math.sin(angle) * ocean.radius * 0.49,
+  };
+}
+
+function tunaSchoolOrbit(school: number, tick: number, ocean: OceanVolume): Vec3 {
+  const center = tunaSchoolCenter(school, tick, ocean);
+  const angle = school * 1.7 + tick * 0.014;
+  return { x: center.x + Math.cos(angle) * 3, y: center.y + Math.sin(angle) * 0.6, z: center.z + Math.sin(angle) * 3 };
+}
+
+/** Rays keep one individual per reef; their school field is only a compact home identifier. */
+function rayHomeOrbit(school: number, tick: number, ocean: OceanVolume, home: ReefSite): Vec3 {
+  const angle = school * 2.399963229728653 + tick * 0.004;
+  return {
+    x: home.position.x + Math.cos(angle) * home.radius * 0.4,
+    y: ocean.seabedY + 2.7 + Math.sin(angle) * 0.25,
+    z: home.position.z + Math.sin(angle) * home.radius * 0.4,
+  };
+}
+
 function spawnAmbientFood(state: RoomState): void {
   const reefHomes = reefHomesFor(state.ocean);
-  const kind: PreyKind = rand(state) < 0.78 || reefHomes.length === 0 ? "bait" : "reef";
-  let school = Math.floor(rand(state) * PREY_BUDGET.schools);
+  // Fill small premium-species quotas first, replacing rather than adding to 480 ambient prey.
+  // All assignments depend only on committed room state and the seeded RNG.
+  let featured: PreyKind | null = null;
+  let featuredSchool = -1;
+  if (reefHomes.length > 0) {
+    for (let index = 0; index < PREY_BUDGET.tunaSchools; index += 1) {
+      const candidate = PREY_BUDGET.schools + index;
+      if (state.food.filter((actor) => actor.kind === "tuna" && actor.school === candidate).length < PREY_BUDGET.tunaPerSchool) {
+        featured = "tuna";
+        featuredSchool = candidate;
+        break;
+      }
+    }
+    if (!featured) {
+      for (let index = 0; index < reefHomes.length; index += 1) {
+        const candidate = PREY_BUDGET.schools + PREY_BUDGET.tunaSchools + index;
+        if (state.food.filter((actor) => actor.kind === "ray" && actor.school === candidate).length < PREY_BUDGET.raysPerReef) {
+          featured = "ray";
+          featuredSchool = candidate;
+          break;
+        }
+      }
+    }
+  }
+  const kind: PreyKind = featured ?? (rand(state) < 0.78 || reefHomes.length === 0 ? "bait" : "reef");
+  let school = featured ? featuredSchool : Math.floor(rand(state) * PREY_BUDGET.schools);
   if (kind === "reef") {
     // Balance living reef prey across all coral homes. Random school ids alone
     // can crowd a single player's visibility sphere and exceed the 14 KB wire budget.
@@ -292,7 +347,18 @@ function spawnAmbientFood(state: RoomState): void {
     school = Math.floor(school / reefHomes.length) * reefHomes.length + homeIndex;
   }
   let p: Vec3;
-  if (kind === "reef") {
+  if (kind === "tuna") {
+    const center = tunaSchoolCenter(school, state.tick, state.ocean);
+    const angle = rand(state) * Math.PI * 2;
+    const distance = Math.sqrt(rand(state)) * 3;
+    p = { x: center.x + Math.cos(angle) * distance, y: center.y + randRange(state, -1, 1), z: center.z + Math.sin(angle) * distance };
+  } else if (kind === "ray") {
+    const home = reefHomes[school - PREY_BUDGET.schools - PREY_BUDGET.tunaSchools];
+    const orbit = rayHomeOrbit(school, state.tick, state.ocean, home);
+    const angle = rand(state) * Math.PI * 2;
+    const distance = Math.sqrt(rand(state)) * home.radius * 0.13;
+    p = { x: orbit.x + Math.cos(angle) * distance, y: orbit.y, z: orbit.z + Math.sin(angle) * distance };
+  } else if (kind === "reef") {
     // Reef schools share a fixed home site, seeded by their existing school code.
     const home = reefHomes[school % reefHomes.length];
     const angle = rand(state) * Math.PI * 2;
@@ -339,14 +405,21 @@ function stepPrey(state: RoomState): void {
 
   for (const prey of state.food) {
     const spec = PREY_SPECS[prey.kind];
-    const home = prey.kind === "reef" && prey.school >= 0 && reefHomes.length > 0
+    const reefHome = prey.kind === "reef" && prey.school >= 0 && reefHomes.length > 0
       ? reefHomes[prey.school % reefHomes.length]
       : null;
-    let target = home
-      ? yawPitchToward(prey, reefSchoolOrbit(prey.school, state.tick, state.ocean, home))
-      : prey.school >= 0
-        ? schoolOrientation(prey.school, state.tick)
-        : { yaw: prey.yaw, pitch: prey.kind === "carcass" ? -0.08 : prey.pitch };
+    const rayHomeIndex = prey.school - PREY_BUDGET.schools - PREY_BUDGET.tunaSchools;
+    const rayHome = prey.kind === "ray" && rayHomeIndex >= 0 && rayHomeIndex < reefHomes.length
+      ? reefHomes[rayHomeIndex] : null;
+    let target = reefHome
+      ? yawPitchToward(prey, reefSchoolOrbit(prey.school, state.tick, state.ocean, reefHome))
+      : rayHome
+        ? yawPitchToward(prey, rayHomeOrbit(prey.school, state.tick, state.ocean, rayHome))
+        : prey.kind === "tuna" && prey.school >= PREY_BUDGET.schools
+          ? yawPitchToward(prey, tunaSchoolOrbit(prey.school, state.tick, state.ocean))
+          : prey.school >= 0
+            ? schoolOrientation(prey.school, state.tick)
+            : { yaw: prey.yaw, pitch: prey.kind === "carcass" ? -0.08 : prey.pitch };
     let speed = spec.speed;
 
     if (spec.fleeRadius > 0 && livingHeads.length) {
@@ -1099,7 +1172,7 @@ function makeBotWorldView(state: RoomState): BotWorldView {
   const livingSharks = Object.values(state.sharks)
     .filter((shark) => shark.alive)
     .slice(0, BOT_AI_BUDGET.maxTrackedSharks);
-  const schoolValue = Array.from({ length: PREY_BUDGET.schools }, () => 0);
+  const schoolValue = Array.from({ length: PREY_BUDGET.schools + PREY_BUDGET.tunaSchools }, () => 0);
   for (const actor of state.food) {
     if (actor.school >= 0 && actor.school < schoolValue.length) {
       schoolValue[actor.school] += actor.value;
