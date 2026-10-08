@@ -2,6 +2,8 @@ import { readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
 import {
   ROOM_SCHEMA_VERSION,
+  MOVE,
+  turnRateScaleForLength,
   applyAction,
   createRoom,
   forwardFromYawPitch,
@@ -74,6 +76,31 @@ describe("volumetric authoritative engine", () => {
     applyAction(state, { type: "setOrientation", playerId: shark.id, yaw: 0, pitch: -Math.PI / 6 });
     for (let i = 0; i < 5; i += 1) step(state);
     expect(shark.position.y).toBeLessThan(climbedY);
+  });
+
+  it("scales authoritative yaw and pitch smoothly from Pup to Megalodon", () => {
+    expect(turnRateScaleForLength(10)).toBeCloseTo(1.15, 12);
+    expect(turnRateScaleForLength(112)).toBeCloseTo(0.85, 12);
+    expect(turnRateScaleForLength(61)).toBeCloseTo(1, 12);
+    expect(turnRateScaleForLength(-10)).toBeCloseTo(1.15, 12);
+    expect(turnRateScaleForLength(1000)).toBeCloseTo(0.85, 12);
+    expect(turnRateScaleForLength(Number.NaN)).toBeCloseTo(1.15, 12);
+    const lengths = [10, 22, 44, 78, 112];
+    const scales = lengths.map(turnRateScaleForLength);
+    for (let i = 1; i < scales.length; i++) expect(scales[i]).toBeLessThan(scales[i - 1]);
+    for (const length of lengths) {
+      const state = createRoom({ seed: `turn-${length}`, oceanRadius: 1000, seabedY: -100, surfaceY: 100 });
+      state.food = [];
+      const shark = join(state, "pilot");
+      place(shark, 0, 0, 0);
+      shark.length = length;
+      shark.yaw = shark.targetYaw = 0;
+      shark.pitch = shark.targetPitch = 0;
+      applyAction(state, { type: "setOrientation", playerId: shark.id, yaw: Math.PI / 2, pitch: 0.9 });
+      step(state);
+      expect(shark.yaw).toBeCloseTo(MOVE.TURN_RATE * turnRateScaleForLength(length), 10);
+      expect(shark.pitch).toBeCloseTo(MOVE.PITCH_RATE * turnRateScaleForLength(length), 10);
+    }
   });
 
   it("enforces the returning current plus surface and seabed clamps", () => {

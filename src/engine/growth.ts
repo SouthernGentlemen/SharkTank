@@ -23,6 +23,14 @@ export function tierForLength(length: number): SharkTier {
 }
 
 /** Normalized progress to the next milestone; completed at Megalodon. */
+/** Shared, deterministic agility trade-off. Length is bounded by Pup and Megalodon. */
+export function turnRateScaleForLength(length: number): number {
+  const pup = SHARK_TIERS[0].minLength;
+  const megalodon = SHARK_TIERS[SHARK_TIERS.length - 1].minLength;
+  const progress = Math.max(0, Math.min(1, (safeLength(length) - pup) / (megalodon - pup)));
+  return 1.15 - 0.3 * progress;
+}
+
 export function tierProgress(length: number): number {
   const value = safeLength(length);
   for (let index = 0; index < SHARK_TIERS.length - 1; index += 1) {

@@ -15,6 +15,7 @@ import {
   moveToward,
   rotateYawToward,
   swimSpeedForLungeTicks,
+  turnRateScaleForLength,
 } from "../../engine/index.js";
 import type { OceanVolume, Vec3 } from "../../engine/index.js";
 import type { ClientShark } from "../net/clientState.js";
@@ -113,9 +114,10 @@ export class LocalPredictor {
       : Math.max(0, DASH_TICKS - Math.floor((nowMs - this.pendingAt) / 1000 * TICKS_PER_SECOND));
 
     const frameStep = Math.min(dt, 0.05);
-    this.yaw = rotateYawToward(this.yaw, input.targetYaw, TURN * frameStep);
+    const turning = turnRateScaleForLength(auth.length);
+    this.yaw = rotateYawToward(this.yaw, input.targetYaw, TURN * turning * frameStep);
     if (world?.arenaRadius !== undefined) this.yaw = returningCurrentYaw(this.yaw, this.head, world.arenaRadius, frameStep);
-    this.pitch = clampPitch(moveToward(this.pitch, input.targetPitch, PITCH * frameStep));
+    this.pitch = clampPitch(moveToward(this.pitch, input.targetPitch, PITCH * turning * frameStep));
     if (world) this.pitch = glidePitch(this.pitch, this.head.y, world);
     const frenzyMultiplier = world && world.frenzyUntilTick > world.tick ? MOVE.FRENZY_SPEED : 1;
     const speed = swimSpeedForLungeTicks(predictedTicks) * TICKS_PER_SECOND * frenzyMultiplier;

@@ -172,6 +172,31 @@ describe("ST-122 realtime combat protocol", () => {
     }, 1 / 60, 0)).toBeNull();
   });
 
+  it("matches Room yaw/pitch rates at all five growth milestones", () => {
+    for (const length of [10, 22, 44, 78, 112]) {
+      const state = createRoom({ seed: `prediction-agility-${length}`, oceanRadius: 1000, seabedY: -100, surfaceY: 100 });
+      state.food = [];
+      const shark = join(state, "pilot");
+      place(shark, 0, 0, 0);
+      shark.length = length;
+      shark.yaw = shark.targetYaw = 0;
+      shark.pitch = shark.targetPitch = 0;
+      const input = { targetYaw: Math.PI / 2, targetPitch: 0.9, boosting: false };
+      const world = { arenaRadius: state.ocean.radius, seabedY: -100, surfaceY: 100, tick: state.tick, frenzyUntilTick: 0 };
+      const predictor = new LocalPredictor();
+      const auth = toClientShark(toNetState(state).sharks[0]);
+      predictor.step(auth, input, 0, 0, world, 0);
+      applyAction(state, { type: "setOrientation", playerId: shark.id, yaw: input.targetYaw, pitch: input.targetPitch });
+      for (let tick = 1; tick <= 5; tick++) {
+        step(state);
+        const predicted = predictor.step(auth, input, 1 / TICKS_PER_SECOND, 0,
+          { ...world, tick: state.tick }, tick * 50);
+        expect(predicted?.yaw, `yaw at length ${length}, tick ${tick}`).toBeCloseTo(shark.yaw, 9);
+        expect(predicted?.pitch, `pitch at length ${length}, tick ${tick}`).toBeCloseTo(shark.pitch, 9);
+      }
+    }
+  });
+
   it("predicts climb/dive and yaw movement, then reconciles authoritative X/Y/Z correction", () => {
     const state = createRoom({ seed: "prediction", oceanRadius: 100, seabedY: -20, surfaceY: 20 });
     state.food = [];

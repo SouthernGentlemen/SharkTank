@@ -20,6 +20,7 @@ import {
   yawPitchToward,
 } from "./geometry3d.js";
 import { bodySegment, mouthPoint, sharkScaleForLength } from "./sharkGeometry.js";
+import { turnRateScaleForLength } from "./growth.js";
 import { nextRandom, seedToNumber } from "./rng.js";
 import { reefSitesFor, type ReefSite } from "./reefs.js";
 import type { Action, DeathAction, OceanVolume, Prey, PreyKind, RoomState, RoundState, ScoreEntry, Shark, Vec3 } from "./types.js";
@@ -973,9 +974,10 @@ export function step(state: RoomState): RoomState {
 }
 
 function moveShark(state: RoomState, s: Shark): void {
-  s.yaw = rotateYawToward(s.yaw, s.targetYaw, TURN_RATE);
+  const turning = turnRateScaleForLength(s.length);
+  s.yaw = rotateYawToward(s.yaw, s.targetYaw, TURN_RATE * turning);
   s.yaw = returningCurrentYaw(s.yaw, s.position, state.ocean.radius, 1 / TICKS_PER_SECOND);
-  s.pitch = glidePitch(moveToward(s.pitch, s.targetPitch, PITCH_RATE), s.position.y, state.ocean);
+  s.pitch = glidePitch(moveToward(s.pitch, s.targetPitch, PITCH_RATE * turning), s.position.y, state.ocean);
 
   let speed = swimSpeedForLungeTicks(s.lungeTicks);
   s.lungeTicks ??= 0;

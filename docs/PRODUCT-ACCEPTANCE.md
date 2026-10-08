@@ -22,6 +22,8 @@ npm run audit:dependencies
 git diff --check HEAD^
 ```
 
+ST-270 regression tests cover the same 1.15× Pup-to-0.85× Megalodon turn/pitch multiplier in Room and prediction, plus deterministic replay. During future real-device checks, confirm small sharks steer more nimbly than large ones without altering the controls.
+
 The focused product test covers the device-local player record, menu/tank/game lifecycle, death and respawn, score updates, round reset, desktop/mobile input math, quality modes, accessibility presentation hooks, room capacity, prey bounds and Feeding Frenzy.
 
 The snapshot timeline test replays 10 Hz arrivals with ±25 ms jitter at 60 Hz and server clocks 1% fast or slow over ten minutes, requiring fewer than 2% clamped frames after startup, render lag within 20 ms of target, and continuous frame-sized clock advances.
