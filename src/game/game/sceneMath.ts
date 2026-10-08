@@ -1,5 +1,5 @@
 import { resolveQuality } from "./quality.js";
-import { SHARK_GEOMETRY, TICKS_PER_SECOND, shortestYawDelta, clampPitch, lerpYawShortest, normalizeYaw } from "../../engine/index.js";
+import { OCEAN, SHARK_GEOMETRY, TICKS_PER_SECOND, shortestYawDelta, clampPitch, lerpYawShortest, normalizeYaw } from "../../engine/index.js";
 
 export type SceneQuality = import("./quality.js").QualityChoice;
 
@@ -76,9 +76,9 @@ export const CAMERA_PROJECTION = {
 } as const;
 
 export const OCEAN_CUES = {
-  surfaceY: 12,
-  seabedY: -12,
-  horizontalRadius: 82,
+  surfaceY: OCEAN.surfaceY,
+  seabedY: OCEAN.seabedY,
+  horizontalRadius: OCEAN.radius,
   depthReferenceRadius: 42,
 } as const;
 

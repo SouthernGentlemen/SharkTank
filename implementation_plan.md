@@ -99,28 +99,13 @@ Tasks follow these defaults unless the owner changes them before the task starts
 | Biting | Centre-to-centre ≤ 3.4 (+0.8), 50° cone | Mouth to victim body surface ≤ 1.8 + 0.3 × scale, 65° cone | ST-256 |
 | Damage | Devour at ≥ 1.5× length; 50 (60 burst) even; 20 nibble; 4 HP/s regen | Devour at ≥ 1.5× length; 50 (60 burst) even; 20 nibble; 4 HP/s regen | ST-257 |
 | Edibility cues | Green/amber/red rims and tags plus ▼ eat, ■ even, ▲ danger | Same 1.5× rule in all presentation cues | ST-258 |
-| Ocean | Radius 82, column 24, ~200 fish | Radius 120, column 36, ~480 fish | ST-260 |
+| Ocean | Radius 120, column 36, ~480 fish | Radius 120, column 36, ~480 fish | ST-260 |
 | Fish | 2 looks | 8 school looks + tuna, squid, rays, golden fish | ST-263–ST-267 |
 | Coral | 3 rock clusters outside the wall | Reef sites of brain, branching, plate, fan and tube coral plus kelp | ST-261–ST-262 |
 | Growth | +0.18 length per point; flat scale curve | Five tiers reachable in one round; Megalodon ≈ 2.5× spawn scale | ST-269 |
 | Music | Six-note loop on `setInterval`, off by default | Layered adaptive score on the audio clock, on at 35% | ST-275–ST-278 |
 
 ## Open tasks
-
-### ST-260 — [FEAT] Make the tank bigger with one shared ocean constant
-
-**Goal:** The ocean is small, and its size is defined in five places.
-
-**Scope**
-- One engine `OCEAN` constant (radius 120, seabed −18, surface +18) replaces the Room, client-cue, camera-default and engine copies.
-- Scale the prey budget: about 480 ambient fish, a cap of 720, 8 spawns per tick, 24 schools and 60 Frenzy chum.
-- Bots, spawning, Frenzy volume and fog keep working at the new size.
-
-**Acceptance:** Tests use the shared constant; at full population the per-player snapshot still meets the ST-241 budget.
-
-**Validation:** `npm test -- tests/ocean-arena.test.ts tests/volumetric-engine.test.ts tests/swimming-camera.test.ts tests/bot-ai-3d.test.ts tests/feeding-frenzy-3d.test.ts tests/client-performance.test.ts`.
-
----
 
 ### ST-261 — [FEAT] Grow coral reefs across the seabed
 

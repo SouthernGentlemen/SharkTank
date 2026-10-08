@@ -8,10 +8,11 @@ import {
 } from "../src/game/game/oceanArena.js";
 import { OCEAN_CUES, resolveSceneQuality } from "../src/game/game/sceneMath.js";
 import {
-  DEFAULT_SEABED_Y,
-  DEFAULT_SURFACE_Y,
+  OCEAN,
+  createRoom,
+  PREY_BUDGET,
   ROOM_SCHEMA_VERSION,
-} from "../src/engine/room.js";
+} from "../src/engine/index.js";
 import { REALTIME_PROTOCOL_VERSION } from "../src/protocol/index.js";
 
 const read = (path: string) => readFileSync(new URL(path, import.meta.url), "utf8");
@@ -26,9 +27,13 @@ describe("ST-118 stylized ocean arena", () => {
     expect(cues.midY).toBe(-2);
     expect(cues.boundaryWarningRadius).toBeLessThan(cues.radius);
     expect(cues.frenzyRadius).toBeCloseTo(cues.radius * 0.3);
-    expect(OCEAN_CUES.horizontalRadius).toBe(82);
-    expect(DEFAULT_SEABED_Y).toBe(-12);
-    expect(DEFAULT_SURFACE_Y).toBe(12);
+    expect(OCEAN).toEqual({ radius: 120, seabedY: -18, surfaceY: 18 });
+    expect(createRoom().ocean).toEqual(OCEAN);
+    expect(createRoom({ oceanRadius: NaN, seabedY: 9, surfaceY: 8 }).ocean).toEqual(OCEAN);
+    expect(OCEAN_CUES.horizontalRadius).toBe(OCEAN.radius);
+    expect(OCEAN_CUES.seabedY).toBe(OCEAN.seabedY);
+    expect(OCEAN_CUES.surfaceY).toBe(OCEAN.surfaceY);
+    expect(PREY_BUDGET).toMatchObject({ ambient: 480, max: 720, spawnPerTick: 8, schools: 24, frenzyChum: 60 });
   });
 
   it("quality presets scale only optional environment cost while preserving the world", () => {

@@ -145,7 +145,7 @@ describe("ST-123 3D server-wide Feeding Frenzy", () => {
 
     const state = createRoom({ seed: "st-123-cleanup" });
     const chum = triggerFrenzy(state);
-    expect(chum.filter((actor) => actor.value === FRENZY_RULES.bonusChumValue)).toHaveLength(14);
+    expect(chum.filter((actor) => actor.value === FRENZY_RULES.bonusChumValue)).toHaveLength(Math.ceil(FRENZY_RULES.chumCount / 3));
     for (let i = 0; i < FRENZY_RULES.durationTicks; i += 1) step(state);
     expect(isFrenzy(state)).toBe(false);
     expect(state.frenzyUntilTick).toBe(0);

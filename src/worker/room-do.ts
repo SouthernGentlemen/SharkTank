@@ -4,7 +4,6 @@ import { STATE_BROADCAST_EVERY, clientInputToAction, parseRealtimeClientMessage,
 // A tank holds 32 sharks: up to SHARK_CAPACITY - BOT_COUNT humans, with bots making up
 // the rest so a lightly-populated tank still feels like a full lobby.
 const SHARK_CAPACITY = 32, CAPACITY = 8, BOT_COUNT = SHARK_CAPACITY - CAPACITY;
-const OCEAN_RADIUS = 82;
 const LEADERBOARD_EVERY = TICKS_PER_SECOND * 2;
 const MAX_MESSAGE_BYTES = 4_096, INPUTS_PER_SECOND = 40;
 interface Session { id: string; ws: WebSocket; name: string; skin: string; wasAlive: boolean; joined: boolean; rateAt: number; rateCount: number }
@@ -16,7 +15,7 @@ export class Room {
   private roomId = "room-local";
 
   constructor(private readonly ctx: DurableObjectState) {
-    this.room = createRoom({ id: this.ctx.id.toString(), seed: `seed-${this.ctx.id.toString().slice(0, 8)}`, oceanRadius: OCEAN_RADIUS });
+    this.room = createRoom({ id: this.ctx.id.toString(), seed: `seed-${this.ctx.id.toString().slice(0, 8)}` });
     spawnBots(this.room, BOT_COUNT);
     // ST-144 intentionally abandons Room persistence. Clear legacy snapshots/metadata before
     // the object serves requests; every object boot then starts from the fresh in-memory room above.

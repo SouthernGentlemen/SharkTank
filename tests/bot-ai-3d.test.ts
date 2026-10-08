@@ -70,7 +70,7 @@ describe("ST-121 full-3D bot hunting and evasion", () => {
       huntRadius: 19,
     });
     expect(BOT_AI_BUDGET.maxTrackedSharks).toBeGreaterThanOrEqual(BOT_AI_BUDGET.targetPopulation);
-    expect(PREY_BUDGET.max).toBe(360);
+    expect(PREY_BUDGET.max).toBe(720);
 
     const engine = read("../src/engine/room.ts");
     expect(engine).toContain(".slice(0, BOT_AI_BUDGET.maxTrackedSharks)");

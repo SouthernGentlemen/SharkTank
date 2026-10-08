@@ -59,11 +59,12 @@ function prey(overrides: Partial<Prey> & Pick<Prey, "id" | "kind" | "x" | "y" | 
 describe("ST-120 authoritative fish and prey schools", () => {
   it("uses a compact typed taxonomy, multiple depths, and an explicit bounded room budget", () => {
     expect(PREY_KINDS).toEqual(["bait", "reef", "chum", "carcass"]);
-    expect(PREY_BUDGET).toMatchObject({ ambient: 200, spawnPerTick: 4, max: 360, frenzyChum: 40, schools: 12 });
+    expect(PREY_BUDGET).toMatchObject({ ambient: 480, spawnPerTick: 8, max: 720, frenzyChum: 60, schools: 24 });
     expect(PREY_BUDGET.ambient).toBeLessThan(PREY_BUDGET.max);
 
     const state = createRoom({ seed: "typed-prey" });
     expect(state.food).toHaveLength(PREY_BUDGET.ambient);
+    expect(state.food.every((actor) => Math.hypot(actor.x, actor.z) >= (state.ocean.radius - 2) * 0.3)).toBe(true);
     expect(new Set(state.food.map((actor) => actor.kind))).toEqual(new Set(["bait", "reef"]));
     expect(new Set(state.food.map((actor) => Math.round(actor.y))).size).toBeGreaterThan(4);
     for (const actor of state.food) {
