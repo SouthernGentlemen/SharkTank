@@ -107,20 +107,6 @@ Tasks follow these defaults unless the owner changes them before the task starts
 
 ## Open tasks
 
-### ST-266 — [FEAT] Add darting squid and a rare golden fish
-
-**Goal:** Create chase moments.
-
-**Scope**
-- Squid: value 4, mid-water, darting in short deterministic bursts when chased.
-- Golden fish: value 12, at most one alive on a deterministic schedule of about 30 s, very skittish, leaving after 60 s if uneaten.
-
-**Acceptance:** Deterministic dart, schedule and lifetime tests pass.
-
-**Validation:** `npm test -- tests/prey-schools.test.ts tests/determinism.test.ts`.
-
----
-
 ### ST-267 — [FEAT] Model tuna, squid, rays and the golden fish
 
 **Goal:** Every new species should read at a glance.

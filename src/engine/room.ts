@@ -51,7 +51,7 @@ const HEAD_RADIUS = 0.7; // collision radius of the head
 const MAX_CHOMPS_PER_TICK = 4;
 const RESPAWN_DELAY = TICKS_PER_SECOND; // one second dead before respawn is allowed
 const SPAWN_GRACE = Math.round(TICKS_PER_SECOND * 6); // enough time to orient and use an ability before size combat starts
-export const PREY_KINDS = ["bait", "reef", "tuna", "ray", "chum", "carcass"] as const satisfies readonly PreyKind[];
+export const PREY_KINDS = ["bait", "reef", "tuna", "ray", "squid", "golden", "chum", "carcass"] as const satisfies readonly PreyKind[];
 export const PREY_BUDGET = {
   ambient: 480,
   spawnPerTick: 8,
@@ -61,6 +61,7 @@ export const PREY_BUDGET = {
   tunaSchools: 2,
   tunaPerSchool: 5,
   raysPerReef: 1,
+  squid: 12,
   boundaryMargin: 1.5,
   maxSharksForFlee: 32,
 } as const;
@@ -77,12 +78,24 @@ export const PREY_SPECS: Record<PreyKind, {
   reef: { value: 2, r: 0.58, speed: 0.105, turnRate: 0.075, pitchRate: 0.045, fleeRadius: 8, fleeMultiplier: 1.45 },
   tuna: { value: 5, r: 1.05, speed: 0.31, turnRate: 0.12, pitchRate: 0.08, fleeRadius: 18, fleeMultiplier: 2.3 },
   ray: { value: 8, r: 1.3, speed: 0.065, turnRate: 0.052, pitchRate: 0.035, fleeRadius: 6, fleeMultiplier: 1.45 },
+  squid: { value: 4, r: 0.65, speed: 0.17, turnRate: 0.17, pitchRate: 0.12, fleeRadius: 14, fleeMultiplier: 3 },
+  golden: { value: 12, r: 0.72, speed: 0.24, turnRate: 0.2, pitchRate: 0.13, fleeRadius: 26, fleeMultiplier: 3.3 },
   chum: { value: 3, r: 0.78, speed: 0.065, turnRate: 0.04, pitchRate: 0.03, fleeRadius: 0, fleeMultiplier: 1 },
   carcass: { value: 1, r: 0.5, speed: 0.035, turnRate: 0.02, pitchRate: 0.018, fleeRadius: 0, fleeMultiplier: 1 },
 };
 // ── Feeding Frenzy ──
 // This is authoritative gameplay, not presentation tuning. The shared values let the
 // client explain server truth without inventing its own schedule, volume, or modifiers.
+export const GOLDEN_RULES = {
+  intervalTicks: TICKS_PER_SECOND * 30,
+  lifetimeTicks: TICKS_PER_SECOND * 60,
+} as const;
+
+/** Deterministic four-tick bursts from authoritative ticks and stable prey identity. */
+export function squidDarting(id: string, tick: number): boolean {
+  return (tick + seedToNumber(id) % 16) % 16 < 4;
+}
+
 export const FRENZY_RULES = {
   periodTicks: TICKS_PER_SECOND * 75,
   durationTicks: TICKS_PER_SECOND * 20,
@@ -302,13 +315,13 @@ function rayHomeOrbit(school: number, tick: number, ocean: OceanVolume, home: Re
   };
 }
 
-function spawnAmbientFood(state: RoomState): void {
+function spawnAmbientFood(state: RoomState, forced: "golden" | null = null): void {
   const reefHomes = reefHomesFor(state.ocean);
   // Fill small premium-species quotas first, replacing rather than adding to 480 ambient prey.
   // All assignments depend only on committed room state and the seeded RNG.
-  let featured: PreyKind | null = null;
+  let featured: PreyKind | null = forced;
   let featuredSchool = -1;
-  if (reefHomes.length > 0) {
+  if (!featured && reefHomes.length > 0) {
     for (let index = 0; index < PREY_BUDGET.tunaSchools; index += 1) {
       const candidate = PREY_BUDGET.schools + index;
       if (state.food.filter((actor) => actor.kind === "tuna" && actor.school === candidate).length < PREY_BUDGET.tunaPerSchool) {
@@ -327,6 +340,9 @@ function spawnAmbientFood(state: RoomState): void {
         }
       }
     }
+  }
+  if (!featured && reefHomes.length > 0 && state.food.filter((actor) => actor.kind === "squid").length < PREY_BUDGET.squid) {
+    featured = "squid";
   }
   const kind: PreyKind = featured ?? (rand(state) < 0.78 || reefHomes.length === 0 ? "bait" : "reef");
   let school = featured ? featuredSchool : Math.floor(rand(state) * PREY_BUDGET.schools);
@@ -358,6 +374,11 @@ function spawnAmbientFood(state: RoomState): void {
     const angle = rand(state) * Math.PI * 2;
     const distance = Math.sqrt(rand(state)) * home.radius * 0.13;
     p = { x: orbit.x + Math.cos(angle) * distance, y: orbit.y, z: orbit.z + Math.sin(angle) * distance };
+  } else if (kind === "squid" || kind === "golden") {
+    // Solitary mid-water chase prey spread around the ocean, outside the central frenzy.
+    const angle = rand(state) * Math.PI * 2;
+    const radius = state.ocean.radius * randRange(state, 0.46, 0.74);
+    p = { x: Math.cos(angle) * radius, y: (state.ocean.seabedY + state.ocean.surfaceY) / 2 + randRange(state, -3, 3), z: Math.sin(angle) * radius };
   } else if (kind === "reef") {
     // Reef schools share a fixed home site, seeded by their existing school code.
     const home = reefHomes[school % reefHomes.length];
@@ -381,7 +402,7 @@ function spawnAmbientFood(state: RoomState): void {
   const orientation = schoolOrientation(school, state.tick);
   const spec = PREY_SPECS[kind];
   state.food.push({
-    id: `prey-${state.tick}-${Math.floor(rand(state) * 1e9).toString(36)}`,
+    id: kind === "golden" ? `golden-${state.tick}` : `prey-${state.tick}-${Math.floor(rand(state) * 1e9).toString(36)}`,
     kind,
     x: p.x,
     y: p.y,
@@ -392,6 +413,21 @@ function spawnAmbientFood(state: RoomState): void {
     pitch: orientation.pitch,
     school,
   });
+}
+
+/** A golden fish appears every eligible 30 seconds and expires at age 60 seconds. */
+function stepGoldenFish(state: RoomState): void {
+  state.food = state.food.filter((actor) => actor.kind !== "golden"
+    || state.tick - Number(actor.id.slice("golden-".length)) < GOLDEN_RULES.lifetimeTicks);
+  if ((state.tick - state.round.startTick) % GOLDEN_RULES.intervalTicks !== 0
+    || state.food.some((actor) => actor.kind === "golden")) return;
+  // Replace existing ambient bait, never increase the 480 fish / 14 KB budget.
+  if (state.food.length >= PREY_BUDGET.ambient) {
+    const baitIndex = state.food.findIndex((actor) => actor.kind === "bait");
+    if (baitIndex < 0) return;
+    state.food.splice(baitIndex, 1);
+  }
+  spawnAmbientFood(state, "golden");
 }
 
 function stepPrey(state: RoomState): void {
@@ -434,7 +470,7 @@ function stepPrey(state: RoomState): void {
       }
       if (nearest) {
         target = yawPitchToward(nearest, prey);
-        speed *= spec.fleeMultiplier;
+        speed *= prey.kind === "squid" && !squidDarting(prey.id, state.tick) ? 1 : spec.fleeMultiplier;
       }
     }
 
@@ -872,6 +908,9 @@ export function step(state: RoomState): RoomState {
 
   // Frenzy scheduling runs first so this tick's movement already uses the new speed.
   stepFrenzy(state);
+
+  // Golden chase windows and expiry are authoritative, before the bounded ambient top-up.
+  stepGoldenFish(state);
 
   // Ambient prey top-up. Population and spawn work remain explicitly bounded.
   for (let i = 0; i < PREY_BUDGET.spawnPerTick && state.food.length < PREY_BUDGET.ambient; i += 1) {

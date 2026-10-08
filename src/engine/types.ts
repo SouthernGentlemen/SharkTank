@@ -50,7 +50,7 @@ export interface Shark {
 }
 
 /** Compact authoritative prey taxonomy. Rendering may style these differently, but gameplay owns the kind. */
-export type PreyKind = "bait" | "reef" | "tuna" | "ray" | "chum" | "carcass";
+export type PreyKind = "bait" | "reef" | "tuna" | "ray" | "squid" | "golden" | "chum" | "carcass";
 
 /** A single score-relevant prey actor. All movement/collision fields are server authoritative. */
 export interface Prey {
@@ -63,7 +63,7 @@ export interface Prey {
   r: number;
   yaw: number;
   pitch: number;
-  /** Deterministic school/home identity: 0–23 small fish, 24–25 tuna groups, 26–33 solitary ray reef homes; -1 marks drops. */
+  /** Deterministic school/home identity: 0–23 small fish, 24–25 tuna groups, 26–33 solitary ray reef homes; -1 marks drops and solitary squid/golden fish. */
   school: number;
 }
 

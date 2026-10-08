@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import {
   applyAction,
   createRoom,
+  GOLDEN_RULES,
   nextRandom,
   seedToNumber,
   spawnBots,
@@ -41,6 +42,14 @@ describe("deterministic engine", () => {
     expect(seed).toBe(3325626751);
     const [, next] = nextRandom(seed);
     expect(next).toBe(862225268);
+  });
+
+  it("replays the first golden window exactly from the seed", () => {
+    const first = createRoom({ seed: "golden-replay" });
+    const second = createRoom({ seed: "golden-replay" });
+    for (let t = 0; t < GOLDEN_RULES.intervalTicks + 5; t += 1) { step(first); step(second); }
+    expect(first).toEqual(second);
+    expect(first.food.filter((f) => f.kind === "golden")).toHaveLength(1);
   });
 
   it("creates byte-equivalent rooms from the same seed", () => {
