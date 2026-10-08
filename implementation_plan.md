@@ -107,22 +107,6 @@ Tasks follow these defaults unless the owner changes them before the task starts
 
 ## Open tasks
 
-### ST-267 — [FEAT] Model tuna, squid, rays and the golden fish
-
-**Goal:** Every new species should read at a glance.
-
-**Scope:** Instanced presentation for:
-- a streamlined silver-blue tuna;
-- a squid with a mantle and trailing tentacles;
-- a flat ray with flapping wings;
-- a glowing golden fish with a sparkle and a caption when nearby.
-
-**Acceptance:** Presentation tests pass and draw budgets hold.
-
-**Validation:** `npm test -- tests/prey-schools.test.ts tests/client-performance.test.ts tests/accessibility-contract.test.ts`.
-
----
-
 ### ST-268 — [OPS] Release the bigger ocean update as v2.4.0
 
 **Goal:** Ship ST-260 through ST-267.

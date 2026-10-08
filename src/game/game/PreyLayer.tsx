@@ -11,6 +11,7 @@ import { cadenceDue, resolveClientPerformanceProfile } from "./performance.js";
 import {
   preyVisualFor,
   preySizeVariation,
+  rayWingFlap,
   resolvePreyAnimation,
   resolvePreyPresentationQuality,
 } from "./preyPresentation.js";
@@ -64,6 +65,13 @@ export function PreyLayer({ socket, settings }: { socket: RoomSocket; settings: 
   const stripeOneMesh = useRef<THREE.InstancedMesh>(null);
   const stripeTwoMesh = useRef<THREE.InstancedMesh>(null);
   const dropMesh = useRef<THREE.InstancedMesh>(null);
+  const squidMantleMesh = useRef<THREE.InstancedMesh>(null);
+  const squidTentacleMesh = useRef<THREE.InstancedMesh>(null);
+  const rayBodyMesh = useRef<THREE.InstancedMesh>(null);
+  const rayWingMesh = useRef<THREE.InstancedMesh>(null);
+  const rayTailMesh = useRef<THREE.InstancedMesh>(null);
+  const goldHaloMesh = useRef<THREE.InstancedMesh>(null);
+  const goldSparkleMesh = useRef<THREE.InstancedMesh>(null);
   const root = useMemo(() => new THREE.Object3D(), []);
   const part = useMemo(() => new THREE.Object3D(), []);
   const composed = useMemo(() => new THREE.Matrix4(), []);
@@ -85,7 +93,15 @@ export function PreyLayer({ socket, settings }: { socket: RoomSocket; settings: 
     const stripeOne = stripeOneMesh.current;
     const stripeTwo = stripeTwoMesh.current;
     const drops = dropMesh.current;
-    if (!body || !head || !tail || !stripeOne || !stripeTwo || !drops) return;
+    const squidMantle = squidMantleMesh.current;
+    const squidTentacles = squidTentacleMesh.current;
+    const rayBody = rayBodyMesh.current;
+    const rayWings = rayWingMesh.current;
+    const rayTail = rayTailMesh.current;
+    const goldHalo = goldHaloMesh.current;
+    const goldSparkle = goldSparkleMesh.current;
+    if (!body || !head || !tail || !stripeOne || !stripeTwo || !drops ||
+      !squidMantle || !squidTentacles || !rayBody || !rayWings || !rayTail || !goldHalo || !goldSparkle) return;
 
     const frame = socket.frameAt(REMOTE_INTERP_DELAY_MS);
     if (!frame) return;
@@ -104,6 +120,9 @@ export function PreyLayer({ socket, settings }: { socket: RoomSocket; settings: 
 
     let fishCount = 0;
     let dropCount = 0;
+    let squidCount = 0;
+    let rayCount = 0;
+    let goldCount = 0;
     for (const actor of current.food) {
       const prior = previousById.get(actor.id) ?? actor;
       interpolateOrientedPose(prior, actor, alpha, pose);
@@ -117,13 +136,13 @@ export function PreyLayer({ socket, settings }: { socket: RoomSocket; settings: 
       const speed = Math.hypot(dx, dy, dz) * TICKS_PER_SECOND / tickSpan;
       const visual = preyVisualFor(actor.kind, actor.value, actor.r, actor.species);
 
-      if (visual.mode === "fish" && fishCount < PREY_BUDGET.max) {
-        const animation = resolvePreyAnimation({
-          seconds: clock.elapsedTime,
-          id: actor.id,
-          speed,
-          reducedMotion,
-        });
+      const animation = resolvePreyAnimation({
+        seconds: clock.elapsedTime,
+        id: actor.id,
+        speed,
+        reducedMotion,
+      });
+      if (visual.mode === "fish" && visual.shape !== "squid" && visual.shape !== "ray" && fishCount < PREY_BUDGET.max) {
         root.position.set(pose.x, pose.y + animation.wobbleY, pose.z);
         root.rotation.set(0, -pose.yaw, pose.pitch);
         root.scale.setScalar(preySizeVariation(actor.id));
@@ -161,7 +180,47 @@ export function PreyLayer({ socket, settings }: { socket: RoomSocket; settings: 
         body.setColorAt(fishCount, colorFor(visual.bodyColor));
         head.setColorAt(fishCount, colorFor(visual.headColor));
         tail.setColorAt(fishCount, colorFor(visual.tailColor));
+        if (visual.shape === "golden" && goldCount < 1) {
+          // The fish keeps its bright palette; separate light/sparkle batches stay rare.
+          setPartMatrix(goldHalo, goldCount, root.matrix, part, composed,
+            0, 0, 0, 0, 0, 0, visual.bodyLength * 1.3, visual.bodyHeight * 1.6, visual.bodyWidth * 1.6);
+          const spin = reducedMotion ? 0 : clock.elapsedTime * 0.9;
+          setPartMatrix(goldSparkle, goldCount, root.matrix, part, composed,
+            0, visual.bodyHeight + 0.48, 0, 0, 0, spin, 0.18, 0.32, 0.18);
+          goldCount += 1;
+        }
         fishCount += 1;
+      } else if (visual.shape === "squid" && squidCount < PREY_BUDGET.squid) {
+        root.position.set(pose.x, pose.y + animation.wobbleY, pose.z);
+        root.rotation.set(0, -pose.yaw, pose.pitch);
+        root.scale.setScalar(preySizeVariation(actor.id));
+        root.updateMatrix();
+        // Pointed mantle faces forward; four narrow tentacles trail behind it.
+        setPartMatrix(squidMantle, squidCount, root.matrix, part, composed,
+          0.2, 0, 0, 0, 0, -Math.PI / 2, 0.38, 0.98, 0.38);
+        for (let strand = 0; strand < 4; strand += 1) {
+          const around = strand * Math.PI / 2;
+          setPartMatrix(squidTentacles, squidCount * 4 + strand, root.matrix, part, composed,
+            -0.66, Math.sin(around) * 0.16, Math.cos(around) * 0.16,
+            0, 0, Math.PI / 2 + animation.tailYaw * 0.3, 0.055, 0.85, 0.055);
+        }
+        squidCount += 1;
+      } else if (visual.shape === "ray" && rayCount < 16) {
+        root.position.set(pose.x, pose.y + animation.wobbleY, pose.z);
+        root.rotation.set(0, -pose.yaw, pose.pitch);
+        root.scale.setScalar(preySizeVariation(actor.id));
+        root.updateMatrix();
+        setPartMatrix(rayBody, rayCount, root.matrix, part, composed,
+          0.07, 0, 0, 0, 0, 0, 0.74, 0.12, 0.56);
+        const flap = rayWingFlap(clock.elapsedTime, actor.id, reducedMotion);
+        for (let wing = 0; wing < 2; wing += 1) {
+          const sign = wing === 0 ? -1 : 1;
+          setPartMatrix(rayWings, rayCount * 2 + wing, root.matrix, part, composed,
+            0.03, 0, sign * 0.66, sign * flap, 0, 0, 0.58, 0.075, 0.83);
+        }
+        setPartMatrix(rayTail, rayCount, root.matrix, part, composed,
+          -0.98, 0, 0, 0, 0, Math.PI / 2, 0.055, 1.10, 0.055);
+        rayCount += 1;
       } else if (visual.mode === "drop" && dropCount < PREY_BUDGET.max) {
         drop.position.set(pose.x, pose.y, pose.z);
         drop.rotation.set(
@@ -179,6 +238,11 @@ export function PreyLayer({ socket, settings }: { socket: RoomSocket; settings: 
 
     commitInstances([body, head, tail, stripeOne, stripeTwo], fishCount);
     commitInstances([drops], dropCount);
+    commitInstances([squidMantle], squidCount);
+    commitInstances([squidTentacles], squidCount * 4);
+    commitInstances([rayBody, rayTail], rayCount);
+    commitInstances([rayWings], rayCount * 2);
+    commitInstances([goldHalo, goldSparkle], goldCount);
   });
 
   return (
@@ -202,6 +266,34 @@ export function PreyLayer({ socket, settings }: { socket: RoomSocket; settings: 
       <instancedMesh ref={stripeTwoMesh} args={[undefined, undefined, PREY_BUDGET.max]} frustumCulled={false}>
         <sphereGeometry args={[1, quality.radialSegments, quality.verticalSegments]} />
         <meshStandardMaterial roughness={0.72} emissive="#96aec6" emissiveIntensity={0.09} />
+      </instancedMesh>
+      <instancedMesh ref={squidMantleMesh} args={[undefined, undefined, PREY_BUDGET.squid]} frustumCulled={false}>
+        <coneGeometry args={[1, 2, quality.radialSegments]} />
+        <meshStandardMaterial color="#d9cee4" roughness={0.6} side={THREE.DoubleSide} />
+      </instancedMesh>
+      <instancedMesh ref={squidTentacleMesh} args={[undefined, undefined, PREY_BUDGET.squid * 4]} frustumCulled={false}>
+        <coneGeometry args={[1, 2, 3]} />
+        <meshStandardMaterial color="#aa81b7" roughness={0.7} side={THREE.DoubleSide} />
+      </instancedMesh>
+      <instancedMesh ref={rayBodyMesh} args={[undefined, undefined, 16]} frustumCulled={false}>
+        <sphereGeometry args={[1, quality.radialSegments, quality.verticalSegments]} />
+        <meshStandardMaterial color="#487c8c" roughness={0.8} side={THREE.DoubleSide} />
+      </instancedMesh>
+      <instancedMesh ref={rayWingMesh} args={[undefined, undefined, 32]} frustumCulled={false}>
+        <sphereGeometry args={[1, quality.radialSegments, quality.verticalSegments]} />
+        <meshStandardMaterial color="#487c8c" roughness={0.8} side={THREE.DoubleSide} />
+      </instancedMesh>
+      <instancedMesh ref={rayTailMesh} args={[undefined, undefined, 16]} frustumCulled={false}>
+        <coneGeometry args={[1, 2, 3]} />
+        <meshStandardMaterial color="#365968" roughness={0.82} side={THREE.DoubleSide} />
+      </instancedMesh>
+      <instancedMesh ref={goldHaloMesh} args={[undefined, undefined, 1]} frustumCulled={false}>
+        <sphereGeometry args={[1, quality.radialSegments, quality.verticalSegments]} />
+        <meshBasicMaterial color="#ffd54d" transparent opacity={0.28} depthWrite={false} toneMapped={false} />
+      </instancedMesh>
+      <instancedMesh ref={goldSparkleMesh} args={[undefined, undefined, 1]} frustumCulled={false}>
+        <octahedronGeometry args={[1, 0]} />
+        <meshBasicMaterial color="#fff3b3" transparent opacity={0.94} depthWrite={false} toneMapped={false} />
       </instancedMesh>
       <instancedMesh ref={dropMesh} args={[undefined, undefined, PREY_BUDGET.max]} frustumCulled={false}>
         <dodecahedronGeometry args={[1, 0]} />

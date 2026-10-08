@@ -600,3 +600,7 @@ body {
 .game-screen--portrait .hud-card__label{font-size:.6rem}
 .game-screen--portrait .hud-card__value{font-size:1.05rem}
 .game-screen--portrait .hud-card__sub{font-size:.7rem}
+
+/* Golden-fish proximity cue is semantic DOM, not a WebGL label or audio-only notification. */
+.game-golden-caption{position:absolute;z-index:12;bottom:calc(138px + var(--safe-b));left:50%;transform:translateX(-50%);pointer-events:none;max-width:calc(100% - 24px);padding:6px 14px;border:2px solid #fff2a3;border-radius:999px;background:rgba(20,14,3,.94);color:#fff5bd;font-weight:800;white-space:nowrap;box-shadow:0 2px 18px rgba(20,14,3,.5)}
+:root[data-contrast="high"] .game-golden-caption{border-color:currentColor;background:#000;color:#fff}

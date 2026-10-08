@@ -568,3 +568,59 @@ describe("ST-264 protocol-12 species looks", () => {
     expect(renderer).not.toContain("setState(");
   });
 });
+
+describe("ST-267 premium species presentation", () => {
+  it("maps all four reserved protocol-12 species to legible premium silhouettes", () => {
+    const rows = [
+      ["tuna", 5, 1.05, 12],
+      ["squid", 4, 0.65, 13],
+      ["ray", 8, 1.3, 14],
+      ["golden", 12, 0.72, 15],
+    ] as const;
+    for (const [kind, points, radius, code] of rows) {
+      const visual = preyVisualFor(kind, points, radius, PREY_SPECIES[code]);
+      expect(visual.mode).toBe("fish");
+      expect(visual.shape).toBe(kind);
+      expect(visual.bodyColor).toMatch(/^#[0-9a-f]{6}$/);
+      const decoded = decodePrey(["abc", code, 0, 0, 0, 0, 0]);
+      expect(preyVisualFor(decoded.kind, decoded.value, decoded.r, decoded.species).shape).toBe(kind);
+    }
+    const tuna = preyVisualFor("tuna", 5, 1.05);
+    const squid = preyVisualFor("squid", 4, 0.65);
+    const ray = preyVisualFor("ray", 8, 1.3);
+    const gold = preyVisualFor("golden", 12, 0.72);
+    expect(tuna.bodyLength / tuna.bodyHeight).toBeGreaterThan(6);
+    expect(squid.bodyWidth).toBeGreaterThan(0.3);
+    expect(ray.bodyWidth / ray.bodyHeight).toBeGreaterThan(8);
+    expect(gold.bodyColor).toBe("#ffd342");
+    expect(new Set([tuna.bodyColor, squid.bodyColor, ray.bodyColor, gold.bodyColor]).size).toBe(4);
+  });
+
+  it("animates ray wings cosmetically and shows golden proximity only to a living nearby viewer", async () => {
+    const { rayWingFlap, goldenFishNearby } = await import("../src/game/game/preyPresentation.js");
+    const rayPhase = rayWingFlap(12, "ray-1", false);
+    expect(Math.abs(rayPhase)).toBeLessThanOrEqual(0.25);
+    expect(rayWingFlap(12, "ray-1", true)).toBe(0);
+    expect(rayWingFlap(12, "ray-1", false)).toBe(rayPhase);
+    const fish = [{ kind: "golden", x: 18, y: 0, z: 0 }, { kind: "tuna", x: 0, y: 0, z: 0 }] as const;
+    expect(goldenFishNearby(fish, { x: 0, y: 0, z: 0 })).toBe(true);
+    expect(goldenFishNearby(fish, { x: -0.01, y: 0, z: 0 })).toBe(false);
+    expect(goldenFishNearby(fish, null)).toBe(false);
+    expect(goldenFishNearby([{ kind: "tuna", x: 0, y: 0, z: 0 }], { x: 0, y: 0, z: 0 })).toBe(false);
+  });
+
+  it("keeps all models in bounded instanced batches with no gameplay/transport work", () => {
+    const renderer = read("../src/game/game/PreyLayer.tsx");
+    expect((renderer.match(/<instancedMesh\b/g) ?? []).length).toBeLessThanOrEqual(13);
+    for (const part of ["squidMantleMesh", "squidTentacleMesh", "rayBodyMesh", "rayWingMesh",
+      "rayTailMesh", "goldHaloMesh", "goldSparkleMesh"]) {
+      expect(renderer).toContain(`ref={${part}}`);
+      expect(renderer).toContain("commitInstances(");
+    }
+    expect(renderer).toContain("PREY_BUDGET.squid * 4");
+    expect(renderer).toContain("rayWingFlap(clock.elapsedTime, actor.id, reducedMotion)");
+    expect(renderer).toContain("const spin = reducedMotion ? 0 :");
+    expect(renderer).not.toContain("new THREE.Mesh(");
+    expect(renderer).not.toContain("setState(");
+  });
+});

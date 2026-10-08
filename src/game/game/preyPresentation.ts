@@ -43,7 +43,18 @@ export const SCHOOL_LOOKS: Record<SchoolSpecies, SchoolLook> = {
   parrotfish:  { bodyLength: 0.96, bodyHeight: 0.32, bodyWidth: 0.38, headScale: 0.36, tailScale: 0.41, bodyColor: "#3cc6aa", headColor: "#ff8eb4", tailColor: "#2897c3", stripeColor: "#ef72ae", stripeCount: 2 },
 };
 
+type PremiumKind = Extract<PreyKind, "tuna" | "squid" | "ray" | "golden">;
+
+/** Silhouettes remain stable across quality presets, using protocol-12 species codes 12–15. */
+export const PREMIUM_LOOKS: Record<PremiumKind, SchoolLook> = {
+  tuna: { bodyLength: 1.48, bodyHeight: 0.25, bodyWidth: 0.27, headScale: 0.27, tailScale: 0.46, bodyColor: "#769cb4", headColor: "#bfd9e2", tailColor: "#315d7f", stripeColor: "#d7e8ee", stripeCount: 0 },
+  squid: { bodyLength: 0.96, bodyHeight: 0.34, bodyWidth: 0.32, headScale: 0.22, tailScale: 0.64, bodyColor: "#d9cee4", headColor: "#f5e6ed", tailColor: "#aa81b7", stripeColor: "#fcf1ef", stripeCount: 0 },
+  ray: { bodyLength: 0.72, bodyHeight: 0.12, bodyWidth: 1.18, headScale: 0.22, tailScale: 0.76, bodyColor: "#487c8c", headColor: "#9fb9ab", tailColor: "#365968", stripeColor: "#b6d5cc", stripeCount: 0 },
+  golden: { bodyLength: 0.92, bodyHeight: 0.32, bodyWidth: 0.34, headScale: 0.29, tailScale: 0.44, bodyColor: "#ffd342", headColor: "#fff2a3", tailColor: "#f6a51d", stripeColor: "#fff5bc", stripeCount: 0 },
+};
+
 export interface PreyVisualProfile {
+  shape: "school" | PremiumKind | "drop";
   mode: "fish" | "drop";
   bodyLength: number;
   bodyHeight: number;
@@ -64,9 +75,12 @@ export function preyVisualFor(kind: PreyKind, value: number, radius: number, spe
     // Fallback protects legacy/test fixtures without changing the wire or authoritative school.
     const key = species && Object.prototype.hasOwnProperty.call(SCHOOL_LOOKS, species)
       ? species as SchoolSpecies : kind === "bait" || kind === "tuna" ? "sardine" : kind === "squid" ? "anchovy" : kind === "golden" ? "yellow-tang" : kind === "ray" ? "blue-tang" : "clownfish";
-    const style = SCHOOL_LOOKS[key];
+    const premium: PremiumKind | null =
+      kind === "tuna" || kind === "squid" || kind === "ray" || kind === "golden" ? kind : null;
+    const style = premium ? PREMIUM_LOOKS[premium] : SCHOOL_LOOKS[key];
     return {
       mode: "fish",
+      shape: premium ?? "school",
       bodyLength: style.bodyLength * rewardScale,
       bodyHeight: style.bodyHeight,
       bodyWidth: style.bodyWidth,
@@ -83,6 +97,7 @@ export function preyVisualFor(kind: PreyKind, value: number, radius: number, spe
   const color = kind === "chum" ? "#ff9b54" : "#d88b64";
   return {
     mode: "drop",
+    shape: "drop",
     bodyLength: 0,
     bodyHeight: 0,
     bodyWidth: 0,
@@ -131,4 +146,19 @@ export function resolvePreyAnimation({
     tailYaw: Math.sin(phase + 0.65) * amplitude,
     wobbleY: Math.sin(phase * 0.37) * 0.14,
   };
+}
+
+/** Ray fins flap around the forward axis; Reduced motion retains the broad static silhouette. */
+export function rayWingFlap(seconds: number, id: string, reducedMotion: boolean): number {
+  return reducedMotion ? 0 : Math.sin(seconds * 3.4 + (hash(id) % 6283) / 1000) * 0.25;
+}
+
+/** Cosmetic 18-unit proximity gate; neither distance nor caption changes gameplay truth. */
+export function goldenFishNearby(
+  food: readonly Pick<NetPrey, "kind" | "x" | "y" | "z">[],
+  origin: { x: number; y: number; z: number } | null | undefined,
+): boolean {
+  if (!origin) return false;
+  return food.some((actor) => actor.kind === "golden" &&
+    (actor.x - origin.x) ** 2 + (actor.y - origin.y) ** 2 + (actor.z - origin.z) ** 2 <= 18 ** 2);
 }

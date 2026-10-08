@@ -247,3 +247,16 @@ describe("ST-264 species motion accessibility", () => {
     expect(layer).toContain("animation.wobbleY");
   });
 });
+
+it("ST-267 shows a bounded nearby-gold semantic caption and retains reduced-motion cues", () => {
+  expect(gameScreen).toContain("<GoldenFishCaption socket={socket} />");
+  expect(captions).toContain('role="status" aria-live="polite"');
+  expect(captions).toContain("goldenFishNearby(state.food, self?.position)");
+  expect(captions).toContain("setInterval(update, 250)");
+  expect(captions).toContain("Golden fish nearby · 12 points");
+  expect(theme).toContain(".game-golden-caption");
+  expect(theme).toContain(':root[data-contrast="high"] .game-golden-caption');
+  const preyRenderer = read("../src/game/game/PreyLayer.tsx");
+  expect(preyRenderer).toContain("rayWingFlap(clock.elapsedTime, actor.id, reducedMotion)");
+  expect(preyRenderer).toContain("const spin = reducedMotion ? 0 :");
+});
