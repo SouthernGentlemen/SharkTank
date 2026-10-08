@@ -3,9 +3,11 @@ import { useMemo, useRef } from "react";
 import * as THREE from "three";
 import type { RoomSocket } from "../net/useRoomSocket.js";
 import type { Settings } from "../settings/SettingsContext.js";
-import { frenzyVolumeFor } from "../../engine/index.js";
+import { frenzyVolumeFor, REEF_SITES, reefSitesFor } from "../../engine/index.js";
 import {
+  CORAL_KINDS,
   ENVIRONMENT_LANDMARKS,
+  makeCoralPlacements,
   makeEnvironmentSeeds,
   resolveOceanArenaCues,
   resolveOceanEnvironmentQuality,
@@ -25,6 +27,9 @@ const PARTICULATE = "#9ee7dd";
 const BUBBLE = "#c8fbff";
 const REEF = "#245d58";
 const REEF_ACCENT = "#3e8d76";
+const REEF_PLATE = "#527b68";
+const REEF_FAN = "#7d607b";
+const REEF_TUBE = "#477a80";
 const WRECK = "#704f42";
 const WRECK_ACCENT = "#c07c57";
 const FRENZY = "#ffb347";
@@ -50,27 +55,6 @@ function placeRadial(
     y,
     Math.sin(angle) * radius * radialShare,
   );
-}
-
-function setPartMatrix(
-  mesh: THREE.InstancedMesh,
-  index: number,
-  root: THREE.Object3D,
-  part: THREE.Object3D,
-  composed: THREE.Matrix4,
-  x: number,
-  y: number,
-  z: number,
-  rotationX: number,
-  rotationY: number,
-  rotationZ: number,
-): void {
-  part.position.set(x, y, z);
-  part.rotation.set(rotationX, rotationY, rotationZ);
-  part.scale.set(1, 1, 1);
-  part.updateMatrix();
-  composed.multiplyMatrices(root.matrix, part.matrix);
-  mesh.setMatrixAt(index, composed);
 }
 
 function WreckLandmark() {
@@ -125,6 +109,8 @@ export function WorldEnvironment({ socket, settings }: { socket: RoomSocket; set
   const reefBaseRef = useRef<THREE.InstancedMesh>(null);
   const reefSpireRef = useRef<THREE.InstancedMesh>(null);
   const reefRockRef = useRef<THREE.InstancedMesh>(null);
+  const reefFanRef = useRef<THREE.InstancedMesh>(null);
+  const reefTubeRef = useRef<THREE.InstancedMesh>(null);
   const wreckRef = useRef<THREE.Group>(null);
   const frenzyGroupRef = useRef<THREE.Group>(null);
   const frenzyBeamRef = useRef<THREE.Mesh>(null);
@@ -133,9 +119,6 @@ export function WorldEnvironment({ socket, settings }: { socket: RoomSocket; set
   const particulateRef = useRef<THREE.InstancedMesh>(null);
   const bubbleRef = useRef<THREE.InstancedMesh>(null);
   const dummy = useMemo(() => new THREE.Object3D(), []);
-  const reefRoot = useMemo(() => new THREE.Object3D(), []);
-  const reefPart = useMemo(() => new THREE.Object3D(), []);
-  const reefComposed = useMemo(() => new THREE.Matrix4(), []);
   const boundaryColor = useMemo(() => new THREE.Color(), []);
   const boundarySafeColor = useMemo(() => new THREE.Color(BOUNDARY), []);
   const boundaryDangerColor = useMemo(() => new THREE.Color(BOUNDARY_DANGER), []);
@@ -147,14 +130,11 @@ export function WorldEnvironment({ socket, settings }: { socket: RoomSocket; set
     () => makeEnvironmentSeeds(environmentQuality.bubbleBudget, 7118),
     [environmentQuality.bubbleBudget],
   );
-  const reefs = useMemo(
-    () => ENVIRONMENT_LANDMARKS.filter((landmark) => landmark.kind === "reef"),
-    [],
-  );
   const wreck = useMemo(
     () => ENVIRONMENT_LANDMARKS.find((landmark) => landmark.kind === "wreck"),
     [],
   );
+  const maxCoralPerKind = REEF_SITES.length * environmentQuality.coralPerKindPerSite;
   const performanceProfile = resolveClientPerformanceProfile(settings.graphics.quality);
   const lastEnvironmentPassAt = useRef(-Infinity);
   const arenaDimensionsRef = useRef({ radius: Number.NaN, seabedY: Number.NaN, surfaceY: Number.NaN });
@@ -241,29 +221,32 @@ export function WorldEnvironment({ socket, settings }: { socket: RoomSocket; set
         boundaryMarkers.instanceMatrix.needsUpdate = true;
       }
 
-      const reefBase = reefBaseRef.current;
-      const reefSpire = reefSpireRef.current;
-      const reefRock = reefRockRef.current;
-      if (reefBase && reefSpire && reefRock) {
-        for (let index = 0; index < reefs.length; index += 1) {
-          const landmark = reefs[index];
-          const scale = Math.max(0.8, Math.min(1.5, cues.radius / 82));
-          reefRoot.position.set(
-            Math.cos(landmark.angle) * cues.radius * landmark.radialShare,
-            cues.seabedY + 0.1,
-            Math.sin(landmark.angle) * cues.radius * landmark.radialShare,
-          );
-          reefRoot.rotation.set(0, 0, 0);
-          reefRoot.scale.setScalar(scale);
-          reefRoot.updateMatrix();
-          setPartMatrix(reefBase, index, reefRoot, reefPart, reefComposed, -2.6, 1.6, -1.2, 0.1, 0.2, -0.08);
-          setPartMatrix(reefSpire, index, reefRoot, reefPart, reefComposed, 1.7, 2.6, 0.5, 0.15, -0.5, 0.05);
-          setPartMatrix(reefRock, index, reefRoot, reefPart, reefComposed, 3.9, 1.2, -1.3, 0.35, 0.4, 0.2);
+      const coralMeshes = [
+        reefBaseRef.current,
+        reefSpireRef.current,
+        reefRockRef.current,
+        reefFanRef.current,
+        reefTubeRef.current,
+      ];
+      const placements = makeCoralPlacements(
+        reefSitesFor({ radius: cues.radius, seabedY: cues.seabedY, surfaceY: cues.surfaceY }),
+        environmentQuality.coralPerKindPerSite,
+      );
+      for (let kindIndex = 0; kindIndex < CORAL_KINDS.length; kindIndex += 1) {
+        const mesh = coralMeshes[kindIndex];
+        if (!mesh) continue;
+        let count = 0;
+        for (const piece of placements) {
+          if (piece.kind !== CORAL_KINDS[kindIndex]) continue;
+          dummy.position.set(piece.position.x, piece.position.y, piece.position.z);
+          dummy.rotation.set(0, piece.rotationY, 0);
+          dummy.scale.setScalar(piece.scale);
+          dummy.updateMatrix();
+          mesh.setMatrixAt(count, dummy.matrix);
+          count += 1;
         }
-        for (const mesh of [reefBase, reefSpire, reefRock]) {
-          mesh.count = reefs.length;
-          mesh.instanceMatrix.needsUpdate = true;
-        }
+        mesh.count = count;
+        mesh.instanceMatrix.needsUpdate = true;
       }
 
       if (wreck) {
@@ -448,17 +431,25 @@ export function WorldEnvironment({ socket, settings }: { socket: RoomSocket; set
         <meshBasicMaterial color={BOUNDARY} transparent opacity={0.34} />
       </instancedMesh>
 
-      <instancedMesh ref={reefBaseRef} args={[undefined, undefined, reefs.length]} frustumCulled={false}>
-        <dodecahedronGeometry args={[3.5, 0]} />
+      <instancedMesh ref={reefBaseRef} args={[undefined, undefined, maxCoralPerKind]} frustumCulled={false}>
+        <dodecahedronGeometry args={[1.55, 1]} />
         <meshStandardMaterial color={REEF} roughness={0.92} metalness={0} />
       </instancedMesh>
-      <instancedMesh ref={reefSpireRef} args={[undefined, undefined, reefs.length]} frustumCulled={false}>
-        <coneGeometry args={[2.6, 6.5, 7]} />
+      <instancedMesh ref={reefSpireRef} args={[undefined, undefined, maxCoralPerKind]} frustumCulled={false}>
+        <coneGeometry args={[0.78, 3.5, 5]} />
         <meshStandardMaterial color={REEF_ACCENT} roughness={0.9} metalness={0} />
       </instancedMesh>
-      <instancedMesh ref={reefRockRef} args={[undefined, undefined, reefs.length]} frustumCulled={false}>
-        <dodecahedronGeometry args={[2.2, 0]} />
-        <meshStandardMaterial color={REEF} roughness={1} metalness={0} />
+      <instancedMesh ref={reefRockRef} args={[undefined, undefined, maxCoralPerKind]} frustumCulled={false}>
+        <cylinderGeometry args={[2.4, 1.8, 0.65, 10]} />
+        <meshStandardMaterial color={REEF_PLATE} roughness={0.96} metalness={0} />
+      </instancedMesh>
+      <instancedMesh ref={reefFanRef} args={[undefined, undefined, maxCoralPerKind]} frustumCulled={false}>
+        <circleGeometry args={[2.2, 10, 0, Math.PI]} />
+        <meshStandardMaterial color={REEF_FAN} side={THREE.DoubleSide} roughness={0.94} metalness={0} />
+      </instancedMesh>
+      <instancedMesh ref={reefTubeRef} args={[undefined, undefined, maxCoralPerKind]} frustumCulled={false}>
+        <cylinderGeometry args={[0.65, 0.78, 2.8, 10, 1, true]} />
+        <meshStandardMaterial color={REEF_TUBE} side={THREE.DoubleSide} roughness={0.93} metalness={0} />
       </instancedMesh>
 
       {wreck && (
