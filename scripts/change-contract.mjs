@@ -29,6 +29,13 @@ export const IMMUTABLE_HISTORY_BODY_EXCEPTIONS = Object.freeze(new Map([
     missingProvenance: true,
     reason: "The protected ST-125 PR head carried the complete structured body and passed exact-head CI, but the published GitHub squash merge body was shortened and omitted required history metadata. Published main is immutable, so only this exact commit and known body defect are accepted.",
   })],
+  ["e3ac270d86a31e4bec1c781f4b37827a4c42dfb4", Object.freeze({
+    id: "ST-267",
+    subject: "[ST-267] [FEAT] Model tuna, squid, rays and the golden fish",
+    missingHeadings: Object.freeze(["Change", "Reason", "Impact", "Risk", "Controls", "Validation", "Evidence"]),
+    missingProvenance: false,
+    reason: "Protected ST-267 exact-head CI passed with structured metadata, but GitHub published the seven headings as inline squash-body fields. Source provenance remains present. Only this immutable squash SHA and its precise formatting defect are accepted; current validation stays strict.",
+  })],
 ]));
 
 // ST-225 reassigned the then-open ST-150..ST-220 queue entries to ST-226..ST-296

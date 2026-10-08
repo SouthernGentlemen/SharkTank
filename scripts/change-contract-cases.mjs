@@ -67,6 +67,27 @@ function immutableSt125Record(overrides = {}) {
   };
 }
 
+function immutableSt267Record(overrides = {}) {
+  return {
+    sha: "e3ac270d86a31e4bec1c781f4b37827a4c42dfb4",
+    subject: "[ST-267] [FEAT] Model tuna, squid, rays and the golden fish",
+    body: [
+      "Change: Add premium protocol-12 instanced prey presentation.",
+      "Reason: Make the new prey legible at a glance.",
+      "Impact: Bounded instanced batches; protocol 12 unchanged.",
+      "Risk: Device readability must be verified at the release checkpoint.",
+      "Controls: Protected exact-head squash; no deployment.",
+      "Validation: Exact-head CI passed; post-merge CI required.",
+      "Evidence: PR #191, CI #514.",
+      "Source: AGENTS.md, implementation_plan.md, docs/PRODUCT-ACCEPTANCE.md.",
+      "Release: Unreleased.",
+    ].join("\n"),
+    authorName: "WizardGangAI",
+    authorEmail: "jacob@wizardgang.ai",
+    ...overrides,
+  };
+}
+
 function controlledContext(overrides = {}) {
   return {
     eventName: "pull_request",
@@ -263,7 +284,7 @@ test("the known immutable ST-116 squash-body defect is accepted only as recorded
   const result = validateHistoryRecords(records);
   assert.deepEqual(result.failures, []);
   assert.equal(result.lastId, "ST-116");
-  assert.equal(IMMUTABLE_HISTORY_BODY_EXCEPTIONS.size, 2);
+  assert.equal(IMMUTABLE_HISTORY_BODY_EXCEPTIONS.size, 3);
 });
 
 test("the ST-116 exception is bound to its exact immutable commit SHA", () => {
@@ -288,7 +309,7 @@ test("the known immutable ST-125 squash-body defect is accepted only as recorded
   const result = validateHistoryRecords(records);
   assert.deepEqual(result.failures, []);
   assert.equal(result.lastId, "ST-125");
-  assert.equal(IMMUTABLE_HISTORY_BODY_EXCEPTIONS.size, 2);
+  assert.equal(IMMUTABLE_HISTORY_BODY_EXCEPTIONS.size, 3);
 });
 
 test("the ST-125 exception is bound to its exact immutable commit SHA", () => {
@@ -330,4 +351,80 @@ test("early maintenance does not consume or reorder the next product ID", () => 
   const afterProduct = validateHistoryRecords(records);
   assert.deepEqual(afterProduct.failures, []);
   assert.equal(afterProduct.lastId, "ST-117");
+});
+
+test("only the exact immutable ST-267 inline-heading squash defect is accepted", () => {
+  const records = Array.from({ length: 266 }, (_, index) => controlledRecord(index + 1));
+  records.push(immutableSt267Record());
+  const result = validateHistoryRecords(records);
+  assert.deepEqual(result.failures, []);
+  assert.equal(result.lastId, "ST-267");
+  const exception = IMMUTABLE_HISTORY_BODY_EXCEPTIONS.get("e3ac270d86a31e4bec1c781f4b37827a4c42dfb4");
+  assert.deepEqual(exception.missingHeadings, ["Change", "Reason", "Impact", "Risk", "Controls", "Validation", "Evidence"]);
+  assert.equal(exception.missingProvenance, false);
+  assert.equal(IMMUTABLE_HISTORY_BODY_EXCEPTIONS.size, 3);
+});
+
+test("ST-267 exception rejects the same malformed body on any other SHA", () => {
+  const records = Array.from({ length: 266 }, (_, index) => controlledRecord(index + 1));
+  records.push(immutableSt267Record({ sha: "f".repeat(40) }));
+  const failures = validateHistoryRecords(records).failures.join("\n");
+  for (const heading of ["Change", "Reason", "Impact", "Risk", "Controls", "Validation", "Evidence"]) {
+    assert.match(failures, new RegExp(`missing ${heading}: heading`));
+  }
+});
+
+test("ST-267 exception rejects a changed subject even with the exact SHA", () => {
+  const records = Array.from({ length: 266 }, (_, index) => controlledRecord(index + 1));
+  records.push(immutableSt267Record({
+    subject: "[ST-267] [FEAT] Different prey presentation subject",
+  }));
+  assert.match(validateHistoryRecords(records).failures.join("\n"), /missing Change: heading/);
+});
+
+test("ST-267 exception rejects a different formatting-defect fingerprint", () => {
+  const records = Array.from({ length: 266 }, (_, index) => controlledRecord(index + 1));
+  records.push(immutableSt267Record({
+    body: [
+      "Change:\nMultiline now",
+      "Reason: Inline",
+      "Impact: Inline",
+      "Risk: Inline",
+      "Controls: Inline",
+      "Validation: Inline",
+      "Evidence: Inline",
+      "Source: Preserved",
+    ].join("\n"),
+  }));
+  assert.match(validateHistoryRecords(records).failures.join("\n"), /missing Reason: heading/);
+});
+
+test("ST-267 exception rejects missing provenance even for the exact SHA and subject", () => {
+  const records = Array.from({ length: 266 }, (_, index) => controlledRecord(index + 1));
+  records.push(immutableSt267Record({
+    body: immutableSt267Record().body.replace(/^Source:.*\n/m, ""),
+  }));
+  assert.match(validateHistoryRecords(records).failures.join("\n"), /missing Notes: or Source: provenance field/);
+});
+
+test("ST-267 exception never excuses malformed later controlled history", () => {
+  const records = Array.from({ length: 266 }, (_, index) => controlledRecord(index + 1));
+  records.push(immutableSt267Record());
+  records.push({ ...controlledRecord(268), body: "Change: Still inline\nSource: present" });
+  const failures = validateHistoryRecords(records).failures.join("\n");
+  assert.match(failures, /missing Change: heading/);
+  assert.match(failures, /missing Evidence: heading/);
+});
+
+test("early ST-298 recovery preserves the reserved ST-268 queue identity", () => {
+  const records = Array.from({ length: 266 }, (_, index) => controlledRecord(index + 1));
+  records.push(immutableSt267Record());
+  records.push(maintenanceRecord(298));
+  const recovery = validateHistoryRecords(records);
+  assert.deepEqual(recovery.failures, []);
+  assert.equal(recovery.lastId, "ST-267");
+  records.push(controlledRecord(268));
+  const afterNextTask = validateHistoryRecords(records);
+  assert.deepEqual(afterNextTask.failures, []);
+  assert.equal(afterNextTask.lastId, "ST-268");
 });
