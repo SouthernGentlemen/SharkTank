@@ -14,6 +14,8 @@ Local prediction, remote interpolation and graphics quality are presentation pat
 
 In-memory engine schema 11 and realtime protocol 12 remain current.
 
+Premium protocol-12 prey now render as four distinct silhouettes: long silver-blue tuna, pointed squid mantles with four trailing tentacles, broad flat rays with cosmetic wing flaps, and an emissive golden fish with a small sparkle. Shapes are instanced in bounded batches; Reduced motion freezes the fin flap and sparkle rotation. A semantic 18-unit proximity caption ("Golden fish nearby · 12 points") appears independently of sound settings. All motion, scoring, species codes and the 14,000-byte snapshot cap remain authoritative and unchanged.
+
 ## Manual acceptance
 
 The repository does not currently include a real-browser automation harness. Automated tests do not replace real browser, device or assistive-technology checks. On the exact candidate commit, verify:

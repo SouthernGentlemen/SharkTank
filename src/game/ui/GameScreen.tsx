@@ -31,7 +31,7 @@ import { QuickA11y } from "./QuickA11y.js";
 import { HelpOverlay } from "./HelpOverlay.js";
 import { PauseMenu } from "./PauseMenu.js";
 import { SharkLabels } from "./SharkLabels.js";
-import { Captions } from "./Captions.js";
+import { Captions, GoldenFishCaption } from "./Captions.js";
 import { TouchControls, useTouchControls, useTouchPortraitLayout } from "./TouchControls.js";
 
 export interface GameScreenProps {
@@ -130,6 +130,7 @@ export function GameScreen({ room, identity, onAuthoritativeResult, onQuit }: Ga
       </div>
       {touch && <TouchControls inputRef={touchInputRef} flightSide={stickSide} scheme={settings.controls.touchScheme} enabled={gameplayEnabled} portrait={portrait} />}
       {settings.audio.captions && <Captions caption={caption} />}
+      <GoldenFishCaption socket={socket} />
 
       {roundUi?.phase === "result" && dismissedResultRound !== roundUi.number && !dialogOpen && !connectionBlocked && (
         <RoundResult

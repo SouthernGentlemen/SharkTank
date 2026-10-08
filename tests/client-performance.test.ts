@@ -124,6 +124,10 @@ describe("ST-127 3D client performance contracts", () => {
     expect(world).not.toContain("castShadow");
     expect(prey).toContain("THREE.InstancedMesh");
     expect(prey).toContain("PREY_BUDGET.max");
+    expect((prey.match(/<instancedMesh\b/g) ?? []).length).toBeLessThanOrEqual(13);
+    expect(prey).toContain("commitInstances([rayWings], rayCount * 2)");
+    expect(prey).toContain("commitInstances([squidTentacles], squidCount * 4)");
+    expect(prey).toContain("commitInstances([goldHalo, goldSparkle], goldCount)");
   });
 
   it("keeps full authoritative actor counts while measuring snapshot bytes and message rate", () => {

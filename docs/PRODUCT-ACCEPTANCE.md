@@ -30,6 +30,8 @@ Protocol 12 tests require a 32-shark session with visible prey from 480 ambient 
 
 The local HTTP gate checks the root redirect, `/play/`, `/version.json`, static assets, shared 404 handling and a Room WebSocket hello/welcome exchange.
 
+ST-267 adds distinct batched tuna, squid, ray and golden-fish silhouettes with a rare golden sparkle. The DOM displays a high-contrast, polite golden-fish proximity caption within 18 units even when audio captions are off. Reduced motion holds ray wings and sparkle still. Verify silhouettes, contrast and caption on desktop and phone when performing the ST-268 release acceptance; automated shape, draw-batch and accessibility tests do not substitute for those observations.
+
 ## Real-browser desktop acceptance
 
 Run `npm run dev -- --no-open` and open `/play/` in a hardware-accelerated desktop browser.
@@ -127,5 +129,5 @@ Reef fish (ST-263): verify clownfish-era reef prey school near the eight coral s
 
 School species (ST-264): on Low and High quality check sardine, anchovy and silverside in open water and clownfish, blue tang, yellow tang, angelfish and parrotfish at reefs. Verify colours, contrasting stripes and proportions distinguish each; ±15% individual size and slight emissive remain visible through fog. Switch Reduced motion and confirm no fish wobble, while positions and feeding still match the server. Automated species mapping, motion and 14,000-byte snapshot gates remain required; real-browser visual check is NOT RUN.
 
-Tuna and rays (ST-265): confirm two groups of five fast, strongly fleeing tuna in open midwater and a solo slow-gliding, short-flee ray near each reef just above the floor. Server-owned values are five and eight respectively; bots prioritize them by value. Deterministic school, movement, flee, replenishment and protocol-12 tests retain the 14,000-byte snapshot cap. Dedicated silhouettes are deferred to ST-267; real-browser species visual check is NOT RUN.
-Squid and golden fish (ST-266): verify twelve value-4 mid-water squid dart briefly when approached, and a maximum of one value-12 golden fish on round-relative 30-second windows that expires after 60 seconds. Deterministic dart/schedule/expiry/replay tests cover the protocol-12 reserved codes and unchanged snapshot limit. Dedicated models are ST-267; real-browser visual chase check is NOT RUN.
+Tuna and rays (ST-265): confirm two groups of five fast, strongly fleeing tuna in open midwater and a solo slow-gliding, short-flee ray near each reef just above the floor. Server-owned values are five and eight respectively; bots prioritize them by value. Deterministic school, movement, flee, replenishment and protocol-12 tests retain the 14,000-byte snapshot cap. Dedicated silhouettes are implemented in ST-267; real-browser species visual check remains NOT RUN.
+Squid and golden fish (ST-266): verify twelve value-4 mid-water squid dart briefly when approached, and a maximum of one value-12 golden fish on round-relative 30-second windows that expires after 60 seconds. Deterministic dart/schedule/expiry/replay tests cover the protocol-12 reserved codes and unchanged snapshot limit. Dedicated models are implemented in ST-267; real-browser visual chase check remains NOT RUN.
