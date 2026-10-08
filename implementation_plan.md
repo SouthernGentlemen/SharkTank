@@ -107,16 +107,6 @@ Tasks follow these defaults unless the owner changes them before the task starts
 
 ## Open tasks
 
-### ST-268 — [OPS] Release the bigger ocean update as v2.4.0
-
-**Goal:** Ship ST-260 through ST-267.
-
-**Scope:** Semantic minor release after the owner records the manual rows for the bigger ocean, reefs, species readability and frame budgets on a real phone.
-
-**Acceptance:** `v2.4.0` is live. Protected approval is honored; stop and report if it is pending.
-
----
-
 ### ST-269 — [FEAT] Grow through five named tiers within a round
 
 **Goal:** Growth is invisible and has no milestones.
