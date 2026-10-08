@@ -7,6 +7,9 @@ import {
   ROOM_SCHEMA_VERSION,
   applyAction,
   createRoom,
+  reefSitesFor,
+  rotateYawToward,
+  yawPitchToward,
   step,
   type Prey,
   type Shark,
@@ -227,6 +230,69 @@ describe("ST-120 authoritative fish and prey schools", () => {
   });
 });
 
+
+
+describe("ST-263 reef-school homes", () => {
+  it("spawns reef schools inside their stable coral sites while bait still roams the open ocean", () => {
+    const room = createRoom({ seed: "reef-school-homes" });
+    const homes = reefSitesFor(room.ocean);
+    const reef = room.food.filter((actor) => actor.kind === "reef");
+    const bait = room.food.filter((actor) => actor.kind === "bait");
+    expect(reef.length).toBeGreaterThan(50);
+    expect(bait.length).toBeGreaterThan(250);
+    expect(new Set(reef.map((actor) => actor.school % homes.length)).size).toBe(homes.length);
+    const siteCounts = homes.map((_, site) =>
+      reef.filter((actor) => actor.school % homes.length === site).length);
+    expect(Math.max(...siteCounts) - Math.min(...siteCounts)).toBeLessThanOrEqual(1);
+    for (const actor of reef) {
+      const home = homes[actor.school % homes.length];
+      expect(Math.hypot(actor.x - home.position.x, actor.z - home.position.z))
+        .toBeLessThanOrEqual(home.radius * 0.65 + 1e-9);
+      expect(actor.y).toBeGreaterThanOrEqual(room.ocean.seabedY + 2);
+    }
+    expect(bait.some((actor) => Math.hypot(actor.x, actor.z) > room.ocean.radius * 0.9)).toBe(true);
+    const small = createRoom({ seed: "tiny-reef-fixture", oceanRadius: 8, seabedY: -2, surfaceY: 2 });
+    expect(small.food.every((actor) => actor.kind === "bait")).toBe(true);
+  });
+
+  it("keeps reef schools circling their home across long seeded simulations", () => {
+    const first = createRoom({ seed: "orbit-reef-schools" });
+    const second = createRoom({ seed: "orbit-reef-schools" });
+    const homes = reefSitesFor(first.ocean);
+    const start = new Map(first.food.filter((actor) => actor.kind === "reef")
+      .map((actor) => [actor.id, { x: actor.x, z: actor.z }]));
+    for (let tick = 0; tick < 360; tick += 1) {
+      step(first);
+      step(second);
+    }
+    expect(JSON.stringify(first)).toBe(JSON.stringify(second));
+    const reef = first.food.filter((actor) => actor.kind === "reef");
+    expect(reef.length).toBeGreaterThan(50);
+    expect(reef.some((actor) => {
+      const before = start.get(actor.id);
+      return before && Math.hypot(actor.x - before.x, actor.z - before.z) > 2;
+    })).toBe(true);
+    for (const actor of reef) {
+      const home = homes[actor.school % homes.length];
+      expect(Math.hypot(actor.x - home.position.x, actor.z - home.position.z))
+        .toBeLessThan(home.radius * 1.25);
+    }
+  });
+
+  it("keeps nearby-shark flee steering ahead of reef orbit steering", () => {
+    const room = createRoom({ seed: "reef-flee-priority" });
+    const actor = room.food.find((prey) => prey.kind === "reef");
+    expect(actor).toBeDefined();
+    const shark = join(room, "reef-chaser");
+    place(shark, actor!.x + 5, actor!.y, actor!.z);
+    shark.yaw = shark.targetYaw = 0;
+    shark.pitch = shark.targetPitch = 0;
+    const flee = yawPitchToward(shark.position, actor!);
+    const expectedYaw = rotateYawToward(actor!.yaw, flee.yaw, PREY_SPECS.reef.turnRate);
+    step(room);
+    expect(actor!.yaw).toBeCloseTo(expectedYaw, 10);
+  });
+});
 
 describe("ST-255 swept mouth consumption", () => {
   function setup(isBot = false) {

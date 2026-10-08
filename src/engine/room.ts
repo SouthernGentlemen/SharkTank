@@ -1,4 +1,4 @@
-import { OCEAN } from "./ocean.js";
+import { FRENZY_VOLUME_RADIUS_SHARE, OCEAN } from "./ocean.js";
 // Engine core — deterministic full-3D shark room simulation.
 // Pure functions over serializable RoomState (no DOM, no three.js, no node APIs),
 // so the exact same code runs in the browser (bots/preview) and in the authoritative
@@ -21,6 +21,7 @@ import {
 } from "./geometry3d.js";
 import { bodySegment, mouthPoint, sharkScaleForLength } from "./sharkGeometry.js";
 import { nextRandom, seedToNumber } from "./rng.js";
+import { reefSitesFor, type ReefSite } from "./reefs.js";
 import type { Action, DeathAction, OceanVolume, Prey, PreyKind, RoomState, RoundState, ScoreEntry, Shark, Vec3 } from "./types.js";
 
 // ── Tuning ────────────────────────────────────────────────────────────────────
@@ -82,7 +83,7 @@ export const FRENZY_RULES = {
   durationTicks: TICKS_PER_SECOND * 20,
   speedMultiplier: 1.16,
   dashCooldownMultiplier: 0.5,
-  volumeRadiusShare: 0.3,
+  volumeRadiusShare: FRENZY_VOLUME_RADIUS_SHARE,
   volumeHalfHeightShare: 0.32,
   placementInset: 0.88,
   chumCount: PREY_BUDGET.frenzyChum,
@@ -255,15 +256,62 @@ function schoolOrientation(school: number, tick: number): { yaw: number; pitch: 
   };
 }
 
+/** Compact and stable school-to-reef mapping; no home field is added to protocol 12. */
+function reefHomesFor(ocean: OceanVolume): ReefSite[] {
+  // Very small custom room fixtures cannot fit the production reef ring.
+  return ocean.radius < 20 ? [] : reefSitesFor(ocean);
+}
+
+function reefSchoolOrbit(school: number, tick: number, ocean: OceanVolume, home: ReefSite): Vec3 {
+  const angle = school * 2.399963229728653 + tick * 0.012;
+  return {
+    x: home.position.x + Math.cos(angle) * home.radius * 0.45,
+    y: Math.min(ocean.surfaceY - 2, ocean.seabedY + 4 + (school % 3) * 2.5),
+    z: home.position.z + Math.sin(angle) * home.radius * 0.45,
+  };
+}
+
 function spawnAmbientFood(state: RoomState): void {
-  // Keep ambient schools in the outer ocean; the central event volume owns Frenzy chum.
-  const outer = state.ocean.radius - 2;
-  const inner = outer * FRENZY_RULES.volumeRadiusShare;
-  const radius = Math.sqrt(inner * inner + rand(state) * (outer * outer - inner * inner));
-  const angle = rand(state) * Math.PI * 2;
-  const p = { x: Math.cos(angle) * radius, y: randomY(state), z: Math.sin(angle) * radius };
-  const kind: PreyKind = rand(state) < 0.78 ? "bait" : "reef";
-  const school = Math.floor(rand(state) * PREY_BUDGET.schools);
+  const reefHomes = reefHomesFor(state.ocean);
+  const kind: PreyKind = rand(state) < 0.78 || reefHomes.length === 0 ? "bait" : "reef";
+  let school = Math.floor(rand(state) * PREY_BUDGET.schools);
+  if (kind === "reef") {
+    // Balance living reef prey across all coral homes. Random school ids alone
+    // can crowd a single player's visibility sphere and exceed the 14 KB wire budget.
+    const byHome = Array<number>(reefHomes.length).fill(0);
+    for (const actor of state.food) {
+      if (actor.kind === "reef" && actor.school >= 0) {
+        byHome[actor.school % reefHomes.length] += 1;
+      }
+    }
+    const least = Math.min(...byHome);
+    let homeIndex = school % reefHomes.length;
+    while (byHome[homeIndex] !== least) {
+      homeIndex = (homeIndex + 1) % reefHomes.length;
+    }
+    school = Math.floor(school / reefHomes.length) * reefHomes.length + homeIndex;
+  }
+  let p: Vec3;
+  if (kind === "reef") {
+    // Reef schools share a fixed home site, seeded by their existing school code.
+    const home = reefHomes[school % reefHomes.length];
+    const angle = rand(state) * Math.PI * 2;
+    const radius = Math.sqrt(rand(state)) * home.radius * 0.65;
+    const target = reefSchoolOrbit(school, state.tick, state.ocean, home);
+    p = {
+      x: home.position.x + Math.cos(angle) * radius,
+      y: Math.max(state.ocean.seabedY + 2, Math.min(state.ocean.surfaceY - 2,
+        target.y + randRange(state, -1.2, 1.2))),
+      z: home.position.z + Math.sin(angle) * radius,
+    };
+  } else {
+    // Bait retains its area-uniform open-water spawning outside the central event.
+    const outer = state.ocean.radius - 2;
+    const inner = outer * FRENZY_RULES.volumeRadiusShare;
+    const radius = Math.sqrt(inner * inner + rand(state) * (outer * outer - inner * inner));
+    const angle = rand(state) * Math.PI * 2;
+    p = { x: Math.cos(angle) * radius, y: randomY(state), z: Math.sin(angle) * radius };
+  }
   const orientation = schoolOrientation(school, state.tick);
   const spec = PREY_SPECS[kind];
   state.food.push({
@@ -281,6 +329,7 @@ function spawnAmbientFood(state: RoomState): void {
 }
 
 function stepPrey(state: RoomState): void {
+  const reefHomes = reefHomesFor(state.ocean);
   const horizontalWarning = Math.max(2, state.ocean.radius - PREY_BUDGET.boundaryMargin * 3);
   const horizontalWarningSq = horizontalWarning * horizontalWarning;
   const livingHeads = Object.values(state.sharks)
@@ -290,9 +339,14 @@ function stepPrey(state: RoomState): void {
 
   for (const prey of state.food) {
     const spec = PREY_SPECS[prey.kind];
-    let target = prey.school >= 0
-      ? schoolOrientation(prey.school, state.tick)
-      : { yaw: prey.yaw, pitch: prey.kind === "carcass" ? -0.08 : prey.pitch };
+    const home = prey.kind === "reef" && prey.school >= 0 && reefHomes.length > 0
+      ? reefHomes[prey.school % reefHomes.length]
+      : null;
+    let target = home
+      ? yawPitchToward(prey, reefSchoolOrbit(prey.school, state.tick, state.ocean, home))
+      : prey.school >= 0
+        ? schoolOrientation(prey.school, state.tick)
+        : { yaw: prey.yaw, pitch: prey.kind === "carcass" ? -0.08 : prey.pitch };
     let speed = spec.speed;
 
     if (spec.fleeRadius > 0 && livingHeads.length) {

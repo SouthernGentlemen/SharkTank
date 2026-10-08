@@ -6,3 +6,6 @@ export const OCEAN = Object.freeze({
   seabedY: -18,
   surfaceY: 18,
 } as const satisfies OceanVolume);
+
+/** Shared central Frenzy radius so server reef anchors have no Room import cycle. */
+export const FRENZY_VOLUME_RADIUS_SHARE = 0.3;

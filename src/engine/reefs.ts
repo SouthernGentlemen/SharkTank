@@ -1,5 +1,4 @@
-import { OCEAN } from "./ocean.js";
-import { FRENZY_RULES } from "./room.js";
+import { FRENZY_VOLUME_RADIUS_SHARE, OCEAN } from "./ocean.js";
 import type { OceanVolume, Vec3 } from "./types.js";
 
 /** Stable, server-safe anchors. Coral is scenery; these sites do not change simulation or wire state. */
@@ -34,7 +33,7 @@ export function reefSitesFor(ocean: OceanVolume = OCEAN): ReefSite[] {
   // Guard changes to authored anchors against putting scenery in the Frenzy volume.
   for (const site of sites) {
     const distance = Math.hypot(site.position.x, site.position.z);
-    if (distance - site.radius <= ocean.radius * FRENZY_RULES.volumeRadiusShare
+    if (distance - site.radius <= ocean.radius * FRENZY_VOLUME_RADIUS_SHARE
         || distance + site.radius >= ocean.radius - 2) {
       throw new Error(`Reef site outside safe ocean ring: ${site.id}`);
     }
