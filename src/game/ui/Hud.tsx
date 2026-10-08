@@ -6,6 +6,8 @@ import { useEffect, useRef, useState } from "react";
 import { TICKS_PER_SECOND, roundTicksLeft } from "../../engine/index.js";
 import type { RoomSocket } from "../net/useRoomSocket.js";
 import { useAnnouncer } from "../a11y/announcer.js";
+import { audio } from "../audio/AudioManager.js";
+import { EAT_STREAK_WINDOW_MS, eatStreakPitch, observeEatStreak, type EatStreakTracker } from "./eatStreak.js";
 
 export interface HudStats {
   /** Points scored this life — the number the leaderboard ranks on. */
@@ -68,10 +70,55 @@ function formatRoundClock(seconds: number): string {
   return `${Math.floor(safe / 60)}:${String(safe % 60).padStart(2, "0")}`;
 }
 
-export function Hud({ socket }: { socket: RoomSocket }) {
+export function Hud({ socket, reducedMotion }: { socket: RoomSocket; reducedMotion: boolean }) {
   const stats = useHudStats(socket);
   const { announce } = useAnnouncer();
   const lastMilestone = useRef(0);
+  const streakTracker = useRef<EatStreakTracker | null>(null);
+  const nextGainKey = useRef(0);
+  const lastStreakAnnouncementAt = useRef(-Infinity);
+  const [gainCue, setGainCue] = useState<{ points: number; streak: number; key: number } | null>(null);
+
+  useEffect(() => {
+    const update = () => {
+      if (socket.status !== "open") {
+        streakTracker.current = null;
+        setGainCue((current) => current === null ? current : null);
+        return;
+      }
+      const state = socket.stateRef.current;
+      const me = state?.sharks.find((shark) => shark.id === socket.youId);
+      if (!state || !me) return;
+      const now = performance.now();
+      const result = observeEatStreak(streakTracker.current, {
+        playerId: me.id, roundNumber: state.round.number,
+        tick: state.tick, alive: me.alive, score: me.score,
+      }, now);
+      streakTracker.current = result.tracker;
+      if (!me.alive || state.round.phase === "result") {
+        setGainCue((current) => current === null ? current : null);
+        return;
+      }
+      if (result.gain > 0) {
+        nextGainKey.current += 1;
+        setGainCue({ points: result.gain, streak: result.streak, key: nextGainKey.current });
+        audio.playSfx("preyConsume", {
+          key: "local-eat", minIntervalMs: 100, pitch: eatStreakPitch(result.streak),
+        });
+        // Milestone announcements only, never a per-prey live-region stream.
+        if (result.streak >= 3 && (result.streak === 3 || result.streak % 5 === 0)
+          && now - lastStreakAnnouncementAt.current >= EAT_STREAK_WINDOW_MS) {
+          announce(`${result.streak} eat streak.`, "polite");
+          lastStreakAnnouncementAt.current = now;
+        }
+      } else if (now - result.tracker.lastGainAtMs > EAT_STREAK_WINDOW_MS) {
+        setGainCue((current) => current === null ? current : null);
+      }
+    };
+    update();
+    const timer = setInterval(update, 100);
+    return () => clearInterval(timer);
+  }, [socket, announce]);
 
   // Announce every +25 points as a polite status.
   useEffect(() => {
@@ -84,9 +131,13 @@ export function Hud({ socket }: { socket: RoomSocket }) {
 
   return (
     <div className="game-hud" aria-hidden={false}>
-      <div className="hud-card">
+      <div className="hud-card hud-card--score">
         <div className="hud-card__label">Points</div>
         <div className="hud-card__value" aria-label={`${stats.points} points`}>{stats.points}</div>
+        {gainCue && <span className="hud-eat-streak">×{gainCue.streak} streak</span>}
+        {gainCue && !reducedMotion && (
+          <span key={gainCue.key} className="hud-score-float" aria-hidden="true">+{gainCue.points}</span>
+        )}
       </div>
       <div className={`hud-card hud-card--round${stats.roundPhase === "apex" ? " is-apex" : ""}`}>
         <div className="hud-card__label">Round {stats.roundNumber}</div>
@@ -116,7 +167,7 @@ export function Hud({ socket }: { socket: RoomSocket }) {
       </div>
       <div className="sr-only" role="status" aria-live="off">
         {/* Snapshot the SRs can query on demand; live milestones go through announce(). */}
-        Round {stats.roundNumber}, {stats.roundPhase} phase, {stats.roundSeconds} seconds remaining. {stats.points} points, {stats.health} health, size {stats.size.toFixed(1)} times, rank {stats.rank} of {stats.players}.
+        Round {stats.roundNumber}, {stats.roundPhase} phase, {stats.roundSeconds} seconds remaining. {stats.points} points, {gainCue ? `${gainCue.streak} eat streak,` : ""} {stats.health} health, size {stats.size.toFixed(1)} times, rank {stats.rank} of {stats.players}.
       </div>
     </div>
   );

@@ -144,3 +144,7 @@ Squid and golden fish (ST-266) remain server-owned: twelve value-4 squid roam mi
 ST-272 bot fairness: Bots ignore sharks until four seconds after spawn grace ends, then pursue and bite only humans they can devour under the 1.5× rule; they can still evade older, larger threats. Bots retire at Great White length (78), not at score 240, and use their normal respawn. This server-owned deterministic change adds no protocol-12 fields and preserves the 14,000-byte snapshot limit.
 
 ST-273 tier feedback is derived on the client from the local shark's authoritative length and round number. A per-life high-water tier tracker ignores repeated/reordered snapshots, new joins, reconnects, deaths and respawn baselines. A bounded toast, cosmetic CSS ring and existing SFX bus chime never change protocol 12, Room state or the 14,000-byte wire budget.
+
+## Local eat feedback
+
+The HUD derives cosmetic +N score gains and 1.5-second consecutive eat streaks solely from successive authoritative local score samples. A pure helper guards identity, tick ordering, death, respawn, reconnect and round resets. A pitch-limited local eat SFX is on the existing bounded browser audio graph; the floating +N is decorative and never affects Room authority or protocol 12.

@@ -61,6 +61,8 @@ interface Voice {
 interface PlayOptions {
   key?: string;
   minIntervalMs?: number;
+  /** Optional bounded cosmetic pitch multiplier, e.g. local eat streaks. */
+  pitch?: number;
 }
 
 interface WorldPlayOptions extends PlayOptions {
@@ -437,8 +439,9 @@ class AudioManagerImpl {
     const gain = this.ctx.createGain();
     const nodes: AudioNode[] = [osc, filter, gain];
     osc.type = spec.wave;
-    osc.frequency.setValueAtTime(spec.startHz, t);
-    osc.frequency.exponentialRampToValueAtTime(Math.max(1, spec.endHz), t + spec.duration);
+    const pitch = Number.isFinite(options.pitch) ? Math.max(0.8, Math.min(1.6, options.pitch!)) : 1;
+    osc.frequency.setValueAtTime(spec.startHz * pitch, t);
+    osc.frequency.exponentialRampToValueAtTime(Math.max(1, spec.endHz * pitch), t + spec.duration);
     filter.type = "lowpass";
     filter.frequency.value = spec.filterHz * (spatial && spatial.mix.front < -0.2 ? 0.72 : 1);
     filter.Q.value = 0.75;
