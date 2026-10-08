@@ -25,7 +25,7 @@ The top-level `sharktank` Worker exports only `Room`. The stable gameplay id is 
 
 ## Room authority
 
-`Room` owns competitive state: X/Y/Z movement, yaw + pitch, prey, score, growth, damage, death/respawn, Feeding Frenzy, Apex and round transitions. The engine advances deterministic in-memory state from ordered actions and seeded RNG.
+`Room` owns competitive state: X/Y/Z movement, yaw + pitch, prey, score, growth, damage, death/respawn, Feeding Frenzy, Apex and round transitions. The engine advances deterministic in-memory state from ordered actions and seeded RNG. Length-only tier helpers derive Pup, Reef Shark, Tiger Shark, Great White and Megalodon without protocol changes; a steady one-bait-per-second eater reaches their milestones within one five-minute round.
 
 Gameplay is not restored after a Room object restart. A new object starts a new round. Browser-local preferences never become gameplay authority.
 

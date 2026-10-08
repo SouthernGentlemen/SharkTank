@@ -1019,7 +1019,7 @@ function eat(state: RoomState, s: Shark, previousMouth: Vec3): void {
     if (chomps < maxChomps && distanceSquared3(foodPosition, closest) <= (radius + f.r) ** 2) {
       chomps += 1;
       s.score += f.value;
-      s.length += Math.min(0.6, f.value * 0.18);
+      s.length += Math.min(1.1, f.value * 0.38);
       return false;
     }
     return true;

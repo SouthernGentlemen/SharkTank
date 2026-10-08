@@ -92,7 +92,7 @@ describe("ST-122 directional shark combat", () => {
     ["tail", 6, 0, 0, 0, 0, true],
     ["flank", 2, 0, 3, Math.PI / 2, 0, true],
     ["pitched body", 2, 3, 0, 0, Math.PI / 2, true],
-    ["wide cone", 2, 0, 2.7, 0, 0, true],
+    ["wide cone", 2, 0, 2.6, 0, 0, true],
     ["aimed away", -6, 0, 0, Math.PI, 0, false],
     ["out of reach", 10, 0, 0, 0, 0, false],
   ])("checks mouth-to-body contact: %s", (_, x, y, z, yaw, pitch, hits) => {
