@@ -10,23 +10,20 @@ import type { Settings } from "../settings/SettingsContext.js";
 import { cadenceDue, resolveClientPerformanceProfile } from "./performance.js";
 import {
   preyVisualFor,
+  preySizeVariation,
   resolvePreyAnimation,
   resolvePreyPresentationQuality,
 } from "./preyPresentation.js";
 import { interpolateOrientedPose, type OrientedScenePose } from "./sceneMath.js";
 
 
-const BAIT_COLOR = new THREE.Color("#7ee7ff");
-const REEF_COLOR = new THREE.Color("#ffd166");
-const CHUM_COLOR = new THREE.Color("#ff9b54");
-const CARCASS_COLOR = new THREE.Color("#d88b64");
-
-const preyColor: Record<PreyKind, THREE.Color> = {
-  bait: BAIT_COLOR,
-  reef: REEF_COLOR,
-  chum: CHUM_COLOR,
-  carcass: CARCASS_COLOR,
-};
+// Shared instance materials use a bounded palette cache, not per-frame Color allocations.
+const colorCache = new Map<string, THREE.Color>();
+function colorFor(hex: string): THREE.Color {
+  let color = colorCache.get(hex);
+  if (!color) { color = new THREE.Color(hex); colorCache.set(hex, color); }
+  return color;
+}
 
 function setPartMatrix(
   mesh: THREE.InstancedMesh,
@@ -64,6 +61,8 @@ export function PreyLayer({ socket, settings }: { socket: RoomSocket; settings: 
   const bodyMesh = useRef<THREE.InstancedMesh>(null);
   const headMesh = useRef<THREE.InstancedMesh>(null);
   const tailMesh = useRef<THREE.InstancedMesh>(null);
+  const stripeOneMesh = useRef<THREE.InstancedMesh>(null);
+  const stripeTwoMesh = useRef<THREE.InstancedMesh>(null);
   const dropMesh = useRef<THREE.InstancedMesh>(null);
   const root = useMemo(() => new THREE.Object3D(), []);
   const part = useMemo(() => new THREE.Object3D(), []);
@@ -83,8 +82,10 @@ export function PreyLayer({ socket, settings }: { socket: RoomSocket; settings: 
     const body = bodyMesh.current;
     const head = headMesh.current;
     const tail = tailMesh.current;
+    const stripeOne = stripeOneMesh.current;
+    const stripeTwo = stripeTwoMesh.current;
     const drops = dropMesh.current;
-    if (!body || !head || !tail || !drops) return;
+    if (!body || !head || !tail || !stripeOne || !stripeTwo || !drops) return;
 
     const frame = socket.frameAt(REMOTE_INTERP_DELAY_MS);
     if (!frame) return;
@@ -114,8 +115,7 @@ export function PreyLayer({ socket, settings }: { socket: RoomSocket; settings: 
       const rate = TICKS_PER_SECOND / tickSpan;
       remote.sample(pose, { x: dx * rate, y: dy * rate, z: dz * rate }, frame.extrapolationMs ?? 0, current.tick, performance.now());
       const speed = Math.hypot(dx, dy, dz) * TICKS_PER_SECOND / tickSpan;
-      const visual = preyVisualFor(actor.kind, actor.value, actor.r);
-      const color = preyColor[actor.kind];
+      const visual = preyVisualFor(actor.kind, actor.value, actor.r, actor.species);
 
       if (visual.mode === "fish" && fishCount < PREY_BUDGET.max) {
         const animation = resolvePreyAnimation({
@@ -124,9 +124,9 @@ export function PreyLayer({ socket, settings }: { socket: RoomSocket; settings: 
           speed,
           reducedMotion,
         });
-        root.position.set(pose.x, pose.y, pose.z);
+        root.position.set(pose.x, pose.y + animation.wobbleY, pose.z);
         root.rotation.set(0, -pose.yaw, pose.pitch);
-        root.scale.setScalar(1);
+        root.scale.setScalar(preySizeVariation(actor.id));
         root.updateMatrix();
 
         setPartMatrix(
@@ -147,9 +147,20 @@ export function PreyLayer({ socket, settings }: { socket: RoomSocket; settings: 
           0, animation.tailYaw, Math.PI / 2,
           visual.tailScale, visual.tailScale * 0.12, visual.tailScale * 0.72,
         );
-        body.setColorAt(fishCount, color);
-        head.setColorAt(fishCount, color);
-        tail.setColorAt(fishCount, color);
+        // Bands wrap the fish body; zero-scale unused bands avoid extra draw calls.
+        for (const [stripeIndex, stripeMesh] of [stripeOne, stripeTwo].entries()) {
+          const visible = stripeIndex < visual.stripeCount;
+          const stripeX = visual.stripeCount === 1 ? 0 : (stripeIndex === 0 ? -0.32 : 0.30) * visual.bodyLength;
+          setPartMatrix(stripeMesh, fishCount, root.matrix, part, composed,
+            stripeX, 0, 0, 0, animation.bodyYaw, 0,
+            visible ? visual.bodyLength * (visual.stripeCount === 1 ? 0.17 : 0.13) : 0,
+            visible ? visual.bodyHeight * 1.04 : 0,
+            visible ? visual.bodyWidth * 1.04 : 0);
+          stripeMesh.setColorAt(fishCount, colorFor(visual.stripeColor));
+        }
+        body.setColorAt(fishCount, colorFor(visual.bodyColor));
+        head.setColorAt(fishCount, colorFor(visual.headColor));
+        tail.setColorAt(fishCount, colorFor(visual.tailColor));
         fishCount += 1;
       } else if (visual.mode === "drop" && dropCount < PREY_BUDGET.max) {
         drop.position.set(pose.x, pose.y, pose.z);
@@ -161,12 +172,12 @@ export function PreyLayer({ socket, settings }: { socket: RoomSocket; settings: 
         drop.scale.setScalar(visual.dropScale);
         drop.updateMatrix();
         drops.setMatrixAt(dropCount, drop.matrix);
-        drops.setColorAt(dropCount, color);
+        drops.setColorAt(dropCount, colorFor(visual.bodyColor));
         dropCount += 1;
       }
     }
 
-    commitInstances([body, head, tail], fishCount);
+    commitInstances([body, head, tail, stripeOne, stripeTwo], fishCount);
     commitInstances([drops], dropCount);
   });
 
@@ -174,15 +185,23 @@ export function PreyLayer({ socket, settings }: { socket: RoomSocket; settings: 
     <>
       <instancedMesh ref={bodyMesh} args={[undefined, undefined, PREY_BUDGET.max]} frustumCulled={false}>
         <sphereGeometry args={[1, quality.radialSegments, quality.verticalSegments]} />
-        <meshStandardMaterial roughness={0.72} metalness={0.02} />
+        <meshStandardMaterial roughness={0.72} metalness={0.02} emissive="#96aec6" emissiveIntensity={0.09} />
       </instancedMesh>
       <instancedMesh ref={headMesh} args={[undefined, undefined, PREY_BUDGET.max]} frustumCulled={false}>
         <sphereGeometry args={[1, quality.radialSegments, quality.verticalSegments]} />
-        <meshStandardMaterial roughness={0.68} metalness={0.02} />
+        <meshStandardMaterial roughness={0.68} metalness={0.02} emissive="#96aec6" emissiveIntensity={0.09} />
       </instancedMesh>
       <instancedMesh ref={tailMesh} args={[undefined, undefined, PREY_BUDGET.max]} frustumCulled={false}>
         <coneGeometry args={[1, 1, 3]} />
-        <meshStandardMaterial roughness={0.7} metalness={0.02} side={THREE.DoubleSide} />
+        <meshStandardMaterial roughness={0.7} metalness={0.02} emissive="#96aec6" emissiveIntensity={0.09} side={THREE.DoubleSide} />
+      </instancedMesh>
+      <instancedMesh ref={stripeOneMesh} args={[undefined, undefined, PREY_BUDGET.max]} frustumCulled={false}>
+        <sphereGeometry args={[1, quality.radialSegments, quality.verticalSegments]} />
+        <meshStandardMaterial roughness={0.72} emissive="#96aec6" emissiveIntensity={0.09} />
+      </instancedMesh>
+      <instancedMesh ref={stripeTwoMesh} args={[undefined, undefined, PREY_BUDGET.max]} frustumCulled={false}>
+        <sphereGeometry args={[1, quality.radialSegments, quality.verticalSegments]} />
+        <meshStandardMaterial roughness={0.72} emissive="#96aec6" emissiveIntensity={0.09} />
       </instancedMesh>
       <instancedMesh ref={dropMesh} args={[undefined, undefined, PREY_BUDGET.max]} frustumCulled={false}>
         <dodecahedronGeometry args={[1, 0]} />
