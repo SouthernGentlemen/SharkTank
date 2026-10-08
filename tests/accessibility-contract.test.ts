@@ -155,6 +155,8 @@ describe("full-3D accessibility re-proof", () => {
     expect(actorLayer).toContain("const alpha = reducedMotion ? 1 : frame.alpha");
     expect(fxLayer).toContain("reducedMotion ? 0.35");
     expect(worldEnvironment).toContain("const t = reducedMotion ? 0 : clock.elapsedTime");
+    expect(worldEnvironment).toContain("kelpSway.value = reducedMotion ? 0 : 0.28");
+    expect(worldEnvironment).toContain("transformed.x += kelpSway * kelpTip * kelpTip");
     expect(gameScreen).toContain('settings.a11y.motion === "reduced"');
   });
 

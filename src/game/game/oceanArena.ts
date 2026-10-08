@@ -27,6 +27,7 @@ export interface OceanEnvironmentQuality {
   causticBands: number;
   frenzyRingCount: number;
   coralPerKindPerSite: number;
+  kelpPerGap: number;
 }
 
 export type EnvironmentLandmarkKind = "reef" | "wreck" | "frenzy";
@@ -65,6 +66,7 @@ const ENVIRONMENT_QUALITY: Record<import("./quality.js").ResolvedQuality, OceanE
     causticBands: 4,
     frenzyRingCount: 1,
     coralPerKindPerSite: 1,
+    kelpPerGap: 2,
   },
   medium: {
     particulateBudget: 78,
@@ -73,6 +75,7 @@ const ENVIRONMENT_QUALITY: Record<import("./quality.js").ResolvedQuality, OceanE
     causticBands: 6,
     frenzyRingCount: 2,
     coralPerKindPerSite: 2,
+    kelpPerGap: 4,
   },
   high: {
     particulateBudget: 132,
@@ -81,6 +84,7 @@ const ENVIRONMENT_QUALITY: Record<import("./quality.js").ResolvedQuality, OceanE
     causticBands: 8,
     frenzyRingCount: 3,
     coralPerKindPerSite: 4,
+    kelpPerGap: 6,
   },
 };
 
@@ -120,16 +124,34 @@ function hash01(index: number, salt: number): number {
 export const CORAL_KINDS = ["brain", "branching", "plate", "fan", "tube"] as const;
 export type CoralKind = (typeof CORAL_KINDS)[number];
 
+export const CORAL_PALETTE = [
+  "#fa799e", // pink
+  "#ad7edb", // purple
+  "#ff9460", // orange
+  "#f5d772", // yellow
+  "#50beb5", // teal
+  "#eb5b5a", // red
+] as const;
+
 export interface CoralPlacement {
   kind: CoralKind;
   siteId: string;
   position: { x: number; y: number; z: number };
   rotationY: number;
   scale: number;
+  color: (typeof CORAL_PALETTE)[number];
+  depthTint: number;
+}
+
+export interface KelpPlacement {
+  position: { x: number; y: number; z: number };
+  rotationY: number;
+  width: number;
+  height: number;
 }
 
 /** Stable transforms, generated only when layout/quality changes; no gameplay RNG. */
-export function makeCoralPlacements(sites: readonly ReefSite[], perKindPerSite: number): CoralPlacement[] {
+export function makeCoralPlacements(sites: readonly ReefSite[], perKindPerSite: number, surfaceY: number = OCEAN.surfaceY): CoralPlacement[] {
   const count = Math.max(0, Math.min(4, Math.floor(Number.isFinite(perKindPerSite) ? perKindPerSite : 0)));
   const lifts = [1.1, 1.7, 0.45, 0.18, 1.4] as const;
   const placements: CoralPlacement[] = [];
@@ -139,20 +161,54 @@ export function makeCoralPlacements(sites: readonly ReefSite[], perKindPerSite: 
         const seed = siteIndex * 53 + kindIndex * 7 + index;
         const angle = hash01(seed, 1807) * Math.PI * 2;
         const radial = Math.sqrt(hash01(seed, 2197)) * site.radius * 0.69;
-        const scale = 0.85 + hash01(seed, 3109) * 0.3;
+        const scale = 0.65 + hash01(seed, 3109) * 0.75;
+        const y = site.position.y + lifts[kindIndex] * scale;
+        const depth = Math.max(0, Math.min(1, (surfaceY - y) / Math.max(1, surfaceY - site.position.y)));
         placements.push({
           kind,
           siteId: site.id,
           position: {
             x: site.position.x + Math.cos(angle) * radial,
-            y: site.position.y + lifts[kindIndex] * scale,
+            y,
             z: site.position.z + Math.sin(angle) * radial,
           },
           rotationY: hash01(seed, 4201) * Math.PI * 2,
           scale,
+          color: CORAL_PALETTE[Math.floor(hash01(seed, 5333) * CORAL_PALETTE.length)],
+          depthTint: 0.06 + depth * 0.26,
         });
       }
     });
+  });
+  return placements;
+}
+
+/** Kelp patches fill the gaps between neighbouring reef anchors. */
+export function makeKelpPlacements(sites: readonly ReefSite[], perGap: number): KelpPlacement[] {
+  const count = Math.max(0, Math.min(6, Math.floor(Number.isFinite(perGap) ? perGap : 0)));
+  if (sites.length < 2) return [];
+  const placements: KelpPlacement[] = [];
+  sites.forEach((site, siteIndex) => {
+    const next = sites[(siteIndex + 1) % sites.length];
+    const midX = (site.position.x + next.position.x) / 2;
+    const midZ = (site.position.z + next.position.z) / 2;
+    const spread = Math.min(site.radius, next.radius) * 0.26;
+    for (let index = 0; index < count; index += 1) {
+      const seed = siteIndex * 19 + index;
+      const angle = hash01(seed, 8101) * Math.PI * 2;
+      const radial = Math.sqrt(hash01(seed, 8111)) * spread;
+      const height = 2.7 + hash01(seed, 8123) * 2.5;
+      placements.push({
+        position: {
+          x: midX + Math.cos(angle) * radial,
+          y: site.position.y - 0.12 + height / 2,
+          z: midZ + Math.sin(angle) * radial,
+        },
+        rotationY: hash01(seed, 8137) * Math.PI * 2,
+        width: 0.45 + hash01(seed, 8147) * 0.4,
+        height,
+      });
+    }
   });
   return placements;
 }

@@ -8,6 +8,7 @@ import {
   CORAL_KINDS,
   ENVIRONMENT_LANDMARKS,
   makeCoralPlacements,
+  makeKelpPlacements,
   makeEnvironmentSeeds,
   resolveOceanArenaCues,
   resolveOceanEnvironmentQuality,
@@ -25,11 +26,7 @@ const BOUNDARY = "#45e7e0";
 const BOUNDARY_DANGER = "#ff8d66";
 const PARTICULATE = "#9ee7dd";
 const BUBBLE = "#c8fbff";
-const REEF = "#245d58";
-const REEF_ACCENT = "#3e8d76";
-const REEF_PLATE = "#527b68";
-const REEF_FAN = "#7d607b";
-const REEF_TUBE = "#477a80";
+const KELP = "#66bc96";
 const WRECK = "#704f42";
 const WRECK_ACCENT = "#c07c57";
 const FRENZY = "#ffb347";
@@ -111,6 +108,7 @@ export function WorldEnvironment({ socket, settings }: { socket: RoomSocket; set
   const reefRockRef = useRef<THREE.InstancedMesh>(null);
   const reefFanRef = useRef<THREE.InstancedMesh>(null);
   const reefTubeRef = useRef<THREE.InstancedMesh>(null);
+  const kelpRef = useRef<THREE.InstancedMesh>(null);
   const wreckRef = useRef<THREE.Group>(null);
   const frenzyGroupRef = useRef<THREE.Group>(null);
   const frenzyBeamRef = useRef<THREE.Mesh>(null);
@@ -120,6 +118,30 @@ export function WorldEnvironment({ socket, settings }: { socket: RoomSocket; set
   const bubbleRef = useRef<THREE.InstancedMesh>(null);
   const dummy = useMemo(() => new THREE.Object3D(), []);
   const boundaryColor = useMemo(() => new THREE.Color(), []);
+  const coralColor = useMemo(() => new THREE.Color(), []);
+  const deepWaterColor = useMemo(() => new THREE.Color(FOG), []);
+  const kelpTime = useMemo(() => ({ value: 0 }), []);
+  const kelpSway = useMemo(() => ({ value: 0 }), []);
+  const kelpMaterial = useMemo(() => {
+    const material = new THREE.MeshStandardMaterial({ color: KELP, roughness: 0.88, side: THREE.DoubleSide });
+    material.onBeforeCompile = (shader) => {
+      shader.uniforms.kelpTime = kelpTime;
+      shader.uniforms.kelpSway = kelpSway;
+      shader.vertexShader = shader.vertexShader
+        .replace("#include <common>", `#include <common>
+uniform float kelpTime;
+uniform float kelpSway;`)
+        .replace("#include <begin_vertex>", `#include <begin_vertex>
+float kelpTip = clamp(position.y + 0.5, 0.0, 1.0);
+float kelpPhase = position.y * 1.5;
+#ifdef USE_INSTANCING
+  kelpPhase += instanceMatrix[3].x * 0.16 + instanceMatrix[3].z * 0.12;
+#endif
+transformed.x += kelpSway * kelpTip * kelpTip * sin(kelpTime * 1.1 + kelpPhase);`);
+    };
+    material.customProgramCacheKey = () => "sharktank-kelp-sway-v1";
+    return material;
+  }, [kelpTime, kelpSway]);
   const boundarySafeColor = useMemo(() => new THREE.Color(BOUNDARY), []);
   const boundaryDangerColor = useMemo(() => new THREE.Color(BOUNDARY_DANGER), []);
   const particulates = useMemo(
@@ -135,6 +157,7 @@ export function WorldEnvironment({ socket, settings }: { socket: RoomSocket; set
     [],
   );
   const maxCoralPerKind = REEF_SITES.length * environmentQuality.coralPerKindPerSite;
+  const maxKelp = REEF_SITES.length * environmentQuality.kelpPerGap;
   const performanceProfile = resolveClientPerformanceProfile(settings.graphics.quality);
   const lastEnvironmentPassAt = useRef(-Infinity);
   const arenaDimensionsRef = useRef({ radius: Number.NaN, seabedY: Number.NaN, surfaceY: Number.NaN });
@@ -171,6 +194,8 @@ export function WorldEnvironment({ socket, settings }: { socket: RoomSocket; set
     const frenzyVolume = frenzyVolumeRef.current;
     const t = reducedMotion ? 0 : clock.elapsedTime;
     const nowMs = clock.elapsedTime * 1000;
+    kelpTime.value = t;
+    kelpSway.value = reducedMotion ? 0 : 0.28;
     const updateEnvironment = layoutChanged
       || cadenceDue(lastEnvironmentPassAt.current, nowMs, performanceProfile.environmentUpdateMs);
 
@@ -228,10 +253,8 @@ export function WorldEnvironment({ socket, settings }: { socket: RoomSocket; set
         reefFanRef.current,
         reefTubeRef.current,
       ];
-      const placements = makeCoralPlacements(
-        reefSitesFor({ radius: cues.radius, seabedY: cues.seabedY, surfaceY: cues.surfaceY }),
-        environmentQuality.coralPerKindPerSite,
-      );
+      const sites = reefSitesFor({ radius: cues.radius, seabedY: cues.seabedY, surfaceY: cues.surfaceY });
+      const placements = makeCoralPlacements(sites, environmentQuality.coralPerKindPerSite, cues.surfaceY);
       for (let kindIndex = 0; kindIndex < CORAL_KINDS.length; kindIndex += 1) {
         const mesh = coralMeshes[kindIndex];
         if (!mesh) continue;
@@ -243,10 +266,27 @@ export function WorldEnvironment({ socket, settings }: { socket: RoomSocket; set
           dummy.scale.setScalar(piece.scale);
           dummy.updateMatrix();
           mesh.setMatrixAt(count, dummy.matrix);
+          coralColor.set(piece.color).lerp(deepWaterColor, piece.depthTint);
+          mesh.setColorAt(count, coralColor);
           count += 1;
         }
         mesh.count = count;
         mesh.instanceMatrix.needsUpdate = true;
+        if (mesh.instanceColor) mesh.instanceColor.needsUpdate = true;
+      }
+
+      const kelp = kelpRef.current;
+      if (kelp) {
+        const stalks = makeKelpPlacements(sites, environmentQuality.kelpPerGap);
+        stalks.forEach((stalk, index) => {
+          dummy.position.set(stalk.position.x, stalk.position.y, stalk.position.z);
+          dummy.rotation.set(0, stalk.rotationY, 0);
+          dummy.scale.set(stalk.width, stalk.height, 1);
+          dummy.updateMatrix();
+          kelp.setMatrixAt(index, dummy.matrix);
+        });
+        kelp.count = stalks.length;
+        kelp.instanceMatrix.needsUpdate = true;
       }
 
       if (wreck) {
@@ -433,23 +473,27 @@ export function WorldEnvironment({ socket, settings }: { socket: RoomSocket; set
 
       <instancedMesh ref={reefBaseRef} args={[undefined, undefined, maxCoralPerKind]} frustumCulled={false}>
         <dodecahedronGeometry args={[1.55, 1]} />
-        <meshStandardMaterial color={REEF} roughness={0.92} metalness={0} />
+        <meshStandardMaterial color="#ffffff" roughness={0.92} metalness={0} />
       </instancedMesh>
       <instancedMesh ref={reefSpireRef} args={[undefined, undefined, maxCoralPerKind]} frustumCulled={false}>
         <coneGeometry args={[0.78, 3.5, 5]} />
-        <meshStandardMaterial color={REEF_ACCENT} roughness={0.9} metalness={0} />
+        <meshStandardMaterial color="#ffffff" roughness={0.9} metalness={0} />
       </instancedMesh>
       <instancedMesh ref={reefRockRef} args={[undefined, undefined, maxCoralPerKind]} frustumCulled={false}>
         <cylinderGeometry args={[2.4, 1.8, 0.65, 10]} />
-        <meshStandardMaterial color={REEF_PLATE} roughness={0.96} metalness={0} />
+        <meshStandardMaterial color="#ffffff" roughness={0.96} metalness={0} />
       </instancedMesh>
       <instancedMesh ref={reefFanRef} args={[undefined, undefined, maxCoralPerKind]} frustumCulled={false}>
         <circleGeometry args={[2.2, 10, 0, Math.PI]} />
-        <meshStandardMaterial color={REEF_FAN} side={THREE.DoubleSide} roughness={0.94} metalness={0} />
+        <meshStandardMaterial color="#ffffff" side={THREE.DoubleSide} roughness={0.94} metalness={0} />
       </instancedMesh>
       <instancedMesh ref={reefTubeRef} args={[undefined, undefined, maxCoralPerKind]} frustumCulled={false}>
         <cylinderGeometry args={[0.65, 0.78, 2.8, 10, 1, true]} />
-        <meshStandardMaterial color={REEF_TUBE} side={THREE.DoubleSide} roughness={0.93} metalness={0} />
+        <meshStandardMaterial color="#ffffff" side={THREE.DoubleSide} roughness={0.93} metalness={0} />
+      </instancedMesh>
+
+      <instancedMesh ref={kelpRef} args={[undefined, undefined, maxKelp]} material={kelpMaterial} frustumCulled={false}>
+        <planeGeometry args={[1, 1, 1, 5]} />
       </instancedMesh>
 
       {wreck && (

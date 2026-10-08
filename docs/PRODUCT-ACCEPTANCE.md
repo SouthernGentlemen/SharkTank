@@ -120,3 +120,5 @@ Bites devour sharks at most two-thirds the attacker’s length. Other bites deal
 The shared engine `OCEAN` defines the production tank: radius 120, seabed −18 and surface +18. Room creation, client volume cues and camera defaults share it; live snapshots remain authoritative. Prey budgets are 480 ambient fish, a cap of 720, eight top-ups per tick, 24 schools and 60 Frenzy chum. All quality modes retain the 70-unit fog boundary and 72-unit per-session prey visibility.
 
 Ambient schools are spread uniformly by area outside the central Frenzy volume; Frenzy supplies its central chum. This keeps the larger prey population within the unchanged per-session snapshot budget.
+
+Reef presentation (ST-262): check the mix of coral colours and sizes, kelp patches between reefs swaying gently on Standard motion and entirely still on Reduced motion. Coral and kelp remain visible on Low quality; neither affects prey, combat nor the 14,000-byte session snapshot gate.

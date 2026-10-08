@@ -107,18 +107,6 @@ Tasks follow these defaults unless the owner changes them before the task starts
 
 ## Open tasks
 
-### ST-262 — [FEAT] Sway the kelp and vary coral colour and size
-
-**Goal:** Reefs should look alive, not stamped.
-
-**Scope:** Add swaying kelp clusters between reef sites (vertex sway, frozen under reduced motion). Give coral per-piece colour from a reef palette (pink, purple, orange, yellow, teal, red), size variation and depth-based tint.
-
-**Acceptance:** Presentation tests pass; reduced motion freezes the sway.
-
-**Validation:** `npm test -- tests/ocean-arena.test.ts tests/accessibility-contract.test.ts`.
-
----
-
 ### ST-263 — [FEAT] Keep reef fish schooling around the coral
 
 **Goal:** Tie the reef fish to the reefs so coral matters.

@@ -46,6 +46,8 @@ describe("ST-118 stylized ocean arena", () => {
     expect(low.lightShaftCount).toBeGreaterThan(0);
     expect(low.causticBands).toBeGreaterThan(0);
     expect(high.particulateBudget).toBeLessThanOrEqual(256);
+    expect(low.kelpPerGap).toBeLessThan(medium.kelpPerGap);
+    expect(medium.kelpPerGap).toBeLessThan(high.kelpPerGap);
   });
 
   it("keeps deterministic environment particles bounded and allocation counts explicit", () => {
