@@ -22,6 +22,7 @@ import { keyLabel, useSettings } from "../settings/SettingsContext.js";
 import { useAnnouncer } from "../a11y/announcer.js";
 import { useFocusTrap } from "../a11y/useFocusTrap.js";
 import { useGameAudio } from "../audio/useGameAudio.js";
+import { EvolutionMoment } from "./EvolutionMoment.js";
 import { Hud } from "./Hud.js";
 import { Leaderboard } from "./Leaderboard.js";
 import { DepthRadar } from "./DepthRadar.js";
@@ -120,6 +121,7 @@ export function GameScreen({ room, identity, onAuthoritativeResult, onQuit }: Ga
       {settings.a11y.colorblindLabels && <SharkLabels labelsRef={labelsRef} quality={settings.graphics.quality} />}
 
       <Hud socket={socket} />
+      <EvolutionMoment socket={socket} reducedMotion={settings.a11y.motion === "reduced"} />
       <Leaderboard socket={socket} />
       <FrenzyBanner socket={socket} reducedMotion={settings.a11y.motion === "reduced"} />
       <DepthRadar socket={socket} visible={settings.graphics.showMinimap} compact={touch} />

@@ -78,3 +78,5 @@ School fish have distinct proportions, tail/head colours and body bands alongsid
 ST-265 tuna and ray prey use the same authoritative spatial/depth cues and Reduced motion rendering rules as other prey; server movement and score never depend on accessibility presentation preferences. Dedicated tuna and ray silhouettes and their corresponding visual accessibility verification remain queued for ST-267.
 
 The ST-272 bot grace, human-only devour rule and Great White retirement run in the authoritative Room and add no client cue, input change, or accessibility setting.
+
+ST-273 announces each new local shark tier politely through the shared live region (without focus movement). The decorative evolution toast is aria-hidden to prevent double speech, and Reduced motion keeps the visible toast while suppressing the ring burst and chime. Reconnect/respawn and duplicate snapshots do not replay growth announcements.

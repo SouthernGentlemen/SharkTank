@@ -604,3 +604,11 @@ body {
 /* Golden-fish proximity cue is semantic DOM, not a WebGL label or audio-only notification. */
 .game-golden-caption{position:absolute;z-index:12;bottom:calc(138px + var(--safe-b));left:50%;transform:translateX(-50%);pointer-events:none;max-width:calc(100% - 24px);padding:6px 14px;border:2px solid #fff2a3;border-radius:999px;background:rgba(20,14,3,.94);color:#fff5bd;font-weight:800;white-space:nowrap;box-shadow:0 2px 18px rgba(20,14,3,.5)}
 :root[data-contrast="high"] .game-golden-caption{border-color:currentColor;background:#000;color:#fff}
+
+/* ST-273: a single local evolution cue. The ring never intercepts touch input. */
+.game-evolution{position:absolute;z-index:15;left:50%;top:35%;transform:translate(-50%,-50%);display:grid;place-items:center;pointer-events:none;white-space:nowrap;max-width:calc(100% - 24px)}
+.game-evolution__toast{position:relative;z-index:1;max-width:100%;padding:9px 18px;border:2px solid #ffd54a;border-radius:999px;background:rgba(11,10,20,.94);color:#fff;font-size:clamp(.85rem,2.7vw,1.25rem);font-weight:900;letter-spacing:.025em;box-shadow:0 5px 28px rgba(0,0,0,.55)}
+.game-evolution__ring{position:absolute;width:118px;height:118px;border:5px solid #ffd54a;border-radius:50%;box-shadow:0 0 18px rgba(255,213,74,.8);animation:evolution-ring .8s ease-out both}
+@keyframes evolution-ring{from{transform:scale(.4);opacity:.95}to{transform:scale(2.1);opacity:0}}
+:root[data-contrast="high"] .game-evolution__toast{border-color:#fff;color:#fff}
+@media (prefers-reduced-motion:reduce){.game-evolution__ring{display:none}}

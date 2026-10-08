@@ -14,6 +14,7 @@ export type Sfx =
   | "sharkDeath"
   | "die"
   | "spawn"
+  | "evolve"
   | "frenzyStart"
   | "frenzyEnd"
   | "frenzyPulse"
@@ -32,6 +33,7 @@ export const SFX_CAPTION: Record<Sfx, string> = {
   sharkDeath: "Shark eliminated",
   die: "You were eliminated",
   spawn: "Respawned",
+  evolve: "Shark evolved",
   frenzyStart: "Feeding Frenzy started",
   frenzyEnd: "Feeding Frenzy ended",
   frenzyPulse: "Feeding Frenzy nearby",
@@ -90,6 +92,7 @@ function tone(type: Sfx): ToneSpec {
     case "sharkDeath": return { wave: "sawtooth", startHz: 260, endHz: 64, duration: 0.5, peak: 0.19, filterHz: 780 };
     case "die": return { wave: "sawtooth", startHz: 410, endHz: 58, duration: 0.58, peak: 0.26, filterHz: 820 };
     case "spawn": return { wave: "triangle", startHz: 290, endHz: 620, duration: 0.22, peak: 0.16, filterHz: 1450 };
+    case "evolve": return { wave: "sine", startHz: 410, endHz: 990, duration: 0.45, peak: 0.17, filterHz: 1850 };
     case "frenzyStart": return { wave: "sawtooth", startHz: 170, endHz: 680, duration: 0.36, peak: 0.18, filterHz: 1200 };
     case "frenzyEnd": return { wave: "triangle", startHz: 460, endHz: 180, duration: 0.3, peak: 0.13, filterHz: 1000 };
     case "frenzyPulse": return { wave: "triangle", startHz: 145, endHz: 230, duration: 0.28, peak: 0.08, filterHz: 720 };

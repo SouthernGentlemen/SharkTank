@@ -107,18 +107,6 @@ Tasks follow these defaults unless the owner changes them before the task starts
 
 ## Open tasks
 
-### ST-273 — [FEAT] Celebrate every tier-up with an evolution moment
-
-**Goal:** Make growth feel like progress.
-
-**Scope:** When the local shark crosses a tier, show a toast ("Evolved: Tiger Shark"), a ring burst and a chime, and announce it politely. Reduced motion keeps only the toast.
-
-**Acceptance:** Detection tests show no repeat on reconnect or respawn.
-
-**Validation:** `npm test -- tests/accessibility-contract.test.ts` plus the helper test.
-
----
-
 ### ST-274 — [FEAT] Count eat streaks and float score gains
 
 **Goal:** Make eating feel great.
