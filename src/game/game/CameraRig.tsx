@@ -1,3 +1,4 @@
+import { OCEAN } from "../../engine/index.js";
 import { useFrame, useThree } from "@react-three/fiber";
 import { useEffect, useMemo } from "react";
 import * as THREE from "three";
@@ -37,9 +38,9 @@ export function makeCameraFollowTarget(): CameraFollowTarget {
     speed: 11,
     baseSpeed: 11,
     boostSpeed: 28,
-    arenaRadius: 82,
-    seabedY: -12,
-    surfaceY: 12,
+    arenaRadius: OCEAN.radius,
+    seabedY: OCEAN.seabedY,
+    surfaceY: OCEAN.surfaceY,
   };
 }
 

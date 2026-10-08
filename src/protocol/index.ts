@@ -270,7 +270,7 @@ export function clientInputToAction(input: ClientInputAction, playerId: string):
 /** Round to places decimals — snapshot bytes, not display precision. */
 function round(value: number, places = 2): number {
   const factor = 10 ** places;
-  return Math.round(value * factor) / factor;
+  return Math.round(value * factor) / factor || 0;
 }
 
 /** Session visibility never changes the authoritative prey population. */

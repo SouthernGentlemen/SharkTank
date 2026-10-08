@@ -1,3 +1,4 @@
+import { OCEAN } from "./ocean.js";
 // Engine core — deterministic full-3D shark room simulation.
 // Pure functions over serializable RoomState (no DOM, no three.js, no node APIs),
 // so the exact same code runs in the browser (bots/preview) and in the authoritative
@@ -31,9 +32,7 @@ export const TICKS_PER_SECOND = 20; // responsive authority; shark snapshots con
 // full lobby is dense rather than a permanent scrum at the wall.
 // Wire-state schema identity remains 11 until the queued protocol cut-over; RoomState itself is no longer persisted.
 export const ROOM_SCHEMA_VERSION = 11 as const;
-const OCEAN_RADIUS = 82;
-export const DEFAULT_SEABED_Y = -12;
-export const DEFAULT_SURFACE_Y = 12;
+
 const BASE_SPEED = 0.556; // world units / tick (~11 u/s)
 const BOOST_SPEED = 1.42; // (~28 u/s) — short, high-impact chomp dash
 const TURN_RATE = 0.22; // max yaw radians / tick (~4.4 rad/s)
@@ -53,11 +52,11 @@ const RESPAWN_DELAY = TICKS_PER_SECOND; // one second dead before respawn is all
 const SPAWN_GRACE = Math.round(TICKS_PER_SECOND * 6); // enough time to orient and use an ability before size combat starts
 export const PREY_KINDS = ["bait", "reef", "chum", "carcass"] as const satisfies readonly PreyKind[];
 export const PREY_BUDGET = {
-  ambient: 200,
-  spawnPerTick: 4,
-  max: 360,
-  frenzyChum: 40,
-  schools: 12,
+  ambient: 480,
+  spawnPerTick: 8,
+  max: 720,
+  frenzyChum: 60,
+  schools: 24,
   boundaryMargin: 1.5,
   maxSharksForFlee: 32,
 } as const;
@@ -75,12 +74,6 @@ export const PREY_SPECS: Record<PreyKind, {
   chum: { value: 3, r: 0.78, speed: 0.065, turnRate: 0.04, pitchRate: 0.03, fleeRadius: 0, fleeMultiplier: 1 },
   carcass: { value: 1, r: 0.5, speed: 0.035, turnRate: 0.02, pitchRate: 0.018, fleeRadius: 0, fleeMultiplier: 1 },
 };
-/** Share of ambient dots that spawn in the middle of the tank rather than anywhere.
- *  A uniform-area scatter over the larger arena left the centre visibly empty, which
- *  removed the reason to fight over the middle. */
-const CENTER_FOOD_SHARE = 0.55;
-const CENTER_FOOD_RADIUS = 0.3; // fraction of the arena radius that counts as "the middle"
-
 // ── Feeding Frenzy ──
 // This is authoritative gameplay, not presentation tuning. The shared values let the
 // client explain server truth without inventing its own schedule, volume, or modifiers.
@@ -217,12 +210,12 @@ export function createRoom(opts: CreateRoomOptions = {}): RoomState {
   const seed = opts.seed ?? "seed-fixed";
   const radius = Number.isFinite(opts.oceanRadius) && (opts.oceanRadius as number) >= 8
     ? (opts.oceanRadius as number)
-    : OCEAN_RADIUS;
-  const requestedFloor = Number.isFinite(opts.seabedY) ? (opts.seabedY as number) : DEFAULT_SEABED_Y;
-  const requestedSurface = Number.isFinite(opts.surfaceY) ? (opts.surfaceY as number) : DEFAULT_SURFACE_Y;
+    : OCEAN.radius;
+  const requestedFloor = Number.isFinite(opts.seabedY) ? (opts.seabedY as number) : OCEAN.seabedY;
+  const requestedSurface = Number.isFinite(opts.surfaceY) ? (opts.surfaceY as number) : OCEAN.surfaceY;
   const validVerticalBounds = requestedSurface - requestedFloor >= 4;
-  const seabedY = validVerticalBounds ? requestedFloor : DEFAULT_SEABED_Y;
-  const surfaceY = validVerticalBounds ? requestedSurface : DEFAULT_SURFACE_Y;
+  const seabedY = validVerticalBounds ? requestedFloor : OCEAN.seabedY;
+  const surfaceY = validVerticalBounds ? requestedSurface : OCEAN.surfaceY;
   const state: RoomState = {
     id: opts.id ?? "room-local",
     seed,
@@ -254,20 +247,6 @@ function randomY(state: RoomState, margin = 2): number {
   return randRange(state, state.ocean.seabedY + margin, state.ocean.surfaceY - margin);
 }
 
-/** A uniform random point inside the playable ocean cylinder. */
-function randomPointInOcean(state: RoomState): Vec3 {
-  const r = Math.sqrt(rand(state)) * (state.ocean.radius - 2);
-  const a = rand(state) * Math.PI * 2;
-  return { x: Math.cos(a) * r, y: randomY(state), z: Math.sin(a) * r };
-}
-
-/** A random point inside the central horizontal region and water column. */
-function randomPointNearCenter(state: RoomState): Vec3 {
-  const r = Math.sqrt(rand(state)) * state.ocean.radius * CENTER_FOOD_RADIUS;
-  const a = rand(state) * Math.PI * 2;
-  return { x: Math.cos(a) * r, y: randomY(state), z: Math.sin(a) * r };
-}
-
 function schoolOrientation(school: number, tick: number): { yaw: number; pitch: number } {
   const phase = school * 2.399963229728653;
   return {
@@ -277,8 +256,12 @@ function schoolOrientation(school: number, tick: number): { yaw: number; pitch: 
 }
 
 function spawnAmbientFood(state: RoomState): void {
-  const middle = rand(state) < CENTER_FOOD_SHARE;
-  const p = middle ? randomPointNearCenter(state) : randomPointInOcean(state);
+  // Keep ambient schools in the outer ocean; the central event volume owns Frenzy chum.
+  const outer = state.ocean.radius - 2;
+  const inner = outer * FRENZY_RULES.volumeRadiusShare;
+  const radius = Math.sqrt(inner * inner + rand(state) * (outer * outer - inner * inner));
+  const angle = rand(state) * Math.PI * 2;
+  const p = { x: Math.cos(angle) * radius, y: randomY(state), z: Math.sin(angle) * radius };
   const kind: PreyKind = rand(state) < 0.78 ? "bait" : "reef";
   const school = Math.floor(rand(state) * PREY_BUDGET.schools);
   const orientation = schoolOrientation(school, state.tick);

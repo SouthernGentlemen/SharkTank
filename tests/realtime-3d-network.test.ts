@@ -331,7 +331,7 @@ describe("ST-122 realtime combat protocol", () => {
 
   it("keeps a deterministic representative full-room snapshot under the explicit byte budget", () => {
     const state = createRoom({ id: "budget-room", seed: "snapshot-budget", oceanRadius: 82, seabedY: -12, surfaceY: 12 });
-    state.food = Array.from({ length: PREY_BUDGET.max }, (_, i) => ({
+    state.food = Array.from({ length: 360 }, (_, i) => ({
       id: `prey-${i}`,
       kind: i % 9 === 0 ? "reef" as const : "bait" as const,
       x: ((i * 17) % 160) / 1.37 - 58,
@@ -382,17 +382,17 @@ describe("ST-122 realtime combat protocol", () => {
 
   });
 
-  it("packs a full 32-shark room with ambient prey within 16 KB", () => {
+  it("packs a full 32-shark session with visible ambient prey within 14 KB", () => {
     const state = createRoom({ seed: "full-room-protocol-12" });
     for (let i = 0; i < 32; i++) join(state, `player-${i}`);
     expect(state.food).toHaveLength(PREY_BUDGET.ambient);
-    const wire = withRealtimeProtocol({ t: "welcome" as const, youId: "player-0", roomId: "room-1", state: toNetState(state) });
-    expect(bytes(wire)).toBeLessThanOrEqual(16_000);
+    const wire = withRealtimeProtocol({ t: "welcome" as const, youId: "player-0", roomId: "room-1", state: toNetState(state, "player-0") });
+    expect(bytes(wire)).toBeLessThanOrEqual(14_000);
     const parsed = parseRealtimeServerMessage(JSON.parse(JSON.stringify(wire)));
     expect(parsed.ok).toBe(true);
     if (!parsed.ok || parsed.message.t !== "welcome") throw new Error("welcome parse failed");
     expect(parsed.message.state).toEqual(decodeState(wire.state));
-    expect(new Set(parsed.message.state.food.map((prey) => prey.id)).size).toBe(state.food.length);
+    expect(new Set(parsed.message.state.food.map((prey) => prey.id)).size).toBe(wire.state.food.length);
     expect(parseRealtimeServerMessage({ ...wire, v: 11 })).toEqual({ ok: false, reason: "stale-schema" });
     expect(parseRealtimeClientMessage({ v: 11, t: "hello", name: "Old", skin: "cyan" })).toEqual({ ok: false, reason: "stale-schema" });
   });
@@ -493,4 +493,15 @@ describe("ST-245 depth gliding", () => {
     expect(previous).toBeLessThan(0.001);
     expect(shark.alive).toBe(true);
   });
+});
+
+it("normalizes quantized negative zero before JSON transport", () => {
+  const state = createRoom({ seed: "negative-zero" });
+  const shark = join(state, "zero");
+  shark.position.y = -0.0001;
+  state.food[0].y = -0.01;
+  const wire = toNetState(state);
+  expect(Object.is(wire.sharks[0].position.y, -0)).toBe(false);
+  expect(Object.is(wire.food[0][3], -0)).toBe(false);
+  expect(JSON.parse(JSON.stringify(wire))).toEqual(wire);
 });

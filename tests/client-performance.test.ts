@@ -52,7 +52,8 @@ function populateRepresentativeRoom() {
     seabedY: -12,
     surfaceY: 12,
   });
-  state.food = Array.from({ length: PREY_BUDGET.max }, (_, index) => ({
+  // Retain the historical unfiltered 360-prey stress fixture; session budgets use the live population below.
+  state.food = Array.from({ length: 360 }, (_, index) => ({
     id: `prey-${index}`,
     kind: index % 9 === 0 ? "reef" as const : "bait" as const,
     x: ((index * 17) % 160) / 1.37 - 58,
@@ -132,7 +133,7 @@ describe("ST-127 3D client performance contracts", () => {
     const measuredBytesPerSecond = snapshotBytes * (TICKS_PER_SECOND / STATE_BROADCAST_EVERY);
 
     expect(message.state.sharks).toHaveLength(32);
-    expect(message.state.food).toHaveLength(PREY_BUDGET.max);
+    expect(message.state.food).toHaveLength(360);
     expect(snapshotBytes).toBeLessThanOrEqual(25_000);
     expect(measuredBytesPerSecond).toBeLessThanOrEqual(250_000);
 
@@ -213,6 +214,7 @@ it("ST-241 typical per-session snapshots fit within 14 KB", () => {
     for (const t of ["welcome", "state"] as const) {
       const message = withRealtimeProtocol({ t, youId: shark.id, roomId: "room-1", state: toNetState(room, shark.id) });
       expect(message.state.sharks).toHaveLength(32);
+      console.info(`ST-260 ${shark.id} ${t} snapshot: ${bytes(message)} bytes`);
       expect(bytes(message)).toBeLessThanOrEqual(14_000);
     }
   }

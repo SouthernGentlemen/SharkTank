@@ -26,7 +26,7 @@ The focused product test covers the device-local player record, menu/tank/game l
 
 The snapshot timeline test replays 10 Hz arrivals with ±25 ms jitter at 60 Hz and server clocks 1% fast or slow over ten minutes, requiring fewer than 2% clamped frames after startup, render lag within 20 ms of target, and continuous frame-sized clock advances.
 
-Protocol 12 tests require a 32-shark room with 200 ambient prey to fit within 16 KB and the 360-prey/32-effect stress fixture within 25 KB. They verify tuple decoding, all sixteen reserved species codes, drop bonus variants and rejection of protocol 11 clients. Stale clients see "Game update required. Reload to reconnect."
+Protocol 12 tests require a 32-shark session with visible prey from 480 ambient fish to fit within 14 KB and the 360-prey/32-effect stress fixture within 25 KB. They verify tuple decoding, all sixteen reserved species codes, drop bonus variants and rejection of protocol 11 clients. Stale clients see "Game update required. Reload to reconnect."
 
 The local HTTP gate checks the root redirect, `/play/`, `/version.json`, static assets, shared 404 handling and a Room WebSocket hello/welcome exchange.
 
@@ -116,3 +116,7 @@ The server-safe engine owns the unchanged shark size curve and oriented rest-pos
 Bites measure the attacker mouth to the nearest point on the victim body axis, subtracting 0.62 × victim scale. Reach is 1.8 + 0.3 × attacker scale, with a 65° cone from the attacker position to that point. The nearest valid body surface wins, with stable id ties; bots use the same reach. Tail, flank and aimed-away cases have deterministic tests.
 
 Bites devour sharks at most two-thirds the attacker’s length. Other bites deal 50 damage (60 during burst; regeneration between bites can require an additional hit), or 20 against a victim at least 1.5× longer. Kill rewards are 25% of victim score rounded and clamped to 5–60, and 25% of victim length clamped to 0.5–8; Apex bounty remains additive. Living sharks regenerate 4 HP/s up to 100 on the server clock; round results freeze health. Spawn protection and bite cooldown remain authoritative.
+
+The shared engine `OCEAN` defines the production tank: radius 120, seabed −18 and surface +18. Room creation, client volume cues and camera defaults share it; live snapshots remain authoritative. Prey budgets are 480 ambient fish, a cap of 720, eight top-ups per tick, 24 schools and 60 Frenzy chum. All quality modes retain the 70-unit fog boundary and 72-unit per-session prey visibility.
+
+Ambient schools are spread uniformly by area outside the central Frenzy volume; Frenzy supplies its central chum. This keeps the larger prey population within the unchanged per-session snapshot budget.

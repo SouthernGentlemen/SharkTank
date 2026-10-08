@@ -40,7 +40,7 @@ describe("ST-247 returning current", () => {
     const state = createRoom({ seed: "prediction-current" });
     applyAction(state, { type: "join", playerId: "pilot", name: "pilot" });
     const shark = state.sharks.pilot;
-    shark.position = { x: 81.5, y: 0, z: 0 };
+    shark.position = { x: (state.ocean.radius - 0.5), y: 0, z: 0 };
     shark.yaw = shark.targetYaw = 0;
     shark.pitch = shark.targetPitch = 0;
     const auth = toClientShark(toNetState(state).sharks[0]);
@@ -51,12 +51,12 @@ describe("ST-247 returning current", () => {
     step(state);
     const result = predictor.step(auth, input, 0.05, 0, world)!;
     expect(result.yaw).toBeCloseTo(shark.yaw, 10);
-    expect(Math.hypot(result.position.x, result.position.z)).toBeLessThanOrEqual(81.5 + 1e-9);
+    expect(Math.hypot(result.position.x, result.position.z)).toBeLessThanOrEqual((state.ocean.radius - 0.5) + 1e-9);
     for (let frame = 0; frame < 60; frame++) {
       const predicted = predictor.step(auth, input, 1 / 60, 0.1, world)!;
-      expect(Math.hypot(predicted.position.x, predicted.position.z)).toBeLessThanOrEqual(81.5 + 1e-9);
+      expect(Math.hypot(predicted.position.x, predicted.position.z)).toBeLessThanOrEqual((state.ocean.radius - 0.5) + 1e-9);
       const rendered = predictor.renderPosition();
-      expect(Math.hypot(rendered.x, rendered.z)).toBeLessThanOrEqual(81.5 + 1e-9);
+      expect(Math.hypot(rendered.x, rendered.z)).toBeLessThanOrEqual((state.ocean.radius - 0.5) + 1e-9);
     }
   });
 });
