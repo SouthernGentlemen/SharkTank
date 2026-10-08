@@ -2,6 +2,8 @@ import { readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
 import {
   PREY_BUDGET,
+  GOLDEN_RULES,
+  squidDarting,
   PREY_KINDS,
   PREY_SPECS,
   ROOM_SCHEMA_VERSION,
@@ -63,14 +65,14 @@ function prey(overrides: Partial<Prey> & Pick<Prey, "id" | "kind" | "x" | "y" | 
 
 describe("ST-120 authoritative fish and prey schools", () => {
   it("uses a compact typed taxonomy, multiple depths, and an explicit bounded room budget", () => {
-    expect(PREY_KINDS).toEqual(["bait", "reef", "tuna", "ray", "chum", "carcass"]);
+    expect(PREY_KINDS).toEqual(["bait", "reef", "tuna", "ray", "squid", "golden", "chum", "carcass"]);
     expect(PREY_BUDGET).toMatchObject({ ambient: 480, spawnPerTick: 8, max: 720, frenzyChum: 60, schools: 24 });
     expect(PREY_BUDGET.ambient).toBeLessThan(PREY_BUDGET.max);
 
     const state = createRoom({ seed: "typed-prey" });
     expect(state.food).toHaveLength(PREY_BUDGET.ambient);
     expect(state.food.every((actor) => Math.hypot(actor.x, actor.z) >= (state.ocean.radius - 2) * 0.3)).toBe(true);
-    expect(new Set(state.food.map((actor) => actor.kind))).toEqual(new Set(["bait", "reef", "tuna", "ray"]));
+    expect(new Set(state.food.map((actor) => actor.kind))).toEqual(new Set(["bait", "reef", "tuna", "ray", "squid"]));
     expect(new Set(state.food.map((actor) => Math.round(actor.y))).size).toBeGreaterThan(4);
     for (const actor of state.food) {
       expect(PREY_KINDS).toContain(actor.kind);
@@ -367,6 +369,89 @@ describe("ST-265 tuna schools and solitary reef rays", () => {
     expect(speed).toBeLessThanOrEqual(PREY_SPECS[kind].speed * PREY_SPECS[kind].fleeMultiplier + 1e-7);
     expect(PREY_SPECS.tuna.speed * PREY_SPECS.tuna.fleeMultiplier)
       .toBeGreaterThan(PREY_SPECS.ray.speed * PREY_SPECS.ray.fleeMultiplier * 5);
+  });
+});
+
+
+describe("ST-266 deterministic squid darts and golden fish", () => {
+  it("keeps twelve mid-water squid in the ambient budget and decodes reserved species 13", () => {
+    const room = createRoom({ seed: "squid-ambient" });
+    const squid = room.food.filter((f) => f.kind === "squid");
+    expect(room.food).toHaveLength(PREY_BUDGET.ambient);
+    expect(squid).toHaveLength(PREY_BUDGET.squid);
+    for (const actor of squid) {
+      expect(actor.value).toBe(4);
+      expect(actor.school).toBe(-1);
+      expect(Math.abs(actor.y - (room.ocean.seabedY + room.ocean.surfaceY) / 2)).toBeLessThanOrEqual(3);
+      expect(Math.hypot(actor.x, actor.z)).toBeGreaterThan(room.ocean.radius * 0.4);
+      expect(encodePrey(actor)[1]).toBe(13);
+      expect(decodePrey(encodePrey(actor))).toMatchObject({ kind: "squid", value: 4, r: PREY_SPECS.squid.r });
+      expect(preyVisualFor(actor.kind, actor.value, actor.r).mode).toBe("fish");
+    }
+  });
+
+  it("darts for four deterministic ticks per cycle while chased, then coasts", () => {
+    const room = createRoom({ seed: "squid-dart" });
+    const actor = room.food.find((f) => f.kind === "squid")!;
+    const shark = join(room, "squid-chaser");
+    const cycle = Array.from({ length: 16 }, (_, t) => squidDarting(actor.id, t));
+    expect(cycle.filter(Boolean)).toHaveLength(4);
+    expect(cycle).toEqual(Array.from({ length: 16 }, (_, t) => squidDarting(actor.id, t + 16)));
+    let bursts = 0;
+    for (let i = 0; i < 16; i += 1) {
+      place(shark, actor.x + 7, actor.y, actor.z);
+      const previous = { x: actor.x, y: actor.y, z: actor.z };
+      const burst = squidDarting(actor.id, room.tick + 1);
+      step(room);
+      const travel = Math.hypot(actor.x - previous.x, actor.y - previous.y, actor.z - previous.z);
+      expect(travel).toBeCloseTo(PREY_SPECS.squid.speed * (burst ? PREY_SPECS.squid.fleeMultiplier : 1), 6);
+      if (burst) bursts += 1;
+    }
+    expect(bursts).toBe(4);
+  });
+
+  it("has at most one golden fish on 30-second windows, retiring it at 60 seconds", () => {
+    const room = createRoom({ seed: "golden-clock" });
+    const replica = createRoom({ seed: "golden-clock" });
+    const golden = () => room.food.filter((f) => f.kind === "golden");
+    expect(GOLDEN_RULES.intervalTicks).toBe(600);
+    expect(GOLDEN_RULES.lifetimeTicks).toBe(1200);
+    for (let tick = 1; tick <= GOLDEN_RULES.intervalTicks * 3; tick += 1) {
+      step(room);
+      step(replica);
+      expect(golden().length).toBeLessThanOrEqual(1);
+      if (tick === 599) expect(golden()).toHaveLength(0);
+      if (tick === 600) {
+        expect(golden()).toHaveLength(1);
+        expect(golden()[0].id).toBe("golden-600");
+        expect(golden()[0].value).toBe(12);
+        expect(encodePrey(golden()[0])[1]).toBe(15);
+        expect(decodePrey(encodePrey(golden()[0]))).toMatchObject({ kind: "golden", value: 12, r: PREY_SPECS.golden.r });
+        expect(preyVisualFor("golden", 12, PREY_SPECS.golden.r).mode).toBe("fish");
+      }
+      if (tick === 1200) expect(golden()[0].id).toBe("golden-600");
+    }
+    expect(golden()).toHaveLength(1);
+    expect(golden()[0].id).toBe("golden-1800");
+    // Frenzy chum and capped per-tick top-ups can briefly leave ambient below target.
+    const ambient = room.food.filter((actor) => actor.kind !== "chum" && actor.kind !== "carcass");
+    expect(ambient.length).toBeGreaterThanOrEqual(PREY_BUDGET.ambient - PREY_BUDGET.spawnPerTick);
+    expect(ambient.length).toBeLessThanOrEqual(PREY_BUDGET.ambient);
+    expect(room.food.length).toBeLessThanOrEqual(PREY_BUDGET.max);
+    expect(room).toEqual(replica);
+  });
+
+  it("respects the next window after the golden fish is eaten", () => {
+    const room = createRoom({ seed: "golden-caught" });
+    for (let tick = 0; tick < GOLDEN_RULES.intervalTicks; tick += 1) step(room);
+    room.food = room.food.filter((f) => f.kind !== "golden");
+    for (let tick = 1; tick < GOLDEN_RULES.intervalTicks; tick += 1) {
+      step(room);
+      expect(room.food.some((f) => f.kind === "golden")).toBe(false);
+    }
+    step(room);
+    expect(room.food.filter((f) => f.kind === "golden")).toHaveLength(1);
+    expect(room.food.find((f) => f.kind === "golden")!.id).toBe("golden-1200");
   });
 });
 

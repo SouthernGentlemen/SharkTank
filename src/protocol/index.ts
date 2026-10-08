@@ -63,7 +63,9 @@ export function preySpeciesCode(prey: Prey): number {
   if (prey.kind === "chum") return prey.value > 3 ? 9 : 8;
   if (prey.kind === "carcass") return prey.value > 1 ? 11 : 10;
   if (prey.kind === "tuna") return 12;
+  if (prey.kind === "squid") return 13;
   if (prey.kind === "ray") return 14;
+  if (prey.kind === "golden") return 15;
   const school = Math.max(0, prey.school);
   return prey.kind === "bait" ? school % 3 : 3 + school % 5;
 }
@@ -78,11 +80,14 @@ function isPreyTuple(value: unknown): value is PreyTuple {
 export function decodePrey(tuple: PreyTuple): NetPrey {
   const [id, species, x, y, z, yaw, pitch] = tuple;
   const kind: Prey["kind"] = species < 3 ? "bait" : species < 8 ? "reef" : species < 10 ? "chum"
-    : species < 12 ? "carcass" : species === 12 ? "tuna" : species === 14 ? "ray" : "reef";
+    : species < 12 ? "carcass" : species === 12 ? "tuna" : species === 13 ? "squid"
+      : species === 14 ? "ray" : "golden";
   const value = species === 9 ? 5 : species === 11 ? 2 : kind === "tuna" ? 5 : kind === "ray" ? 8
-    : kind === "bait" || kind === "carcass" ? 1 : kind === "chum" ? 3 : 2;
+    : kind === "squid" ? 4 : kind === "golden" ? 12
+      : kind === "bait" || kind === "carcass" ? 1 : kind === "chum" ? 3 : 2;
   const r = species === 9 ? 0.95 : species === 11 ? 0.72 : kind === "tuna" ? 1.05 : kind === "ray" ? 1.3
-    : kind === "bait" ? 0.42 : kind === "carcass" ? 0.5 : kind === "chum" ? 0.78 : 0.58;
+    : kind === "squid" ? 0.65 : kind === "golden" ? 0.72
+      : kind === "bait" ? 0.42 : kind === "carcass" ? 0.5 : kind === "chum" ? 0.78 : 0.58;
   return { id, species: PREY_SPECIES[species], kind, value, r, x, y, z, yaw, pitch };
 }
 export function decodeState(state: WireState): NetState {

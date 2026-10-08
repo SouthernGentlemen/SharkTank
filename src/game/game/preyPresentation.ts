@@ -60,10 +60,10 @@ export interface PreyVisualProfile {
 
 export function preyVisualFor(kind: PreyKind, value: number, radius: number, species?: NetPrey["species"]): PreyVisualProfile {
   const rewardScale = Math.max(0.82, Math.min(1.35, 0.9 + value * 0.07));
-  if (kind === "bait" || kind === "reef" || kind === "tuna" || kind === "ray") {
+  if (kind === "bait" || kind === "reef" || kind === "tuna" || kind === "ray" || kind === "squid" || kind === "golden") {
     // Fallback protects legacy/test fixtures without changing the wire or authoritative school.
     const key = species && Object.prototype.hasOwnProperty.call(SCHOOL_LOOKS, species)
-      ? species as SchoolSpecies : kind === "bait" || kind === "tuna" ? "sardine" : kind === "ray" ? "blue-tang" : "clownfish";
+      ? species as SchoolSpecies : kind === "bait" || kind === "tuna" ? "sardine" : kind === "squid" ? "anchovy" : kind === "golden" ? "yellow-tang" : kind === "ray" ? "blue-tang" : "clownfish";
     const style = SCHOOL_LOOKS[key];
     return {
       mode: "fish",
