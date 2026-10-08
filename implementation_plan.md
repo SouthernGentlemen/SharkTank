@@ -107,22 +107,6 @@ Tasks follow these defaults unless the owner changes them before the task starts
 
 ## Open tasks
 
-### ST-261 — [FEAT] Grow coral reefs across the seabed
-
-**Goal:** The only reefs are three rock clusters outside the wall.
-
-**Scope**
-- Add a server-safe engine `reefs` module: a fixed set of reef sites (position and radius) derived from `OCEAN` that keeps clear of the Frenzy column.
-- The client fills each site with instanced brain, branching, plate, fan and tube coral; counts are quality-scaled.
-- Move the wreck inside the wall as a landmark and delete the out-of-bounds rock clusters.
-- Coral is scenery and a spawn anchor for now; sharks swim through it.
-
-**Acceptance:** The layout is deterministic (test); coral stays within the draw and instance budgets at every quality.
-
-**Validation:** `npm test -- tests/ocean-arena.test.ts tests/client-performance.test.ts` plus the reef layout test.
-
----
-
 ### ST-262 — [FEAT] Sway the kelp and vary coral colour and size
 
 **Goal:** Reefs should look alive, not stamped.

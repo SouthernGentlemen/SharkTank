@@ -66,6 +66,8 @@ describe("ST-118 stylized ocean arena", () => {
   it("includes reef, wreck, and Feeding Frenzy landmark categories without changing game rules", () => {
     expect(ENVIRONMENT_LANDMARKS.some((landmark) => landmark.kind === "reef")).toBe(true);
     expect(ENVIRONMENT_LANDMARKS.some((landmark) => landmark.kind === "wreck")).toBe(true);
+    expect(ENVIRONMENT_LANDMARKS.filter((landmark) => landmark.kind === "reef").every((landmark) => landmark.radialShare < 1)).toBe(true);
+    expect(ENVIRONMENT_LANDMARKS.find((landmark) => landmark.kind === "wreck")?.radialShare).toBeLessThan(1);
     expect(ENVIRONMENT_LANDMARKS.some((landmark) => landmark.kind === "frenzy")).toBe(true);
     expect(ROOM_SCHEMA_VERSION).toBe(11);
     expect(REALTIME_PROTOCOL_VERSION).toBe(12);

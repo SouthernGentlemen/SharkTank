@@ -1,5 +1,6 @@
 import { resolveQuality } from "./quality.js";
-import { FRENZY_RULES } from "../../engine/index.js";
+import { FRENZY_RULES, OCEAN, REEF_SITES } from "../../engine/index.js";
+import type { ReefSite } from "../../engine/reefs.js";
 import type { SceneQuality } from "./sceneMath.js";
 import { OCEAN_CUES } from "./sceneMath.js";
 
@@ -25,6 +26,7 @@ export interface OceanEnvironmentQuality {
   lightShaftCount: number;
   causticBands: number;
   frenzyRingCount: number;
+  coralPerKindPerSite: number;
 }
 
 export type EnvironmentLandmarkKind = "reef" | "wreck" | "frenzy";
@@ -45,12 +47,15 @@ export interface EnvironmentSeed {
 }
 
 export const ENVIRONMENT_LANDMARKS: readonly EnvironmentLandmark[] = [
-  { id: "reef-north", kind: "reef", angle: -1.28, radialShare: 1.12 },
-  { id: "reef-west", kind: "reef", angle: 2.52, radialShare: 1.13 },
-  { id: "reef-south", kind: "reef", angle: 1.42, radialShare: 1.11 },
-  { id: "wreck-east", kind: "wreck", angle: 0.35, radialShare: 1.14 },
+  ...REEF_SITES.map((site) => ({
+    id: site.id,
+    kind: "reef" as const,
+    angle: Math.atan2(site.position.z, site.position.x),
+    radialShare: Math.hypot(site.position.x, site.position.z) / OCEAN.radius,
+  })),
+  { id: "wreck-east", kind: "wreck", angle: 0.35, radialShare: 0.82 },
   { id: "feeding-frenzy", kind: "frenzy", angle: 0, radialShare: 0 },
-] as const;
+];
 
 const ENVIRONMENT_QUALITY: Record<import("./quality.js").ResolvedQuality, OceanEnvironmentQuality> = {
   low: {
@@ -59,6 +64,7 @@ const ENVIRONMENT_QUALITY: Record<import("./quality.js").ResolvedQuality, OceanE
     lightShaftCount: 1,
     causticBands: 4,
     frenzyRingCount: 1,
+    coralPerKindPerSite: 1,
   },
   medium: {
     particulateBudget: 78,
@@ -66,6 +72,7 @@ const ENVIRONMENT_QUALITY: Record<import("./quality.js").ResolvedQuality, OceanE
     lightShaftCount: 2,
     causticBands: 6,
     frenzyRingCount: 2,
+    coralPerKindPerSite: 2,
   },
   high: {
     particulateBudget: 132,
@@ -73,6 +80,7 @@ const ENVIRONMENT_QUALITY: Record<import("./quality.js").ResolvedQuality, OceanE
     lightShaftCount: 3,
     causticBands: 8,
     frenzyRingCount: 3,
+    coralPerKindPerSite: 4,
   },
 };
 
@@ -106,6 +114,47 @@ function hash01(index: number, salt: number): number {
   value = Math.imul(value ^ (value >>> 16), 0x45d9f3b);
   value = Math.imul(value ^ (value >>> 16), 0x45d9f3b);
   return ((value ^ (value >>> 16)) >>> 0) / 0x1_0000_0000;
+}
+
+/** Five instanced coral silhouettes; per-site counts are bounded by the quality preset. */
+export const CORAL_KINDS = ["brain", "branching", "plate", "fan", "tube"] as const;
+export type CoralKind = (typeof CORAL_KINDS)[number];
+
+export interface CoralPlacement {
+  kind: CoralKind;
+  siteId: string;
+  position: { x: number; y: number; z: number };
+  rotationY: number;
+  scale: number;
+}
+
+/** Stable transforms, generated only when layout/quality changes; no gameplay RNG. */
+export function makeCoralPlacements(sites: readonly ReefSite[], perKindPerSite: number): CoralPlacement[] {
+  const count = Math.max(0, Math.min(4, Math.floor(Number.isFinite(perKindPerSite) ? perKindPerSite : 0)));
+  const lifts = [1.1, 1.7, 0.45, 0.18, 1.4] as const;
+  const placements: CoralPlacement[] = [];
+  sites.forEach((site, siteIndex) => {
+    CORAL_KINDS.forEach((kind, kindIndex) => {
+      for (let index = 0; index < count; index += 1) {
+        const seed = siteIndex * 53 + kindIndex * 7 + index;
+        const angle = hash01(seed, 1807) * Math.PI * 2;
+        const radial = Math.sqrt(hash01(seed, 2197)) * site.radius * 0.69;
+        const scale = 0.85 + hash01(seed, 3109) * 0.3;
+        placements.push({
+          kind,
+          siteId: site.id,
+          position: {
+            x: site.position.x + Math.cos(angle) * radial,
+            y: site.position.y + lifts[kindIndex] * scale,
+            z: site.position.z + Math.sin(angle) * radial,
+          },
+          rotationY: hash01(seed, 4201) * Math.PI * 2,
+          scale,
+        });
+      }
+    });
+  });
+  return placements;
 }
 
 export function makeEnvironmentSeeds(count: number, salt = 0): EnvironmentSeed[] {
