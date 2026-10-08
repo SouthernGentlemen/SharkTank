@@ -120,7 +120,7 @@ export function GameScreen({ room, identity, onAuthoritativeResult, onQuit }: Ga
 
       {settings.a11y.colorblindLabels && <SharkLabels labelsRef={labelsRef} quality={settings.graphics.quality} />}
 
-      <Hud socket={socket} />
+      <Hud socket={socket} reducedMotion={settings.a11y.motion === "reduced"} />
       <EvolutionMoment socket={socket} reducedMotion={settings.a11y.motion === "reduced"} />
       <Leaderboard socket={socket} />
       <FrenzyBanner socket={socket} reducedMotion={settings.a11y.motion === "reduced"} />

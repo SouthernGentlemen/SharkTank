@@ -80,3 +80,5 @@ ST-265 tuna and ray prey use the same authoritative spatial/depth cues and Reduc
 The ST-272 bot grace, human-only devour rule and Great White retirement run in the authoritative Room and add no client cue, input change, or accessibility setting.
 
 ST-273 announces each new local shark tier politely through the shared live region (without focus movement). The decorative evolution toast is aria-hidden to prevent double speech, and Reduced motion keeps the visible toast while suppressing the ring burst and chime. Reconnect/respawn and duplicate snapshots do not replay growth announcements.
+
+Local score gains show a labelled ×N streak chip beside Points and a cosmetic +N float. Reduced motion removes the float without hiding the streak or authoritative score. Score and streak text remain in the HUD's screen-reader snapshot; polite streak announcements are limited to milestones with a 1.5-second throttle, not every eaten fish. Muted audio does not remove the visible cue.

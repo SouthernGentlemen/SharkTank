@@ -612,3 +612,12 @@ body {
 @keyframes evolution-ring{from{transform:scale(.4);opacity:.95}to{transform:scale(2.1);opacity:0}}
 :root[data-contrast="high"] .game-evolution__toast{border-color:#fff;color:#fff}
 @media (prefers-reduced-motion:reduce){.game-evolution__ring{display:none}}
+
+/* ST-274: compact semantic streak chip; score float is presentation-only. */
+.hud-card--score{position:relative}
+.hud-eat-streak{display:block;font-size:.65rem;font-weight:900;line-height:1.25;white-space:nowrap;color:#ffe18b}
+.hud-score-float{position:absolute;z-index:2;top:-8px;right:-10px;pointer-events:none;font-size:.92rem;font-weight:900;color:#ffe18b;text-shadow:0 2px 4px #000;animation:hud-score-rise .8s ease-out both}
+@keyframes hud-score-rise{from{transform:translateY(0);opacity:1}to{transform:translateY(-22px);opacity:0}}
+:root[data-contrast="high"] .hud-eat-streak,:root[data-contrast="high"] .hud-score-float{color:#fff}
+:root[data-motion="reduced"] .hud-score-float{display:none}
+@media (prefers-reduced-motion:reduce){.hud-score-float{display:none}}

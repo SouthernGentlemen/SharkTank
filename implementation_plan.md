@@ -107,18 +107,6 @@ Tasks follow these defaults unless the owner changes them before the task starts
 
 ## Open tasks
 
-### ST-274 — [FEAT] Count eat streaks and float score gains
-
-**Goal:** Make eating feel great.
-
-**Scope:** Track local eating gains in 1.5 s windows. Show a "×N streak" chip, float "+N" by the score, and raise the eat cue's pitch with the streak. This is cosmetic only.
-
-**Acceptance:** Streak tests pass; announcements stay bounded; reduced motion disables the float.
-
-**Validation:** `npm test -- tests/spatial-audio.test.ts tests/accessibility-contract.test.ts` plus the helper test.
-
----
-
 ### ST-275 — [REFACTOR] Schedule music on the audio clock with lookahead
 
 **Goal:** Music notes come from `setInterval`, which jitters on phones.
