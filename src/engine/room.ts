@@ -20,7 +20,7 @@ import {
   yawPitchToward,
 } from "./geometry3d.js";
 import { bodySegment, mouthPoint, sharkScaleForLength } from "./sharkGeometry.js";
-import { turnRateScaleForLength } from "./growth.js";
+import { SHARK_TIERS, turnRateScaleForLength } from "./growth.js";
 import { nextRandom, seedToNumber } from "./rng.js";
 import { reefSitesFor, type ReefSite } from "./reefs.js";
 import type { Action, DeathAction, OceanVolume, Prey, PreyKind, RoomState, RoundState, ScoreEntry, Shark, Vec3 } from "./types.js";
@@ -132,9 +132,9 @@ export const ROUND_RULES = {
   apexKillBonusScore: 12,
   apexKillBonusGrowth: 1.2,
 } as const;
-// With 24 bots in the tank, a high retire score let two or three monsters accumulate and
-// farm every fresh spawn. A lower ceiling keeps the size ladder climbable.
-const BOT_RETIRE_SCORE = 240;
+// Retire opponents at Great White so human players can climb the size ladder.
+const BOT_RETIRE_LENGTH = SHARK_TIERS[3].minLength;
+const BOT_POST_GRACE_TICKS = TICKS_PER_SECOND * 4;
 export const BOT_AI_BUDGET = {
   targetPopulation: 24,
   maxTrackedSharks: 32,
@@ -147,7 +147,6 @@ export const BOT_AI_BUDGET = {
   boundaryMargin: 10,
   verticalMargin: 4.5,
   threatLengthRatio: 1.3,
-  huntLengthRatio: 1.25,
   wanderInterval: 20,
   wanderPitch: 0.45,
 } as const;
@@ -1022,11 +1021,9 @@ export function step(state: RoomState): RoomState {
   // Physical overlap is non-lethal. Combat damage only comes from explicit bite actions.
   resolveSharkCollisions(state);
 
-  // Always-on rivals must not snowball across a long-lived Durable Object until a
-  // fresh player has no practical opening. A bot that clears the demo-scale score
-  // target bursts into food, then returns through the normal fast respawn path.
+  // Bots retire on reaching Great White rather than an arbitrary score.
   for (const s of Object.values(state.sharks)) {
-    if (s.isBot && s.alive && s.score >= BOT_RETIRE_SCORE) killShark(state, s, null, "retire");
+    if (s.isBot && s.alive && s.length >= BOT_RETIRE_LENGTH) killShark(state, s, null, "retire");
   }
 
   // Bots auto-respawn after their delay so the arena stays populated (~24 sharks).
@@ -1133,6 +1130,7 @@ function resolveBite(state: RoomState, attacker: Shark): void {
       candidate.id === attacker.id
       || !candidate.alive
       || state.tick < candidate.invulnTick
+      || (attacker.isBot && !botCanHuntShark(state, attacker, candidate))
     ) continue;
     const contact = biteContact(attacker, candidate);
     if (contact.distance > range) continue;
@@ -1354,6 +1352,17 @@ function choosePreyTarget(state: RoomState, head: Vec3, view: BotWorldView): { p
   return best ? { prey: best, distance: bestDistance } : null;
 }
 
+/** Keep new sharks off bot radar until four seconds after spawn grace ends. */
+function botCanNoticeShark(state: RoomState, rival: Shark): boolean {
+  return state.tick >= rival.invulnTick + BOT_POST_GRACE_TICKS;
+}
+
+/** Bot hunting and bite damage share the exact one-bite devour rule. */
+function botCanHuntShark(state: RoomState, bot: Shark, rival: Shark): boolean {
+  return rival.alive && !rival.isBot && botCanNoticeShark(state, rival)
+    && bot.length >= rival.length * COMBAT.devourLengthRatio;
+}
+
 function steerBot(state: RoomState, s: Shark, view: BotWorldView): void {
   const head = s.position;
 
@@ -1370,7 +1379,7 @@ function steerBot(state: RoomState, s: Shark, view: BotWorldView): void {
   let quarry: Shark | null = null;
   let quarryDistance = Infinity;
   for (const rival of view.livingSharks) {
-    if (rival.id === s.id) continue;
+    if (rival.id === s.id || !botCanNoticeShark(state, rival)) continue;
     const distance = distance3(head, rival.position);
     if (
       rival.length >= s.length * BOT_AI_BUDGET.threatLengthRatio
@@ -1383,8 +1392,7 @@ function steerBot(state: RoomState, s: Shark, view: BotWorldView): void {
     const apexTarget = view.apexId === rival.id;
     const huntRadius = apexTarget ? BOT_AI_BUDGET.huntRadius * 1.35 : BOT_AI_BUDGET.huntRadius;
     if (
-      (apexTarget || s.length >= rival.length * BOT_AI_BUDGET.huntLengthRatio)
-      && state.tick >= rival.invulnTick
+      botCanHuntShark(state, s, rival)
       && distance < huntRadius
       && (
         apexTarget

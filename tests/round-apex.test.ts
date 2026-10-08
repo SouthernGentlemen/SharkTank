@@ -191,11 +191,12 @@ describe("ST-124 authoritative round and Apex loop", () => {
     expect(tie.round.result?.winner?.id).toBe("alpha");
   });
 
-  it("makes ordinary bots pursue the marked Apex and rejects client-authored round authority", () => {
+  it("makes bots pursue only a devourable marked Apex and rejects client-authored round authority", () => {
     const state = createRoom({ seed: "st-124-bot" });
     state.food = [];
     const target = join(state, "apex-target");
     const bot = join(state, "bot-test", true);
+    bot.length = target.length * COMBAT.devourLengthRatio;
     target.score = 90;
     place(target, 0, 0, 8);
     place(bot, 0, 0, 0);
