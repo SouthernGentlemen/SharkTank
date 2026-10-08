@@ -64,3 +64,5 @@ Client presentation classifies every other living shark at the same 1.5× devour
 The shared engine `OCEAN` defines the production tank: radius 120, seabed −18 and surface +18. Room creation, client volume cues and camera defaults share it; live snapshots remain authoritative. Prey budgets are 480 ambient fish, a cap of 720, eight top-ups per tick, 24 schools and 60 Frenzy chum. All quality modes retain the 70-unit fog boundary and 72-unit per-session prey visibility.
 
 Ambient schools are spread uniformly by area outside the central Frenzy volume; Frenzy supplies its central chum. This keeps the larger prey population within the unchanged per-session snapshot budget.
+
+Reef kelp sways only in presentation. Reduced motion sets its vertex-sway amplitude to zero, leaving every coral and kelp landmark visible; coral palettes also vary in shape and size rather than conveying gameplay meaning by colour.
