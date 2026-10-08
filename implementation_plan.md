@@ -102,24 +102,10 @@ Tasks follow these defaults unless the owner changes them before the task starts
 | Ocean | Radius 120, column 36, ~480 fish | Radius 120, column 36, ~480 fish | ST-260 |
 | Fish | 2 looks | 8 school looks + tuna, squid, rays, golden fish | ST-263–ST-267 |
 | Coral | 3 rock clusters outside the wall | Reef sites of brain, branching, plate, fan and tube coral plus kelp | ST-261–ST-262 |
-| Growth | +0.18 length per point; flat scale curve | Five tiers reachable in one round; Megalodon ≈ 2.5× spawn scale | ST-269 |
+| Growth | Five engine tiers; +0.38 length per bait, premium prey capped at +1.1; Megalodon ≈ 2.5× Pup scale | Five tiers reachable in one round; Megalodon ≈ 2.5× spawn scale | ST-269 |
 | Music | Six-note loop on `setInterval`, off by default | Layered adaptive score on the audio clock, on at 35% | ST-275–ST-278 |
 
 ## Open tasks
-
-### ST-269 — [FEAT] Grow through five named tiers within a round
-
-**Goal:** Growth is invisible and has no milestones.
-
-**Scope**
-- Add engine tiers (Pup, Reef Shark, Tiger Shark, Great White, Megalodon) with `tierForLength` and `tierProgress`.
-- Retune per-prey growth and the scale curve so steady eating reaches Reef at about 30 s, Tiger at about 90 s, Great White at about 3 minutes and Megalodon at about 4.5 minutes, with Megalodon about 2.5× spawn scale.
-
-**Acceptance:** A deterministic steady-eater simulation hits each tier time within ±25%, and the camera still frames Megalodon.
-
-**Validation:** `npm test -- tests/prey-schools.test.ts tests/shark-models.test.ts tests/swimming-camera.test.ts tests/determinism.test.ts` plus the tier test.
-
----
 
 ### ST-270 — [FEAT] Give smaller sharks a turning edge over bigger ones
 

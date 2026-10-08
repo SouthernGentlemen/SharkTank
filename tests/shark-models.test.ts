@@ -38,7 +38,7 @@ describe("ST-119 animated shark models", () => {
     expect(actors).toContain("interpolateOrientedPose(");
     expect(actors).toContain("root.rotation.set(motion.roll, -yaw, pitch)");
     expect(actors).toContain("sharkScaleForLength(shark.length)");
-    expect(sharkScaleForLength(64)).toBeCloseTo(Math.min(2.5, 0.72 + Math.sqrt(64) * 0.12));
+    expect(sharkScaleForLength(64)).toBeCloseTo(Math.min(2.5, 0.32 + Math.sqrt(64) * 0.2));
   });
 
   it("derives deterministic swim animation from continuous seconds, speed, boost and pitch state", () => {
@@ -139,7 +139,7 @@ describe("shared shark geometry", () => {
   it("preserves the full size curve including invalid lengths and the cap", () => {
     for (const length of [-1, 0, 1, 12, 64, 220, 1000, NaN, Infinity]) {
       const safe = Number.isFinite(length) ? Math.max(0, length) : 0;
-      expect(sharkScaleForLength(length)).toBe(Math.min(2.5, 0.72 + Math.sqrt(safe) * 0.12));
+      expect(sharkScaleForLength(length)).toBe(Math.min(2.5, 0.32 + Math.sqrt(safe) * 0.2));
     }
   });
   it("places mouth and body endpoints along yaw and pitch without mutating the pose", () => {

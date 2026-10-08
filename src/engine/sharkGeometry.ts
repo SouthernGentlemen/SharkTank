@@ -6,7 +6,8 @@ export const SHARK_GEOMETRY = Object.freeze({ mouth: 1.9, snoutTip: 2.56, tail: 
 
 export function sharkScaleForLength(length: number): number {
   const safeLength = Number.isFinite(length) ? Math.max(0, length) : 0;
-  return Math.min(2.5, 0.72 + Math.sqrt(safeLength) * 0.12);
+  // Scale from roughly 0.95 at Pup to 2.44 at the Megalodon milestone.
+  return Math.min(2.5, 0.32 + Math.sqrt(safeLength) * 0.2);
 }
 
 export interface SharkGeometryPose {

@@ -1,7 +1,7 @@
 import { isPreyConsumeCandidate } from "../src/game/audio/spatialAudio.js";
 import { readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
-import { ROOM_SCHEMA_VERSION } from "../src/engine/index.js";
+import { ROOM_SCHEMA_VERSION, sharkScaleForLength } from "../src/engine/index.js";
 import { REALTIME_PROTOCOL_VERSION } from "../src/protocol/index.js";
 import {
   AUDIO_LIMITS,
@@ -97,7 +97,7 @@ describe("ST-125 spatial underwater game audio", () => {
 
 it("ST-241 ignores distant culling and tests mouth distance in all three axes", () => {
   const shark = { position: { x: 0, y: 0, z: 0 }, yaw: 0, pitch: 0, length: 0, alive: true };
-  const mouthX = 2.6 * 0.72;
+  const mouthX = 2.6 * sharkScaleForLength(shark.length);
   expect(isPreyConsumeCandidate({ x: mouthX + 12, y: 0, z: 0 }, [shark])).toBe(true);
   expect(isPreyConsumeCandidate({ x: mouthX + 12.01, y: 0, z: 0 }, [shark])).toBe(false);
   expect(isPreyConsumeCandidate({ x: 72, y: 0, z: 0 }, [shark])).toBe(false);
