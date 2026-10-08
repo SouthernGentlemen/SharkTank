@@ -68,3 +68,5 @@ Ambient schools are spread uniformly by area outside the central Frenzy volume; 
 Reef kelp sways only in presentation. Reduced motion sets its vertex-sway amplitude to zero, leaving every coral and kelp landmark visible; coral palettes also vary in shape and size rather than conveying gameplay meaning by colour.
 
 School fish have distinct proportions, tail/head colours and body bands alongside their palette differences. Reduced motion removes fish wobble as well as tail and body oscillation without hiding species or changing server-owned prey position.
+
+ST-265 tuna and ray prey use the same authoritative spatial/depth cues and Reduced motion rendering rules as other prey; server movement and score never depend on accessibility presentation preferences. Dedicated tuna and ray silhouettes and their corresponding visual accessibility verification remain queued for ST-267.

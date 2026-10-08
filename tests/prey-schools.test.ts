@@ -14,7 +14,7 @@ import {
   type Prey,
   type Shark,
 } from "../src/engine/index.js";
-import { REALTIME_PROTOCOL_VERSION, toNetState, decodeState, preyWireId } from "../src/protocol/index.js";
+import { REALTIME_PROTOCOL_VERSION, PREY_SPECIES, encodePrey, decodePrey, toNetState, decodeState, preyWireId } from "../src/protocol/index.js";
 import {
   SCHOOL_LOOKS,
   preySizeVariation,
@@ -63,14 +63,14 @@ function prey(overrides: Partial<Prey> & Pick<Prey, "id" | "kind" | "x" | "y" | 
 
 describe("ST-120 authoritative fish and prey schools", () => {
   it("uses a compact typed taxonomy, multiple depths, and an explicit bounded room budget", () => {
-    expect(PREY_KINDS).toEqual(["bait", "reef", "chum", "carcass"]);
+    expect(PREY_KINDS).toEqual(["bait", "reef", "tuna", "ray", "chum", "carcass"]);
     expect(PREY_BUDGET).toMatchObject({ ambient: 480, spawnPerTick: 8, max: 720, frenzyChum: 60, schools: 24 });
     expect(PREY_BUDGET.ambient).toBeLessThan(PREY_BUDGET.max);
 
     const state = createRoom({ seed: "typed-prey" });
     expect(state.food).toHaveLength(PREY_BUDGET.ambient);
     expect(state.food.every((actor) => Math.hypot(actor.x, actor.z) >= (state.ocean.radius - 2) * 0.3)).toBe(true);
-    expect(new Set(state.food.map((actor) => actor.kind))).toEqual(new Set(["bait", "reef"]));
+    expect(new Set(state.food.map((actor) => actor.kind))).toEqual(new Set(["bait", "reef", "tuna", "ray"]));
     expect(new Set(state.food.map((actor) => Math.round(actor.y))).size).toBeGreaterThan(4);
     for (const actor of state.food) {
       expect(PREY_KINDS).toContain(actor.kind);
@@ -293,6 +293,80 @@ describe("ST-263 reef-school homes", () => {
     const expectedYaw = rotateYawToward(actor!.yaw, flee.yaw, PREY_SPECS.reef.turnRate);
     step(room);
     expect(actor!.yaw).toBeCloseTo(expectedYaw, 10);
+  });
+});
+
+describe("ST-265 tuna schools and solitary reef rays", () => {
+  it("seeds reproducible five-fish tuna schools and one ray at each coral site within the 480-prey quota", () => {
+    const room = createRoom({ seed: "tuna-ray-quota" });
+    const replica = createRoom({ seed: "tuna-ray-quota" });
+    expect(room).toEqual(replica);
+    const tuna = room.food.filter((actor) => actor.kind === "tuna");
+    const rays = room.food.filter((actor) => actor.kind === "ray");
+    const homes = reefSitesFor(room.ocean);
+    expect(room.food).toHaveLength(PREY_BUDGET.ambient);
+    expect(tuna).toHaveLength(PREY_BUDGET.tunaSchools * PREY_BUDGET.tunaPerSchool);
+    expect(rays).toHaveLength(homes.length * PREY_BUDGET.raysPerReef);
+    for (let group = 0; group < PREY_BUDGET.tunaSchools; group += 1) {
+      const school = tuna.filter((actor) => actor.school === PREY_BUDGET.schools + group);
+      expect(school).toHaveLength(5);
+      for (const actor of school) {
+        expect(Math.abs(actor.y - (room.ocean.surfaceY + room.ocean.seabedY) / 2)).toBeLessThan(5);
+        expect(Math.hypot(actor.x, actor.z)).toBeGreaterThan(room.ocean.radius * 0.4);
+      }
+      expect(Math.max(...school.map((actor) => actor.x)) - Math.min(...school.map((actor) => actor.x))).toBeLessThan(7);
+      expect(Math.max(...school.map((actor) => actor.z)) - Math.min(...school.map((actor) => actor.z))).toBeLessThan(7);
+    }
+    for (let index = 0; index < homes.length; index += 1) {
+      const ray = rays.find((actor) => actor.school === PREY_BUDGET.schools + PREY_BUDGET.tunaSchools + index);
+      expect(ray).toBeDefined();
+      expect(ray!.y - room.ocean.seabedY).toBeGreaterThan(2);
+      expect(ray!.y - room.ocean.seabedY).toBeLessThan(4);
+      expect(Math.hypot(ray!.x - homes[index].position.x, ray!.z - homes[index].position.z))
+        .toBeLessThan(homes[index].radius);
+    }
+    for (const actor of [...tuna, ...rays]) {
+      const code = encodePrey(actor)[1];
+      expect(PREY_SPECIES[code]).toBe(actor.kind);
+      expect(decodePrey(encodePrey(actor))).toMatchObject({ kind: actor.kind, value: actor.value, r: actor.r });
+    }
+  });
+
+  it("restores depleted premium quotas with bounded ambient top-ups and deterministic movement", () => {
+    const first = createRoom({ seed: "tuna-ray-restock" });
+    const lostTuna = first.food.find((actor) => actor.kind === "tuna")!;
+    const lostRay = first.food.find((actor) => actor.kind === "ray")!;
+    first.food = first.food.filter((actor) => actor.id !== lostTuna.id && actor.id !== lostRay.id);
+    const second = structuredClone(first);
+    for (let tick = 0; tick < 240; tick += 1) {
+      step(first);
+      step(second);
+    }
+    expect(first).toEqual(second);
+    expect(first.food).toHaveLength(PREY_BUDGET.ambient);
+    expect(first.food.filter((actor) => actor.kind === "tuna")).toHaveLength(10);
+    expect(first.food.filter((actor) => actor.kind === "ray")).toHaveLength(8);
+    expect(first.food.some((actor) => actor.kind === "tuna" && actor.id !== lostTuna.id)).toBe(true);
+    expect(first.food.every((actor) => insideOcean(actor, first.ocean, PREY_BUDGET.boundaryMargin - 0.01))).toBe(true);
+  });
+
+  it.each(["tuna", "ray"] as const)("gives %s server-owned flee steering and species-specific speed", (kind) => {
+    const room = createRoom({ seed: `premium-flee-${kind}` });
+    const actor = room.food.find((candidate) => candidate.kind === kind)!;
+    const original = { x: actor.x, y: actor.y, z: actor.z, yaw: actor.yaw };
+    const shark = join(room, `${kind}-chaser`);
+    place(shark, actor.x + 3, actor.y, actor.z);
+    shark.yaw = shark.targetYaw = 0;
+    shark.pitch = shark.targetPitch = 0;
+    const flee = yawPitchToward(shark.position, actor);
+    const expectedYaw = rotateYawToward(actor.yaw, flee.yaw, PREY_SPECS[kind].turnRate);
+    step(room);
+    expect(actor.yaw).toBeCloseTo(expectedYaw, 10);
+    const speed = Math.hypot(actor.x - original.x, actor.y - original.y, actor.z - original.z);
+    expect(speed).toBeGreaterThan(PREY_SPECS[kind].speed * 0.9);
+    expect(speed).toBeLessThanOrEqual(PREY_SPECS[kind].speed * PREY_SPECS[kind].fleeMultiplier + 1e-7);
+    expect(PREY_SPECS.tuna.speed * PREY_SPECS.tuna.fleeMultiplier)
+      .toBeGreaterThan(PREY_SPECS.ray.speed * PREY_SPECS.ray.fleeMultiplier * 5);
   });
 });
 

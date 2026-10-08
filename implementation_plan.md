@@ -107,21 +107,6 @@ Tasks follow these defaults unless the owner changes them before the task starts
 
 ## Open tasks
 
-### ST-265 — [FEAT] Add tuna schools and gliding rays
-
-**Goal:** Give hunters bigger, faster and rarer prey.
-
-**Scope**
-- Tuna: value 5, schools of 4–6 in open mid-water, fast with a strong flee.
-- Rays: value 8, glide solo just above the seabed near reef sites, slow with a short flee.
-- Add their specs and population quotas, and teach bots their value.
-
-**Acceptance:** Deterministic spawn, movement and flee tests pass, and the population quotas hold.
-
-**Validation:** `npm test -- tests/prey-schools.test.ts tests/bot-ai-3d.test.ts tests/determinism.test.ts`.
-
----
-
 ### ST-266 — [FEAT] Add darting squid and a rare golden fish
 
 **Goal:** Create chase moments.
