@@ -111,3 +111,25 @@ it("ST-271 repeats the same human join, replenishment and respawn school from se
   };
   expect(run()).toBe(run());
 });
+
+it("ST-272 repeats post-grace bot decisions and Great White retirement from the same seed", () => {
+  const run = () => {
+    const state = createRoom({ seed: "st272-seeded" });
+    spawnBots(state, 2);
+    applyAction(state, { type: "join", playerId: "human" });
+    const bot = state.sharks["bot-0"];
+    const human = state.sharks.human;
+    bot.position = { x: 0, y: 0, z: 0 };
+    bot.yaw = bot.targetYaw = 0;
+    human.position = { x: 7, y: 4, z: 0 };
+    bot.length = 30;
+    human.length = 10;
+    state.tick = human.invulnTick + 80 - 2;
+    step(state);
+    step(state);
+    bot.length = 78;
+    step(state);
+    return JSON.stringify(state);
+  };
+  expect(run()).toBe(run());
+});

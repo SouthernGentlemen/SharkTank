@@ -107,18 +107,6 @@ Tasks follow these defaults unless the owner changes them before the task starts
 
 ## Open tasks
 
-### ST-272 — [FEAT] Stop bots farming fresh spawns
-
-**Goal:** Keep the size ladder climbable for people.
-
-**Scope:** Bots ignore sharks until 4 s after spawn grace ends and only hunt humans they can devour. They retire on reaching Great White instead of at score 240.
-
-**Acceptance:** Bot AI tests pass.
-
-**Validation:** `npm test -- tests/bot-ai-3d.test.ts tests/determinism.test.ts`.
-
----
-
 ### ST-273 — [FEAT] Celebrate every tier-up with an evolution moment
 
 **Goal:** Make growth feel like progress.

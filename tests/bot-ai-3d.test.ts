@@ -135,6 +135,7 @@ describe("ST-121 full-3D bot hunting and evasion", () => {
     bot.yaw = bot.targetYaw = 0;
     bot.pitch = bot.targetPitch = 0;
     apex.invulnTick = 0;
+    state.tick = 4 * TICKS_PER_SECOND;
 
     step(state);
 
@@ -158,6 +159,7 @@ describe("ST-121 full-3D bot hunting and evasion", () => {
     hunter.length = 30;
     quarry.length = 10;
     quarry.invulnTick = 0;
+    state.tick = 4 * TICKS_PER_SECOND;
     hunter.yaw = hunter.targetYaw = 0;
     hunter.pitch = hunter.targetPitch = 0;
 
@@ -169,6 +171,94 @@ describe("ST-121 full-3D bot hunting and evasion", () => {
     const engine = read("../src/engine/room.ts");
     expect(engine).not.toContain("botDamage");
     expect(engine).not.toContain("botKill");
+  });
+
+
+  it("ignores a new human until four seconds after spawn grace ends", () => {
+    const state = createRoom({ seed: "st272-grace" });
+    state.food = farPrey();
+    const bot = join(state, "bot", true);
+    const human = join(state, "human");
+    place(bot, 0, 0, 0);
+    place(human, 7, 4, 0);
+    bot.length = 30;
+    human.length = 10;
+    bot.yaw = bot.targetYaw = bot.pitch = bot.targetPitch = 0;
+    state.tick = human.invulnTick + 4 * TICKS_PER_SECOND - 2;
+    step(state);
+    expect(bot.targetPitch).toBe(0);
+    expect(bot.lungeTicks).toBe(0);
+    step(state);
+    expect(bot.targetPitch).toBeGreaterThan(0.25);
+    expect(bot.lungeTicks).toBe(9);
+  });
+
+  it("hunts only humans it can devour, never rival bots", () => {
+    const state = createRoom({ seed: "st272-prey" });
+    state.food = farPrey();
+    const hunter = join(state, "hunter", true);
+    const otherBot = join(state, "other-bot", true);
+    const human = join(state, "human");
+    place(hunter, 0, 0, 0);
+    place(otherBot, 7, -4, 0);
+    place(human, 7, 4, 0);
+    hunter.length = 30;
+    otherBot.length = 10;
+    human.length = 21;
+    otherBot.invulnTick = human.invulnTick = 0;
+    state.tick = 4 * TICKS_PER_SECOND;
+    hunter.yaw = hunter.targetYaw = hunter.pitch = hunter.targetPitch = 0;
+    step(state);
+    expect(hunter.targetPitch).toBe(0);
+    expect(hunter.lungeTicks).toBe(0);
+    human.length = 20; // exact one-bite boundary
+    step(state);
+    expect(hunter.targetPitch).toBeGreaterThan(0.25);
+    expect(hunter.lungeTicks).toBe(9);
+  });
+
+  it("never bites a bot or a human in the additional grace window", () => {
+    const state = createRoom({ seed: "st272-bite" });
+    state.food = farPrey();
+    const attacker = join(state, "attacker", true);
+    const otherBot = join(state, "other-bot", true);
+    const human = join(state, "human");
+    place(attacker, 0, 0, 0);
+    place(otherBot, 3, 0, 0);
+    place(human, 3, 0, 0);
+    attacker.length = 30;
+    human.length = otherBot.length = 10;
+    state.tick = 200;
+    otherBot.invulnTick = 0;
+    human.invulnTick = 121; // eligible at tick 201
+    applyAction(state, { type: "bite", playerId: attacker.id });
+    expect(otherBot.health).toBe(100);
+    expect(human.health).toBe(100);
+    attacker.biteCooldownTick = 0;
+    state.tick = 201;
+    applyAction(state, { type: "bite", playerId: attacker.id });
+    expect(otherBot.alive).toBe(true);
+    expect(human.alive).toBe(false);
+  });
+
+  it("retires on Great White length, not score, and auto-respawns", () => {
+    const state = createRoom({ seed: "st272-retire" });
+    state.food = farPrey();
+    const bot = join(state, "retiring-bot", true);
+    place(bot, 0, 0, 0);
+    bot.score = 10_000;
+    bot.length = 77.99;
+    step(state);
+    expect(bot.alive).toBe(true);
+    bot.length = 78;
+    step(state);
+    expect(bot.alive).toBe(false);
+    expect(bot.lastDeath).toMatchObject({ action: "retire", killerId: null });
+    expect(bot.respawnTick).toBe(state.tick + TICKS_PER_SECOND);
+    state.tick = bot.respawnTick - 1;
+    step(state);
+    expect(state.sharks[bot.id].alive).toBe(true);
+    expect(state.sharks[bot.id].length).toBeLessThan(78);
   });
 
   it("prioritizes authoritative Feeding Frenzy chum over a nearer low-value bait fish", () => {
