@@ -107,18 +107,6 @@ Tasks follow these defaults unless the owner changes them before the task starts
 
 ## Open tasks
 
-### ST-270 — [FEAT] Give smaller sharks a turning edge over bigger ones
-
-**Goal:** Give small sharks counterplay against hunters.
-
-**Scope:** One engine helper scales turn and pitch rates from about 1.15× at Pup to about 0.85× at Megalodon. The Room and the predictor share it.
-
-**Acceptance:** Helper and prediction-parity tests pass.
-
-**Validation:** `npm test -- tests/volumetric-engine.test.ts tests/realtime-3d-network.test.ts tests/determinism.test.ts`.
-
----
-
 ### ST-271 — [FEAT] Seed prey near human sharks and greet each spawn with a school
 
 **Goal:** Food should always be nearby.

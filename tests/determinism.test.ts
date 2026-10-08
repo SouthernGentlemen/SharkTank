@@ -52,6 +52,26 @@ describe("deterministic engine", () => {
     expect(first.food.filter((f) => f.kind === "golden")).toHaveLength(1);
   });
 
+  it("replays length-scaled steering deterministically without stored agility state", () => {
+    const replay = (length: number) => {
+      const room = createRoom({ seed: "agility-determinism", oceanRadius: 1000, seabedY: -100, surfaceY: 100 });
+      room.food = [];
+      applyAction(room, { type: "join", playerId: "pilot", name: "Pilot" });
+      const shark = room.sharks.pilot;
+      shark.length = length;
+      shark.position = { x: 0, y: 0, z: 0 };
+      shark.yaw = shark.targetYaw = 0;
+      shark.pitch = shark.targetPitch = 0;
+      applyAction(room, { type: "setOrientation", playerId: "pilot", yaw: 2, pitch: 0.7 });
+      for (let i = 0; i < 8; i++) step(room);
+      expect("turnRate" in shark).toBe(false);
+      return JSON.stringify(room);
+    };
+    expect(replay(10)).toBe(replay(10));
+    expect(replay(112)).toBe(replay(112));
+    expect(replay(10)).not.toBe(replay(112));
+  });
+
   it("creates byte-equivalent rooms from the same seed", () => {
     const left = createRoom({ id: "test", seed: "repeatable" });
     const right = createRoom({ id: "test", seed: "repeatable" });
