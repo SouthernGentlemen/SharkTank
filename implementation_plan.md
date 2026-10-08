@@ -107,18 +107,6 @@ Tasks follow these defaults unless the owner changes them before the task starts
 
 ## Open tasks
 
-### ST-263 — [FEAT] Keep reef fish schooling around the coral
-
-**Goal:** Tie the reef fish to the reefs so coral matters.
-
-**Scope:** Reef prey spawn inside reef sites, and their schools circle their home site instead of drifting across the tank; flee behavior is unchanged. Bait schools roam open water.
-
-**Acceptance:** Deterministic tests show reef fish staying near their home sites.
-
-**Validation:** `npm test -- tests/prey-schools.test.ts tests/determinism.test.ts`.
-
----
-
 ### ST-264 — [FEAT] Give every school its own species look
 
 **Goal:** Only two fish looks exist.

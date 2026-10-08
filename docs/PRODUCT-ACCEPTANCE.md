@@ -122,3 +122,5 @@ The shared engine `OCEAN` defines the production tank: radius 120, seabed −18 
 Ambient schools are spread uniformly by area outside the central Frenzy volume; Frenzy supplies its central chum. This keeps the larger prey population within the unchanged per-session snapshot budget.
 
 Reef presentation (ST-262): check the mix of coral colours and sizes, kelp patches between reefs swaying gently on Standard motion and entirely still on Reduced motion. Coral and kelp remain visible on Low quality; neither affects prey, combat nor the 14,000-byte session snapshot gate.
+
+Reef fish (ST-263): verify clownfish-era reef prey school near the eight coral sites instead of traversing open water, with schools orbiting their own sites. Bait still roams the open ocean and reef prey still flee from approaching sharks. Movement, eating and school-home selection remain authoritative; 14,000-byte full-room snapshot and protocol-12 boundaries are unchanged.
