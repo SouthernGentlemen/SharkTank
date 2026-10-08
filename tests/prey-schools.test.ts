@@ -624,3 +624,95 @@ describe("ST-267 premium species presentation", () => {
     expect(renderer).not.toContain("setState(");
   });
 });
+
+
+describe("ST-271 human food availability", () => {
+  it("greets a human join and respawn with four existing bait grouped ahead, without adding actors", () => {
+    const state = createRoom({ seed: "human-greeting" });
+    const before = new Map(state.food.map((fish) => [fish.id, { x: fish.x, y: fish.y, z: fish.z }]));
+    const human = join(state, "human");
+    const changed = state.food.filter((fish) => {
+      const old = before.get(fish.id)!;
+      return fish.x !== old.x || fish.y !== old.y || fish.z !== old.z;
+    });
+    expect(state.food).toHaveLength(PREY_BUDGET.ambient);
+    expect(changed).toHaveLength(PREY_BUDGET.greetingSchoolSize);
+    expect(changed.every((fish) => fish.kind === "bait")).toBe(true);
+    expect(new Set(changed.map((fish) => fish.school)).size).toBe(1);
+    const ahead = { x: Math.cos(human.pitch) * Math.cos(human.yaw), y: Math.sin(human.pitch), z: Math.cos(human.pitch) * Math.sin(human.yaw) };
+    for (const fish of changed) {
+      const delta = { x: fish.x - human.position.x, y: fish.y - human.position.y, z: fish.z - human.position.z };
+      expect(Math.hypot(delta.x, delta.y, delta.z)).toBeGreaterThan(10);
+      expect(Math.hypot(delta.x, delta.y, delta.z)).toBeLessThan(17);
+      expect(delta.x * ahead.x + delta.y * ahead.y + delta.z * ahead.z).toBeGreaterThan(9);
+      expect(insideOcean(fish, state.ocean, PREY_BUDGET.boundaryMargin - 0.01)).toBe(true);
+    }
+    const afterJoin = new Map(state.food.map((fish) => [fish.id, { x: fish.x, y: fish.y, z: fish.z }]));
+    human.alive = false;
+    human.respawnTick = state.tick;
+    applyAction(state, { type: "respawn", playerId: human.id });
+    expect(state.sharks.human.alive).toBe(true);
+    expect(state.food.filter((fish) => {
+      const old = afterJoin.get(fish.id)!;
+      return fish.x !== old.x || fish.y !== old.y || fish.z !== old.z;
+    })).toHaveLength(PREY_BUDGET.greetingSchoolSize);
+    expect(state.food).toHaveLength(PREY_BUDGET.ambient);
+  });
+
+  it("does not seed greeting food for bots, results or sparse deterministic fixtures", () => {
+    const botRoom = createRoom({ seed: "bot-greeting" });
+    const original = JSON.stringify(botRoom.food);
+    join(botRoom, "bot", true);
+    expect(JSON.stringify(botRoom.food)).toBe(original);
+    const resultRoom = createRoom({ seed: "result-greeting" });
+    resultRoom.round.phase = "result";
+    const resultFood = JSON.stringify(resultRoom.food);
+    const pending = join(resultRoom, "spectator");
+    expect(pending.alive).toBe(false);
+    expect(JSON.stringify(resultRoom.food)).toBe(resultFood);
+    const sparse = createRoom({ seed: "sparse-greeting" });
+    sparse.food = [prey({ id: "meal", kind: "bait", x: 1, y: 0, z: 0 })];
+    join(sparse, "player");
+    expect(sparse.food).toHaveLength(1);
+    expect(sparse.food[0].id).toBe("meal");
+  });
+
+  it("places about 35% of seeded bait top-ups 10–30 units from living humans, independent of map insertion order", () => {
+    const first = createRoom({ seed: "human-topups" });
+    join(first, "zeta");
+    join(first, "alpha");
+    const second = structuredClone(first);
+    second.sharks = Object.fromEntries(Object.entries(second.sharks).reverse());
+    const removedIds = first.food.filter((fish) => fish.kind === "bait").slice(-8).map((fish) => fish.id);
+    first.food = first.food.filter((fish) => !removedIds.includes(fish.id));
+    second.food = second.food.filter((fish) => !removedIds.includes(fish.id));
+    const existingIds = new Set(first.food.map((fish) => fish.id));
+    step(first);
+    step(second);
+    const newcomers = (room: typeof first) => room.food.filter((fish) => !existingIds.has(fish.id))
+      .map((fish) => ({ id: fish.id, kind: fish.kind, x: fish.x, y: fish.y, z: fish.z }));
+    expect(newcomers(first)).toEqual(newcomers(second));
+
+    const room = createRoom({ seed: "human-topup-frequency" });
+    join(room, "only-human");
+    let baitCount = 0;
+    let nearCount = 0;
+    for (let tick = 0; tick < 70; tick += 1) {
+      const removed = new Set(room.food.filter((fish) => fish.kind === "bait").slice(-8).map((fish) => fish.id));
+      room.food = room.food.filter((fish) => !removed.has(fish.id));
+      const previous = new Set(room.food.map((fish) => fish.id));
+      step(room);
+      for (const fish of room.food) {
+        if (fish.kind !== "bait" || previous.has(fish.id)) continue;
+        baitCount += 1;
+        const distance = Math.hypot(fish.x - room.sharks["only-human"].position.x,
+          fish.y - room.sharks["only-human"].position.y, fish.z - room.sharks["only-human"].position.z);
+        if (distance >= 9 && distance <= 31) nearCount += 1;
+      }
+      expect(room.food.length).toBeLessThanOrEqual(PREY_BUDGET.ambient);
+    }
+    expect(baitCount).toBeGreaterThan(300);
+    expect(nearCount / baitCount).toBeGreaterThan(0.2);
+    expect(nearCount / baitCount).toBeLessThan(0.53);
+  });
+});

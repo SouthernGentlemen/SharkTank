@@ -10,6 +10,8 @@ Menus, HUD, leaderboard, settings, dialogs, captions, live announcements, projec
 
 Reduced motion limits camera easing, banking, particles and environmental motion without hiding gameplay state. High contrast and non-color cues preserve Apex, depth, health, score and navigation meaning. Captions are produced independently of Web Audio playback.
 
+Four existing bait fish form a visible school ahead of a living human spawn, respawn or new-round spawn. The Room also biases about 35% of replenished bait near living humans, using sorted ids and seeded RNG. This changes no input control, client announcement, accessibility presentation setting or protocol-12 field.
+
 Smaller sharks have quicker yaw/pitch response than larger sharks. Keyboard and touch retain the same input, with prediction matching the Room's shared length-based multiplier and no additional cues or wire fields.
 
 Local prediction, remote interpolation and graphics quality are presentation paths only. Accessibility settings cannot remove authoritative actors or competitive state. Settings stay in the device-local player record.

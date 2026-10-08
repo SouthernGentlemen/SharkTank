@@ -107,18 +107,6 @@ Tasks follow these defaults unless the owner changes them before the task starts
 
 ## Open tasks
 
-### ST-271 — [FEAT] Seed prey near human sharks and greet each spawn with a school
-
-**Goal:** Food should always be nearby.
-
-**Scope:** Spawn about 35% of bait top-ups 10–30 units from a living human shark, chosen by deterministic RNG over sorted ids. Drop a small bait school ahead of each human spawn.
-
-**Acceptance:** Deterministic tests pass and snapshot budgets hold.
-
-**Validation:** `npm test -- tests/prey-schools.test.ts tests/client-performance.test.ts tests/determinism.test.ts`.
-
----
-
 ### ST-272 — [FEAT] Stop bots farming fresh spawns
 
 **Goal:** Keep the size ladder climbable for people.
