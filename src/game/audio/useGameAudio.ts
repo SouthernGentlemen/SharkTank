@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from "react";
 import type { NetPrey } from "../../protocol/index.js";
 import type { ClientShark } from "../net/clientState.js";
 import { audio, SFX_CAPTION, type Sfx } from "./AudioManager.js";
+import { musicModeForState } from "./musicIntensity.js";
 import {
   AUDIO_LIMITS,
   audioDistance,
@@ -115,6 +116,7 @@ export function useGameAudio(socket: RoomSocket, settings: Settings): Caption | 
     roundKey.current = null;
     lastFood.current.clear();
     seenExplosions.current.clear();
+    audio.setMusicMode("calm");
   }, [socket.status]);
 
   useEffect(() => {
@@ -126,6 +128,7 @@ export function useGameAudio(socket: RoomSocket, settings: Settings): Caption | 
       if (socket.status !== "open") return;
       const state = socket.stateRef.current;
       if (!state) return;
+      audio.setMusicMode(musicModeForState(state, socket.youId));
 
       const me = state.sharks.find((shark) => shark.id === socket.youId) ?? null;
       const first = lastTick.current === null || state.tick < (lastTick.current ?? 0);

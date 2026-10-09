@@ -88,10 +88,10 @@ describe("ST-125 spatial underwater game audio", () => {
     expect(camera).toContain("current.lookAt.x - current.position.x");
   });
 
-  it("keeps music opt-in and state identities unchanged", () => {
+  it("pins 35% gesture-gated default music and state identities unchanged", () => {
     const settings = read("../src/game/settings/SettingsContext.tsx");
     const packageJson = JSON.parse(read("../package.json")) as { version: string };
-    expect(settings).toContain("audio: { master: 0.8, sfx: 0.9, music: 0, captions: false }");
+    expect(settings).toContain("audio: { master: 0.8, sfx: 0.9, music: 0.35, captions: false }");
     expect(packageJson.version).toBe("2.4.0");
     expect(ROOM_SCHEMA_VERSION).toBe(11);
     expect(REALTIME_PROTOCOL_VERSION).toBe(12);

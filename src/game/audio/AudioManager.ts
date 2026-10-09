@@ -1,4 +1,5 @@
 import { MusicLookaheadScheduler } from "./musicScheduler.js";
+import { MUSIC_CROSSFADE_SECONDS, MUSIC_MIX, mixAt, type MusicMix, type MusicMode } from "./musicIntensity.js";
 import { midiToHz, scoreEventAtStep, type PercussionHit } from "./underwaterScore.js";
 import {
   AUDIO_LIMITS,
@@ -120,6 +121,9 @@ class AudioManagerImpl {
   private musicNoise: AudioBuffer | null = null;
   private musicScheduler: MusicLookaheadScheduler | null = null;
   private musicNotes = new Set<Voice>();
+  private musicMode: MusicMode = "calm";
+  private musicMix: MusicMix = MUSIC_MIX.calm;
+  private musicFade: { from: MusicMix; to: MusicMix; at: number } | null = null;
   private vols = { master: 0.8, sfx: 0.9, music: 0 };
   private voices = new Set<Voice>();
   private lastCueAt = new Map<string, number>();
@@ -234,6 +238,7 @@ class AudioManagerImpl {
     this.stopMusicNodes();
     this.stopVoices();
     this.lastCueAt.clear();
+    this.musicMode = "calm";
   }
 
   private stopVoices(): void {
@@ -353,6 +358,33 @@ class AudioManagerImpl {
     this.stopMusicNodes();
   }
 
+  setMusicMode(mode: MusicMode): void {
+    if (this.musicMode === mode) return;
+    this.musicMode = mode;
+    this.fadeMusicMix();
+  }
+
+  private fadeMusicMix(): void {
+    const ctx = this.ctx;
+    if (!ctx || !this.musicPadGain || !this.musicBassGain || !this.musicPercussionGain || !this.musicLeadGain) return;
+    const at = ctx.currentTime;
+    const from = this.musicFade
+      ? mixAt(this.musicFade.from, this.musicFade.to, at - this.musicFade.at)
+      : this.musicMix;
+    const to = MUSIC_MIX[this.musicMode];
+    const gains = [this.musicPadGain, this.musicBassGain, this.musicPercussionGain, this.musicLeadGain];
+    const keys = ["pad", "bass", "percussion", "lead"] as const;
+    for (let i = 0; i < gains.length; i++) {
+      const gain = gains[i].gain;
+      const key = keys[i];
+      gain.cancelScheduledValues(at);
+      gain.setValueAtTime(from[key], at);
+      gain.linearRampToValueAtTime(to[key], at + MUSIC_CROSSFADE_SECONDS);
+    }
+    this.musicMix = to;
+    this.musicFade = { from, to, at };
+  }
+
   private startMusicNodes(): void {
     if (!this.ctx || !this.musicGain || this.musicScheduler || this.ctx.state !== "running") return;
     this.musicPadGain = this.ctx.createGain();
@@ -383,6 +415,7 @@ class AudioManagerImpl {
       (step, at) => this.scheduleMusicNote(step, at),
     );
     this.musicScheduler.start();
+    if (this.musicMode !== "calm") this.fadeMusicMix();
   }
 
   private stopMusicNodes(): void {
@@ -398,6 +431,8 @@ class AudioManagerImpl {
     this.musicPercussionGain = null;
     this.musicLeadGain = null;
     this.musicNoise = null;
+    this.musicFade = null;
+    this.musicMix = MUSIC_MIX.calm;
   }
 
   private syncDesiredLoops(): void {
@@ -419,7 +454,10 @@ class AudioManagerImpl {
     if (event.padMidi) this.scheduleMusicPad(event.padMidi, at);
     if (event.bassMidi !== null) this.scheduleMusicBass(event.bassMidi, at);
     if (event.percussionHit) this.scheduleMusicPercussion(event.percussionHit, at);
-    if (event.leadMidi !== null) this.scheduleMusicLead(event.leadMidi, at);
+    // Frenzy inserts extra on-grid offbeats; the scheduler's 100 ms window is unchanged.
+    if (this.musicMode === "frenzy" && step % 2 === 1) this.scheduleMusicPercussion("shaker", at);
+    // Apex adds harmonic tension without changing the deterministic base score.
+    if (event.leadMidi !== null) this.scheduleMusicLead(event.leadMidi + (this.musicMode === "apex" ? 1 : 0), at);
   }
 
   private scheduleMusicPad(midi: readonly number[], at: number): void {

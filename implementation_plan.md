@@ -107,28 +107,6 @@ Tasks follow these defaults unless the owner changes them before the task starts
 
 ## Open tasks
 
-### ST-278 — [FEAT] Drive music intensity from gameplay and turn music on by default
-
-**Goal:** Music should rise with danger, Frenzy and Apex, and players should actually hear it.
-
-**Scope**
-- Crossfade layer mixes over at least 1 s:
-
-  | State | Mix |
-  | --- | --- |
-  | Calm | Pads and bass |
-  | Hunt (threat near or low health) | Adds percussion |
-  | Frenzy | Fast percussion and motif |
-  | Apex | Tension variation |
-  | Round result | Short sting, then calm |
-
-- Default music goes to 0.35 and still starts after the first gesture; the music toggle is visible on touch without opening the gear.
-
-**Acceptance:** State-to-mix tests pass; the settings-default pin is updated; the WCAG 1.4.2 control is reachable in one tap.
-
-**Validation:** `npm test -- tests/spatial-audio.test.ts tests/feeding-frenzy-3d.test.ts tests/accessibility-contract.test.ts`.
-
----
 
 ### ST-279 — [FEAT] Route audio through an underwater reverb and limiter bus
 

@@ -111,8 +111,8 @@ export interface Settings {
 
 export const DEFAULT_SETTINGS: Settings = {
   graphics: { quality: "auto", showMinimap: true, showGrid: true, cameraShake: true },
-  // BGM is opt-in (0) so nothing autoplays unexpectedly; SFX are brief + event-driven.
-  audio: { master: 0.8, sfx: 0.9, music: 0, captions: false },
+  // Music defaults to 35% after browser activation; saved device-local mute still wins.
+  audio: { master: 0.8, sfx: 0.9, music: 0.35, captions: false },
   controls: {
     keybinds: { ...DEFAULT_KEYBINDS },
     aimAssist: null,

@@ -5,9 +5,8 @@ import { useSettings } from "../settings/SettingsContext.js";
  * The in-game tools rail.
  *
  * On a pointer device every control is on the rail. On touch there is no room for a
- * nine-button rail beside a thumbstick and two ability pads, so `collapsed` folds the
- * whole set into one gear trigger whose popover holds everything — the rail then costs
- * a single 52px target instead of a strip wider than half the phone.
+ * rail beside the thumbstick and ability pads, so `collapsed` keeps the 52px music
+ * mute and gear visible while folding the other tools into a popover.
  */
 export function QuickA11y({ onQuit, onHelp, onSettings, collapsed = false }: { onQuit: () => void; onHelp: () => void; onSettings: () => void; collapsed?: boolean }) {
   const { settings, update } = useSettings();
@@ -15,7 +14,7 @@ export function QuickA11y({ onQuit, onHelp, onSettings, collapsed = false }: { o
   const a = settings.a11y;
   const au = settings.audio;
   const musicOn = au.master > 0 && au.music > 0;
-  const toggleMusic = () => update("audio", { music: musicOn ? 0 : 0.5, master: au.master === 0 ? 0.8 : au.master });
+  const toggleMusic = () => update("audio", { music: musicOn ? 0 : 0.35, master: au.master === 0 ? 0.8 : au.master });
 
   const exit = <IconButton key="exit" icon="exit" label="Exit to menu" onClick={onQuit} />;
   const music = <button key="music" type="button" className={musicOn ? "icon-button is-active" : "icon-button"} aria-pressed={musicOn} aria-label={`Music: ${musicOn ? "on" : "off"}`} title={`Music: ${musicOn ? "on" : "off"}`} onClick={toggleMusic}><Icon name={musicOn ? "volume" : "volumeOff"} /></button>;
@@ -31,11 +30,10 @@ export function QuickA11y({ onQuit, onHelp, onSettings, collapsed = false }: { o
   return (
     <div className={collapsed ? "game-tools game-tools--collapsed" : "game-tools"} role="toolbar" aria-label="Game tools">
       {!collapsed && exit}
-      {!collapsed && music}
+      {music}
       <div className="gearbox">
         {open && <div className="gearbox__popover" role="group" aria-label="Display and accessibility controls">
           {collapsed && exit}
-          {collapsed && music}
           {display}
           {collapsed && help}
         </div>}
