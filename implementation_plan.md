@@ -108,16 +108,6 @@ Tasks follow these defaults unless the owner changes them before the task starts
 ## Open tasks
 
 
-### ST-281 — [OPS] Release the growth and music update as v2.5.0
-
-**Goal:** Ship ST-269 through ST-280.
-
-**Scope:** Semantic minor release after the owner records the manual rows for tiers, streaks, bot fairness and audio on a real phone and a desktop browser.
-
-**Acceptance:** `v2.5.0` is live. Protected approval is honored; stop and report if it is pending.
-
----
-
 ### ST-282 — [FEAT] Replace the HUD cards with one compact top bar and status chips
 
 **Goal:** Five cards and a two-line Frenzy banner cover the top of a phone.
