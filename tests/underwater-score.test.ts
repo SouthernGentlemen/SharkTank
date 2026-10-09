@@ -2,6 +2,8 @@ import { describe, expect, it } from "vitest";
 import {
   SCORE_BARS_PER_LOOP,
   SCORE_CHORDS,
+  SCORE_LEAD_MOTIF,
+  SCORE_PERCUSSION_PATTERN,
   SCORE_STEPS_PER_BAR,
   midiToHz,
   scoreEventAtStep,
@@ -79,5 +81,54 @@ describe("ST-276 layered underwater score", () => {
     expect(source).toContain("for (const note of [...this.musicNotes]) note.stop()");
     expect(MUSIC_LOOKAHEAD_MS).toBe(25);
     expect(MUSIC_LOOKAHEAD_SECONDS).toBe(0.1);
+  });
+});
+
+describe("ST-277 percussion and lead pattern", () => {
+  it("aligns filtered-noise kick and shaker to the eight-step audio-clock grid", () => {
+    expect(SCORE_PERCUSSION_PATTERN).toEqual([
+      "kick", null, "shaker", null, "kick", null, "shaker", null,
+    ]);
+    const hits = Array.from({ length: 64 }, (_, step) => scoreEventAtStep(step)?.percussionHit);
+    expect(hits.filter((hit) => hit === "kick")).toHaveLength(16);
+    expect(hits.filter((hit) => hit === "shaker")).toHaveLength(16);
+    for (let step = 0; step < 64; step++) {
+      expect(hits[step]).toBe(SCORE_PERCUSSION_PATTERN[step % 8]);
+    }
+    expect(scoreEventAtStep(64)?.percussionHit).toBe(hits[0]);
+  });
+
+  it("uses a sparse, harmonic eight-bar motif that loops without drifting", () => {
+    expect(SCORE_LEAD_MOTIF).toHaveLength(SCORE_BARS_PER_LOOP);
+    const expected = [69, 72, 76, 69, 74, 77, 70, 74, 77, 73, 76, 79, 76];
+    const notes = Array.from({ length: 64 }, (_, step) => scoreEventAtStep(step)?.leadMidi)
+      .filter((midi): midi is number => midi !== null && midi !== undefined);
+    expect(notes).toEqual(expected);
+    expect(notes.every((midi) => midi >= 69 && midi <= 79)).toBe(true);
+    expect(notes).toHaveLength(13);
+    for (let step = 0; step < 64; step++) {
+      expect(scoreEventAtStep(step)?.leadMidi).toBe(SCORE_LEAD_MOTIF[Math.floor(step / 8)][step % 8]);
+      expect(scoreEventAtStep(step + 64)).toEqual(scoreEventAtStep(step));
+    }
+  });
+
+  it("routes optional layers separately from pads, bass, SFX and music master", () => {
+    const source = readFileSync(new URL("../src/game/audio/AudioManager.ts", import.meta.url), "utf8");
+    expect(source).toContain("this.musicPercussionGain = ctx.createGain()");
+    expect(source).toContain("this.musicLeadGain = ctx.createGain()");
+    expect(source).toContain("this.musicPercussionGain.gain.value = 0");
+    expect(source).toContain("this.musicLeadGain.gain.value = 0");
+    expect(source).toContain("this.musicPercussionGain.connect(this.musicGain)");
+    expect(source).toContain("this.musicLeadGain.connect(this.musicGain)");
+    expect(source).toContain("ctx.createBufferSource()");
+    expect(source).toContain('kick ? "lowpass" : "highpass"');
+    expect(source).toContain("this.scheduleMusicPercussion(event.percussionHit, at)");
+    expect(source).toContain("this.scheduleMusicLead(event.leadMidi, at)");
+    expect(source).toContain("source.start(at)");
+    expect(source).toContain("osc.start(at)");
+    expect(source).toContain("this.musicPercussionGain?.disconnect()");
+    expect(source).toContain("this.musicLeadGain?.disconnect()");
+    expect(source).toContain("this.musicNoise = null");
+    expect(source).toContain("for (const note of [...this.musicNotes]) note.stop()");
   });
 });
