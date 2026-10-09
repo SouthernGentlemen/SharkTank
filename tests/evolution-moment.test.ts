@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+import { SFX_RECIPES } from "../src/game/audio/sfxVoices.js";
 import { readFileSync } from "node:fs";
 import { detectEvolution, type EvolutionSample, type EvolutionTracker } from "../src/game/ui/evolution.js";
 
@@ -73,6 +74,9 @@ describe("ST-273 client-only evolution moment", () => {
     expect(ui).toContain("setTimeout(() =>");
     expect(css).toContain(".game-evolution__ring");
     expect(css).toContain("@keyframes evolution-ring");
-    expect(audio).toContain('case "evolve":');
+    expect(audio).toContain("const spec = SFX_RECIPES[type]");
+    expect(audio).toContain("if (spec.harmonic)");
+    expect(SFX_RECIPES.evolve.harmonic?.ratio).toBeGreaterThan(1);
+    expect(SFX_RECIPES.evolve.peak).toBeLessThan(0.1);
   });
 });

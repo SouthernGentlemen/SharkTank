@@ -1,5 +1,6 @@
 import { MusicLookaheadScheduler } from "./musicScheduler.js";
 import { createUnderwaterBus, type UnderwaterBus } from "./underwaterBus.js";
+import { createSfxNoise, SFX_RECIPES, swimTexture } from "./sfxVoices.js";
 import { MUSIC_CROSSFADE_SECONDS, MUSIC_MIX, mixAt, type MusicMix, type MusicMode } from "./musicIntensity.js";
 import { midiToHz, scoreEventAtStep, type PercussionHit } from "./underwaterScore.js";
 import {
@@ -11,7 +12,6 @@ import {
 } from "./spatialAudio.js";
 
 export type Sfx =
-  | "swimRush"
   | "preyConsume"
   | "boost"
   | "biteImpact"
@@ -30,7 +30,6 @@ export type Sfx =
   | "preyActivity";
 
 export const SFX_CAPTION: Record<Sfx, string> = {
-  swimRush: "Swimming",
   preyConsume: "Prey consumed",
   boost: "Burst",
   biteImpact: "Bite impact",
@@ -48,15 +47,6 @@ export const SFX_CAPTION: Record<Sfx, string> = {
   sharkPresence: "Shark nearby",
   preyActivity: "Prey school nearby",
 };
-
-interface ToneSpec {
-  wave: OscillatorType;
-  startHz: number;
-  endHz: number;
-  duration: number;
-  peak: number;
-  filterHz: number;
-}
 
 interface Voice {
   stop: () => void;
@@ -86,28 +76,6 @@ function clamp01(value: number): number {
   return Math.max(0, Math.min(1, Number.isFinite(value) ? value : 0));
 }
 
-function tone(type: Sfx): ToneSpec {
-  switch (type) {
-    case "swimRush": return { wave: "sine", startHz: 74, endHz: 91, duration: 0.42, peak: 0.035, filterHz: 420 };
-    case "preyConsume": return { wave: "square", startHz: 620, endHz: 900, duration: 0.13, peak: 0.12, filterHz: 1500 };
-    case "boost": return { wave: "sawtooth", startHz: 145, endHz: 520, duration: 0.2, peak: 0.13, filterHz: 1100 };
-    case "biteImpact": return { wave: "square", startHz: 190, endHz: 86, duration: 0.15, peak: 0.2, filterHz: 900 };
-    case "sharkDeath": return { wave: "sawtooth", startHz: 260, endHz: 64, duration: 0.5, peak: 0.19, filterHz: 780 };
-    case "die": return { wave: "sawtooth", startHz: 410, endHz: 58, duration: 0.58, peak: 0.26, filterHz: 820 };
-    case "spawn": return { wave: "triangle", startHz: 290, endHz: 620, duration: 0.22, peak: 0.16, filterHz: 1450 };
-    case "evolve": return { wave: "sine", startHz: 410, endHz: 990, duration: 0.45, peak: 0.17, filterHz: 1850 };
-    case "frenzyStart": return { wave: "sawtooth", startHz: 170, endHz: 680, duration: 0.36, peak: 0.18, filterHz: 1200 };
-    case "frenzyEnd": return { wave: "triangle", startHz: 460, endHz: 180, duration: 0.3, peak: 0.13, filterHz: 1000 };
-    case "frenzyPulse": return { wave: "triangle", startHz: 145, endHz: 230, duration: 0.28, peak: 0.08, filterHz: 720 };
-    case "apexStart": return { wave: "sawtooth", startHz: 118, endHz: 430, duration: 0.42, peak: 0.21, filterHz: 940 };
-    case "apexPulse": return { wave: "sawtooth", startHz: 88, endHz: 126, duration: 0.34, peak: 0.1, filterHz: 620 };
-    case "roundStart": return { wave: "triangle", startHz: 250, endHz: 560, duration: 0.28, peak: 0.15, filterHz: 1400 };
-    case "roundResult": return { wave: "triangle", startHz: 520, endHz: 220, duration: 0.42, peak: 0.17, filterHz: 1200 };
-    case "sharkPresence": return { wave: "sine", startHz: 82, endHz: 68, duration: 0.36, peak: 0.065, filterHz: 520 };
-    case "preyActivity": return { wave: "triangle", startHz: 390, endHz: 510, duration: 0.16, peak: 0.055, filterHz: 1250 };
-  }
-}
-
 class AudioManagerImpl {
   private ctx: AudioContext | null = null;
   private master: GainNode | null = null;
@@ -116,6 +84,11 @@ class AudioManagerImpl {
   private musicGain: GainNode | null = null;
   private ambienceGain: GainNode | null = null;
   private ambienceNodes: AudioNode[] = [];
+  private ambienceSource: AudioBufferSourceNode | null = null;
+  private ambienceFilter: BiquadFilterNode | null = null;
+  private ambienceLevel: GainNode | null = null;
+  private sfxNoise: AudioBuffer | null = null;
+  private swimSpeed = 0;
   private musicPadGain: GainNode | null = null;
   private musicBassGain: GainNode | null = null;
   private musicPercussionGain: GainNode | null = null;
@@ -230,6 +203,7 @@ class AudioManagerImpl {
     this.sfxGain = null;
     this.musicGain = null;
     this.ambienceGain = null;
+    this.sfxNoise = null;
     this.activated = false;
   }
 
@@ -239,6 +213,7 @@ class AudioManagerImpl {
     this.stopAmbienceNodes();
     this.stopMusicNodes();
     this.stopVoices();
+    this.swimSpeed = 0;
     this.lastCueAt.clear();
     this.musicMode = "calm";
   }
@@ -317,36 +292,45 @@ class AudioManagerImpl {
     this.stopAmbienceNodes();
   }
 
+  /** Continuously blend the swimmer's water noise from server-derived motion. */
+  setSwimSpeed(speed: number): void {
+    this.swimSpeed = Number.isFinite(speed) ? Math.max(0, Math.min(30, speed)) : 0;
+    const texture = swimTexture(this.swimSpeed);
+    const at = this.ctx?.currentTime ?? 0;
+    this.ambienceLevel?.gain.setTargetAtTime(texture.gain, at, 0.12);
+    this.ambienceFilter?.frequency.setTargetAtTime(texture.filterHz, at, 0.12);
+  }
+
   private startAmbienceNodes(): void {
     if (!this.ctx || !this.ambienceGain || this.ambienceNodes.length || this.ctx.state !== "running") return;
-    const filter = this.ctx.createBiquadFilter();
-    const local = this.ctx.createGain();
-    const low = this.ctx.createOscillator();
-    const wash = this.ctx.createOscillator();
-    filter.type = "lowpass";
-    filter.frequency.value = 360;
-    filter.Q.value = 0.7;
-    local.gain.value = 0.065;
-    low.type = "sine";
-    low.frequency.value = 54;
-    wash.type = "triangle";
-    wash.frequency.value = 91;
-    wash.detune.value = -8;
-    low.connect(filter);
-    wash.connect(filter);
-    filter.connect(local).connect(this.ambienceGain);
-    low.start();
-    wash.start();
-    this.ambienceNodes = [low, wash, filter, local];
+    const ctx = this.ctx;
+    const source = ctx.createBufferSource();
+    source.buffer = this.sfxNoise ?? (this.sfxNoise = createSfxNoise(ctx));
+    source.loop = true;
+    const filter = ctx.createBiquadFilter();
+    const local = ctx.createGain();
+    filter.type = "bandpass";
+    filter.Q.value = 0.38;
+    local.gain.value = 0;
+    source.connect(filter).connect(local).connect(this.ambienceGain);
+    this.ambienceSource = source;
+    this.ambienceFilter = filter;
+    this.ambienceLevel = local;
+    source.start();
+    this.ambienceNodes = [source, filter, local];
+    this.setSwimSpeed(this.swimSpeed);
   }
 
   private stopAmbienceNodes(): void {
+    if (this.ambienceSource) {
+      try { this.ambienceSource.stop(); } catch { /* already stopped */ }
+    }
     for (const node of this.ambienceNodes) {
-      if (node instanceof OscillatorNode) {
-        try { node.stop(); } catch { /* already stopped */ }
-      }
       try { node.disconnect(); } catch { /* already disconnected */ }
     }
+    this.ambienceSource = null;
+    this.ambienceFilter = null;
+    this.ambienceLevel = null;
     this.ambienceNodes = [];
   }
 
@@ -643,37 +627,78 @@ class AudioManagerImpl {
     spatial: { position: AudioPoint; mix: SpatialMix; range: number } | null,
     options: PlayOptions,
   ): boolean {
-    if (!this.ctx || !this.sfxGain || this.ctx.state !== "running" || this.vols.master <= 0 || this.vols.sfx <= 0) return false;
+    const ctx = this.ctx;
+    if (!ctx || !this.sfxGain || ctx.state !== "running" || this.vols.master <= 0 || this.vols.sfx <= 0) return false;
     if (this.voices.size >= AUDIO_LIMITS.maxWorldVoices) return false;
 
-    const nowMs = this.ctx.currentTime * 1000;
+    const nowMs = ctx.currentTime * 1000;
     const key = options.key ?? type;
     const minIntervalMs = Math.max(0, options.minIntervalMs ?? 0);
     const previous = this.lastCueAt.get(key) ?? -Infinity;
     if (nowMs - previous < minIntervalMs) return false;
     this.lastCueAt.set(key, nowMs);
 
-    const spec = tone(type);
-    const t = this.ctx.currentTime;
-    const osc = this.ctx.createOscillator();
-    const filter = this.ctx.createBiquadFilter();
-    const gain = this.ctx.createGain();
-    const nodes: AudioNode[] = [osc, filter, gain];
-    osc.type = spec.wave;
+    const spec = SFX_RECIPES[type];
+    const t = ctx.currentTime;
     const pitch = Number.isFinite(options.pitch) ? Math.max(0.8, Math.min(1.6, options.pitch!)) : 1;
+    const osc = ctx.createOscillator();
+    const filter = ctx.createBiquadFilter();
+    const gain = ctx.createGain();
+    const output = ctx.createGain();
+    const nodes: AudioNode[] = [osc, filter, gain, output];
+    const sources: (OscillatorNode | AudioBufferSourceNode)[] = [osc];
+
+    // Sine/triangle body: low thump, descending soft pluck, or gentle phase sting.
+    osc.type = spec.wave;
     osc.frequency.setValueAtTime(spec.startHz * pitch, t);
-    osc.frequency.exponentialRampToValueAtTime(Math.max(1, spec.endHz * pitch), t + spec.duration);
+    osc.frequency.exponentialRampToValueAtTime(spec.endHz * pitch, t + spec.duration);
     filter.type = "lowpass";
     filter.frequency.value = spec.filterHz * (spatial && spatial.mix.front < -0.2 ? 0.72 : 1);
-    filter.Q.value = 0.75;
-    const peak = Math.max(0.0002, spec.peak * (spatial?.mix.gain ?? 1));
+    filter.Q.value = 0.65;
     gain.gain.setValueAtTime(0.0001, t);
-    gain.gain.exponentialRampToValueAtTime(peak, t + 0.012);
+    gain.gain.exponentialRampToValueAtTime(spec.peak, t + 0.014);
     gain.gain.exponentialRampToValueAtTime(0.0001, t + spec.duration);
-    osc.connect(filter).connect(gain);
+    osc.connect(filter).connect(gain).connect(output);
 
-    if (spatial && typeof this.ctx.createPanner === "function") {
-      const panner = this.ctx.createPanner() as LegacyPanner;
+    if (spec.noise) {
+      // Crunch and whoosh use one shared, deterministic noise source with a short sweep.
+      const source = ctx.createBufferSource();
+      source.buffer = this.sfxNoise ?? (this.sfxNoise = createSfxNoise(ctx));
+      const noiseFilter = ctx.createBiquadFilter();
+      const noiseGain = ctx.createGain();
+      noiseFilter.type = spec.noise.type;
+      noiseFilter.Q.value = 0.52;
+      noiseFilter.frequency.setValueAtTime(spec.noise.fromHz, t);
+      noiseFilter.frequency.exponentialRampToValueAtTime(spec.noise.toHz, t + spec.duration);
+      noiseGain.gain.setValueAtTime(0.0001, t);
+      noiseGain.gain.exponentialRampToValueAtTime(spec.noise.peak, t + 0.018);
+      noiseGain.gain.exponentialRampToValueAtTime(0.0001, t + spec.duration);
+      source.connect(noiseFilter).connect(noiseGain).connect(output);
+      nodes.push(source, noiseFilter, noiseGain);
+      sources.push(source);
+      source.start(t);
+      source.stop(t + spec.duration + 0.01);
+    }
+    if (spec.harmonic) {
+      // Two sine partials form a soft tier-up chime instead of a high-pitched beep.
+      const upper = ctx.createOscillator();
+      const upperGain = ctx.createGain();
+      upper.type = "sine";
+      upper.frequency.setValueAtTime(spec.startHz * spec.harmonic.ratio * pitch, t);
+      upper.frequency.exponentialRampToValueAtTime(spec.endHz * spec.harmonic.ratio * pitch, t + spec.duration);
+      upperGain.gain.setValueAtTime(0.0001, t);
+      upperGain.gain.exponentialRampToValueAtTime(spec.harmonic.peak, t + 0.035);
+      upperGain.gain.exponentialRampToValueAtTime(0.0001, t + spec.duration);
+      upper.connect(upperGain).connect(output);
+      nodes.push(upper, upperGain);
+      sources.push(upper);
+      upper.start(t);
+      upper.stop(t + spec.duration + 0.03);
+    }
+
+    output.gain.value = spatial?.mix.gain ?? 1;
+    if (spatial && typeof ctx.createPanner === "function") {
+      const panner = ctx.createPanner() as LegacyPanner;
       panner.panningModel = "HRTF";
       panner.distanceModel = "linear";
       panner.refDistance = 1;
@@ -686,15 +711,15 @@ class AudioManagerImpl {
       } else {
         panner.setPosition?.(spatial.position.x, spatial.position.y, spatial.position.z);
       }
-      gain.connect(panner).connect(this.sfxGain);
+      output.connect(panner).connect(this.sfxGain);
       nodes.push(panner);
-    } else if (spatial && typeof this.ctx.createStereoPanner === "function") {
-      const panner = this.ctx.createStereoPanner();
+    } else if (spatial && typeof ctx.createStereoPanner === "function") {
+      const panner = ctx.createStereoPanner();
       panner.pan.value = spatial.mix.pan;
-      gain.connect(panner).connect(this.sfxGain);
+      output.connect(panner).connect(this.sfxGain);
       nodes.push(panner);
     } else {
-      gain.connect(this.sfxGain);
+      output.connect(this.sfxGain);
     }
 
     let ended = false;
@@ -703,7 +728,9 @@ class AudioManagerImpl {
       stop: () => {
         if (ended) return;
         ended = true;
-        try { osc.stop(); } catch { /* already stopped */ }
+        for (const source of sources) {
+          try { source.stop(); } catch { /* already stopped */ }
+        }
         for (const node of nodes) {
           try { node.disconnect(); } catch { /* already disconnected */ }
         }
@@ -716,6 +743,7 @@ class AudioManagerImpl {
     osc.stop(t + spec.duration + 0.03);
     return true;
   }
+
 }
 
 export const audio = new AudioManagerImpl();

@@ -10,8 +10,11 @@ import {
   emitterCapForQuality,
   isFreshAudioEvent,
   isPreyConsumeCandidate,
+  presenceCueInterval,
+  swimSpeedBetween,
   selectSpatialEmitters,
   type AudioPoint,
+  type SwimSample,
 } from "./spatialAudio.js";
 import type { RoomSocket } from "../net/useRoomSocket.js";
 import type { Settings } from "../settings/SettingsContext.js";
@@ -43,7 +46,7 @@ export function useGameAudio(socket: RoomSocket, settings: Settings): Caption | 
   const seenExplosions = useRef(new Set<string>());
   const nextSharkCueAt = useRef(0);
   const nextPreyCueAt = useRef(0);
-  const nextSwimCueAt = useRef(0);
+  const lastSwimSample = useRef<SwimSample | null>(null);
   const nextApexCueAt = useRef(0);
   const nextFrenzyCueAt = useRef(0);
   const lastDirectionalCaptionAt = useRef(-Infinity);
@@ -116,6 +119,8 @@ export function useGameAudio(socket: RoomSocket, settings: Settings): Caption | 
     roundKey.current = null;
     lastFood.current.clear();
     seenExplosions.current.clear();
+    lastSwimSample.current = null;
+    audio.setSwimSpeed(0);
     audio.setMusicMode("calm");
   }, [socket.status]);
 
@@ -156,6 +161,18 @@ export function useGameAudio(socket: RoomSocket, settings: Settings): Caption | 
         if (state.round.phase === "active") cue.current("roundStart", { key: currentRoundKey });
         else if (state.round.phase === "apex") cue.current("apexStart", { key: currentRoundKey });
         else cue.current("roundResult", { key: currentRoundKey });
+      }
+
+      if (me && me.alive) {
+        const position = headOf(me);
+        if (position && (!lastSwimSample.current || state.tick !== lastSwimSample.current.tick)) {
+          const current = { tick: state.tick, position };
+          audio.setSwimSpeed(first ? 0 : swimSpeedBetween(lastSwimSample.current, current));
+          lastSwimSample.current = current;
+        }
+      } else {
+        lastSwimSample.current = null;
+        audio.setSwimSpeed(0);
       }
 
       if (me) {
@@ -219,14 +236,8 @@ export function useGameAudio(socket: RoomSocket, settings: Settings): Caption | 
       };
       const emitterCap = emitterCapForQuality(settings.graphics.quality);
 
-      if (now >= nextSwimCueAt.current) {
-        nextSwimCueAt.current = now + AUDIO_LIMITS.swimCueMs;
-        cue.current("swimRush", { key: "swim", minIntervalMs: AUDIO_LIMITS.swimCueMs, caption: false });
-      }
-
       if (now >= nextSharkCueAt.current) {
-        nextSharkCueAt.current = now + AUDIO_LIMITS.sharkCueMs;
-        const nearby = selectSpatialEmitters(
+        const candidate = selectSpatialEmitters(
           listener.position,
           state.sharks
             .filter((shark) => shark.alive && shark.id !== socket.youId)
@@ -238,12 +249,15 @@ export function useGameAudio(socket: RoomSocket, settings: Settings): Caption | 
                 priority: shark.length + (shark.id === state.round.apexId ? 100 : 0),
               }] : [];
             }),
-          Math.min(2, emitterCap),
+          Math.min(1, emitterCap),
           AUDIO_LIMITS.sharkPresenceRange,
-        );
-        nearby.forEach((candidate, index) => {
-          const captionAllowed = index === 0
-            && now - lastDirectionalCaptionAt.current >= AUDIO_LIMITS.captionRepeatMs;
+        )[0];
+        const interval = candidate
+          ? presenceCueInterval(audioDistance(listener.position, candidate.position))
+          : AUDIO_LIMITS.sharkCueMs;
+        nextSharkCueAt.current = now + interval;
+        if (candidate) {
+          const captionAllowed = now - lastDirectionalCaptionAt.current >= AUDIO_LIMITS.captionRepeatMs;
           const caption = captionAllowed
             ? "Shark nearby — " + directionCaption(listener, candidate.position)
             : false;
@@ -251,12 +265,12 @@ export function useGameAudio(socket: RoomSocket, settings: Settings): Caption | 
             position: candidate.position,
             range: AUDIO_LIMITS.sharkPresenceRange,
             key: "presence:" + candidate.id,
-            minIntervalMs: AUDIO_LIMITS.sharkCueMs,
+            minIntervalMs: interval,
             caption,
           }) && captionAllowed) {
             lastDirectionalCaptionAt.current = now;
           }
-        });
+        }
       }
 
       if (now >= nextPreyCueAt.current) {
