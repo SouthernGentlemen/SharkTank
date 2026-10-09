@@ -123,7 +123,7 @@ describe("ST-277 percussion and lead pattern", () => {
     expect(source).toContain("ctx.createBufferSource()");
     expect(source).toContain('kick ? "lowpass" : "highpass"');
     expect(source).toContain("this.scheduleMusicPercussion(event.percussionHit, at)");
-    expect(source).toContain("this.scheduleMusicLead(event.leadMidi, at)");
+    expect(source).toContain('this.scheduleMusicLead(event.leadMidi + (this.musicMode === "apex" ? 1 : 0), at)');
     expect(source).toContain("source.start(at)");
     expect(source).toContain("osc.start(at)");
     expect(source).toContain("this.musicPercussionGain?.disconnect()");
