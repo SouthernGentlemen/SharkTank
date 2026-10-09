@@ -237,20 +237,22 @@ describe("ST-123 3D server-wide Feeding Frenzy", () => {
     const world = read("../src/game/game/WorldEnvironment.tsx");
     const screen = read("../src/game/ui/GameScreen.tsx");
     const audio = read("../src/game/audio/useGameAudio.ts");
+    const hud = read("../src/game/ui/Hud.tsx");
     const audioManager = read("../src/game/audio/AudioManager.ts");
     const theme = read("../src/game/ui/theme.css");
 
     expect(world).toContain("frenzyVolumeFor");
     expect(world).toContain("frenzyOn && !reducedMotion");
     expect(world).toContain("environmentQuality.frenzyRingCount");
-    expect(screen).toContain("Central water column");
-    expect(screen).toContain("Feeding frenzy ended.");
+    expect(hud).toContain("Central water column");
+    expect(hud).toContain("Feeding frenzy ended.");
     expect(screen).toContain('settings.a11y.motion === "reduced"');
     expect(audio).toContain('cue.current("frenzyStart")');
     expect(audio).toContain('"frenzyEnd"');
     expect(audioManager).toContain('frenzyStart: "Feeding Frenzy started"');
-    expect(theme).toContain(".frenzy-banner--reduced-motion");
-    expect(theme).toContain(".frenzy-banner--ended");
-    expect(theme).toMatch(/\.frenzy-banner\{[^}]*pointer-events:none/);
+    expect(hud).toContain("FRENZY {stats.frenzySeconds}s");
+    expect(hud).toContain("FRENZY ENDED");
+    expect(theme).toMatch(/\.game-hud \{[^}]*pointer-events:none/);
+    expect(theme).not.toContain("frenzy-pulse");
   });
 });

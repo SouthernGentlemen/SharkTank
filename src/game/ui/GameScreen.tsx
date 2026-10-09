@@ -7,7 +7,7 @@
 // that ownership rather than a media query alone.
 
 import { useCallback, useEffect, useRef, useState } from "react";
-import { FRENZY_RULES, TICKS_PER_SECOND, frenzyTiming, roundTicksLeft } from "../../engine/index.js";
+import { TICKS_PER_SECOND, roundTicksLeft } from "../../engine/index.js";
 import { BiteBuffer } from "../game/biteBuffer.js";
 import { GameViewport } from "../game/GameViewport.js";
 import type { SharkLabel } from "../game/Scene.js";
@@ -123,7 +123,6 @@ export function GameScreen({ room, identity, onAuthoritativeResult, onQuit }: Ga
       <Hud socket={socket} reducedMotion={settings.a11y.motion === "reduced"} />
       <EvolutionMoment socket={socket} reducedMotion={settings.a11y.motion === "reduced"} />
       <Leaderboard socket={socket} />
-      <FrenzyBanner socket={socket} reducedMotion={settings.a11y.motion === "reduced"} />
       <DepthRadar socket={socket} visible={settings.graphics.showMinimap} compact={touch} />
       <QuickA11y onQuit={handleQuit} onHelp={openHelp} onSettings={openSettings} collapsed={touch} />
       <div className="ability-rail">
@@ -478,75 +477,6 @@ function useAbilityCooldown(socket: ReturnType<typeof useRoomSocket>, field: "da
     return () => clearInterval(id);
   }, [socket.stateRef, socket.youId, field]);
   return cooldown;
-}
-
-/**
- * Feeding Frenzy readout. The event is server-scheduled and lands on every client at the
- * same tick, so the countdown is derived from the snapshot rather than a local timer —
- * no drift, and a late joiner sees the correct remaining time immediately.
- */
-function FrenzyBanner({
-  socket,
-  reducedMotion,
-}: {
-  socket: ReturnType<typeof useRoomSocket>;
-  reducedMotion: boolean;
-}) {
-  const [left, setLeft] = useState(0);
-  const [ended, setEnded] = useState(false);
-  const { announce } = useAnnouncer();
-  const wasOn = useRef(false);
-  const endCueTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
-
-  useEffect(() => {
-    const update = () => {
-      const state = socket.stateRef.current;
-      const remaining = state ? frenzyTiming(state).remainingTicks : 0;
-      setLeft(Math.ceil(remaining / TICKS_PER_SECOND));
-    };
-    update();
-    const id = setInterval(update, 200);
-    return () => clearInterval(id);
-  }, [socket.stateRef]);
-
-  useEffect(() => {
-    const on = left > 0;
-    if (on && !wasOn.current) {
-      announce("Feeding frenzy. Converge on the central water column.", "assertive");
-      setEnded(false);
-      if (endCueTimer.current) clearTimeout(endCueTimer.current);
-    } else if (!on && wasOn.current) {
-      announce("Feeding frenzy ended.", "polite");
-      setEnded(true);
-      if (endCueTimer.current) clearTimeout(endCueTimer.current);
-      endCueTimer.current = setTimeout(() => setEnded(false), 1800);
-    }
-    wasOn.current = on;
-  }, [left, announce]);
-
-  useEffect(() => () => {
-    if (endCueTimer.current) clearTimeout(endCueTimer.current);
-  }, []);
-
-  if (left <= 0 && !ended) return null;
-  const classes = `frenzy-banner${reducedMotion ? " frenzy-banner--reduced-motion" : ""}${ended ? " frenzy-banner--ended" : ""}`;
-  if (ended) {
-    return (
-      <div className={classes} role="status">
-        <strong>FRENZY ENDED</strong>
-        <span>Central water column returning to normal</span>
-      </div>
-    );
-  }
-
-  const speedBonus = Math.round((FRENZY_RULES.speedMultiplier - 1) * 100);
-  const dashRecharge = Math.round(1 / FRENZY_RULES.dashCooldownMultiplier);
-  return (
-    <div className={classes} role="status">
-      <strong>FEEDING FRENZY</strong>
-      <span>Central water column · +{speedBonus}% swim speed · dash recharge {dashRecharge}× · {left}s</span>
-    </div>
-  );
 }
 
 function DashIcon() { return <svg viewBox="0 0 32 24" aria-hidden="true"><path d="M2 6h13M1 12h11M4 18h11M17 2l13 10-13 10Z" /></svg>; }

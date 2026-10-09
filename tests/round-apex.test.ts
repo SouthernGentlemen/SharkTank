@@ -255,7 +255,10 @@ describe("ST-124 authoritative round and Apex loop", () => {
     expect(board).toContain("game-leaderboard__apex");
     expect(screen).toContain("Ready for next round");
     expect(screen).toContain("roundUi?.phase !== \"result\"");
-    expect(theme).toMatch(/@media \(max-width:560px\)\{[\s\S]*\.hud-card--round\{min-width:94px\}/);
+    const hud = read("../src/game/ui/Hud.tsx");
+    expect(hud).toContain('stats.roundPhase === "apex" &&');
+    expect(hud).toContain('APEX {formatRoundClock(stats.roundSeconds)}');
+    expect(theme).toContain(".hud-status-chip--apex");
     expect(roomDo).not.toContain("profile-result");
     expect(worker).not.toContain('export { Lobby }');
     expect(worker).not.toContain("x-profile-id");

@@ -1,3 +1,6 @@
+import { createElement } from "react";
+import { renderToStaticMarkup } from "react-dom/server";
+import { HudReadout, type HudStats } from "../src/game/ui/Hud.js";
 import { readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
 import {
@@ -259,4 +262,73 @@ it("ST-267 shows a bounded nearby-gold semantic caption and retains reduced-moti
   const preyRenderer = read("../src/game/game/PreyLayer.tsx");
   expect(preyRenderer).toContain("rayWingFlap(clock.elapsedTime, actor.id, reducedMotion)");
   expect(preyRenderer).toContain("const spin = reducedMotion ? 0 :");
+});
+
+
+describe("ST-282 compact semantic HUD", () => {
+  const stats: HudStats = {
+    points: 1234, size: 5, health: 42, rank: 4, players: 32, alive: true,
+    roundNumber: 2, roundPhase: "active", roundSeconds: 122, frenzySeconds: 0,
+  };
+  const render = (overrides: Partial<HudStats> = {}, reducedMotion = false, frenzyEnded = false) =>
+    renderToStaticMarkup(createElement(HudReadout, {
+      stats: { ...stats, ...overrides }, reducedMotion, frenzyEnded,
+      gainCue: { points: 7, streak: 3, key: 1 },
+    }));
+
+  it("renders authoritative tier progress, score, clock, rank and health with the on-demand snapshot", () => {
+    const html = render();
+    expect(html).toContain("Tiger Shark");
+    expect(html).toMatch(/<progress[^>]*value="0.17647058823529413"[^>]*max="1"/);
+    expect(html).toContain('aria-label="Tiger Shark, 18% to next tier"');
+    expect(html).toContain('aria-label="1234 points"');
+    expect(html).toContain("2:02");
+    expect(html).toContain('aria-label="Rank 4 of 32"');
+    expect(html).toMatch(/<meter[^>]*min="0"[^>]*max="100"[^>]*value="42"[^>]*aria-label="Health"/);
+    expect(html).toContain('role="status" aria-live="off"');
+    expect(html).toContain("42 health, Tiger Shark, size 5.0 times, rank 4 of 32");
+    expect(html).not.toContain("hud-card");
+    expect(html).not.toContain("APEX ");
+    expect(html).not.toContain("FRENZY ");
+  });
+
+  it("keeps simultaneous phase chips and a motion-free streak without live countdown speech", () => {
+    const html = render({ roundPhase: "apex", roundSeconds: 32, frenzySeconds: 12 }, true);
+    expect(html).toContain("FRENZY 12s");
+    expect(html).toContain("APEX 0:32");
+    expect(html).toContain("Feeding Frenzy, 12 seconds. Central water column");
+    expect(html).toContain("×3 streak");
+    expect(html).not.toContain("hud-score-float");
+    expect(html).not.toContain('role="alert"');
+    expect(html).not.toContain('aria-live="polite"');
+    expect(render()).toContain('aria-hidden="true">+7');
+  });
+
+  it("covers maximum tier, zero health, no living rank and end/result states", () => {
+    const html = render({ size: 11.2, health: 0, alive: false, rank: 0, roundPhase: "result", roundSeconds: 0 }, true, true);
+    expect(html).toContain('aria-label="Megalodon, maximum tier"');
+    expect(html).toContain('value="1" max="1"');
+    expect(html).toContain('value="0" aria-label="Health"');
+    expect(html).toContain("—");
+    expect(html).toContain("Next");
+    expect(html).toContain("0:00");
+    expect(html).toContain("FRENZY ENDED");
+    expect(html).not.toContain("APEX ");
+  });
+
+  it("contracts five shrinkable tracks plus one chip row at 740×360 and 375px, with safe areas and contrast", () => {
+    const bar = theme.match(/\.hud-bar \{([^}]+)\}/)?.[1] ?? "";
+    expect(bar).toContain("display:grid");
+    expect(bar).toContain("grid-template-columns:minmax(0,1.7fr) repeat(4,minmax(0,1fr))");
+    expect(theme).toContain(".hud-metric { min-width:0;");
+    expect(theme).toContain("width:min(620px, calc(100% - 12px - var(--safe-l) - var(--safe-r)))");
+    expect(theme).toContain("top:calc(6px + var(--safe-t))");
+    expect(theme).toContain(".hud-status-chips { display:flex; gap:4px; min-width:0; }");
+    expect(theme).toMatch(/@media \(max-width: 560px\) \{\s*\.hud-bar \{ gap:4px; padding:5px 6px; \}/);
+    expect(theme).not.toContain(".game-screen--portrait .game-hud");
+    expect(theme).not.toContain("hud-card");
+    expect(theme).toContain("top:calc(86px + var(--safe-t))");
+    expect(theme).toContain(':root[data-contrast="high"] .hud-status-chip { background:#000; border-color:#fff; color:#fff; }');
+    expect(theme).toContain(':root[data-motion="reduced"] .hud-score-float{display:none}');
+  });
 });

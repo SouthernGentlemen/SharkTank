@@ -324,7 +324,7 @@ body {
    direction — their background is a hard-coded dark rgba while the icon stroke follows
    --text, which measured 1.08:1 in light mode — so they are pinned here too. Anything
    genuinely on a themed surface (the respawn card, the settings panel) is unaffected. */
-.hud-card, .conn-banner, .game-leaderboard, .game-depth-radar, .game-tools, .gearbox__popover {
+.game-hud, .conn-banner, .game-leaderboard, .game-depth-radar, .game-tools, .gearbox__popover {
   --overlay-scrim: rgba(6, 5, 12, 0.72);
   --surface-3: #2b2750;
   --text: #f3f1ff;
@@ -336,19 +336,35 @@ body {
 }
 /* Keep honouring the contrast preferences on top of the pinned palette. */
 @media (prefers-contrast: more) {
-  .hud-card, .conn-banner, .game-leaderboard, .game-depth-radar, .game-tools, .gearbox__popover { --text-faint: var(--text-muted); --border: var(--border-strong); }
+  .game-hud, .conn-banner, .game-leaderboard, .game-depth-radar, .game-tools, .gearbox__popover { --text-faint: var(--text-muted); --border: var(--border-strong); }
 }
-:root[data-contrast="high"] .hud-card, :root[data-contrast="high"] .conn-banner,
+:root[data-contrast="high"] .game-hud, :root[data-contrast="high"] .conn-banner,
 :root[data-contrast="high"] .game-leaderboard, :root[data-contrast="high"] .game-depth-radar,
 :root[data-contrast="high"] .game-tools, :root[data-contrast="high"] .gearbox__popover {
   --text: #ffffff; --text-muted: #eae7ff; --text-faint: #eae7ff; --border: #ffffff; --border-strong: #ffffff;
 }
 
-.game-hud { position:absolute; z-index:10; top:calc(12px + var(--safe-t)); left:calc(12px + var(--safe-l)); display:flex; flex-wrap:wrap; gap:8px; max-width:calc(100% - 24px); pointer-events:none; }
-.hud-card { min-width:74px; padding:7px 13px; border:1px solid var(--border); border-radius:var(--radius); background:var(--overlay-scrim); color:var(--text); text-align:center; }
-.hud-card__label { color:var(--text-muted); font-size:.78rem; line-height:1.2; }
-.hud-card__value { font-size:1.55rem; font-weight:800; line-height:1.15; font-variant-numeric:tabular-nums; white-space:nowrap; }
-.hud-card__sub { color:var(--text-muted); font-size:.9rem; font-weight:700; }
+/* Five flexible tracks keep the bar in one row even at 375px; chips use one row below. */
+.game-hud { position:absolute; z-index:10; top:calc(6px + var(--safe-t)); left:calc(6px + var(--safe-l)); width:min(620px, calc(100% - 12px - var(--safe-l) - var(--safe-r))); display:grid; gap:4px; pointer-events:none; }
+.hud-bar { display:grid; grid-template-columns:minmax(0,1.7fr) repeat(4,minmax(0,1fr)); align-items:center; gap:8px; padding:6px 8px; border:1px solid var(--border); border-radius:var(--radius-sm); background:var(--overlay-scrim); }
+.hud-metric { min-width:0; line-height:1.2; }
+.hud-metric__label { display:block; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; color:var(--text-muted); font-size:.65rem; }
+.hud-metric__value { display:block; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; font-size:1rem; font-weight:800; font-variant-numeric:tabular-nums; }
+.hud-metric__sub { color:var(--text-muted); font-size:.72em; }
+.hud-tier__badge { display:block; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; font-size:.82rem; }
+.hud-tier__progress, .hud-health__bar { display:block; width:100%; height:5px; margin-top:4px; border:0; border-radius:99px; overflow:hidden; appearance:none; background:#3a355e; color:#ffe18b; }
+.hud-tier__progress::-webkit-progress-bar { background:#3a355e; }
+.hud-tier__progress::-webkit-progress-value { background:#ffe18b; }
+.hud-tier__progress::-moz-progress-bar { background:#ffe18b; }
+.hud-health__bar::-webkit-meter-bar { background:#3a355e; border:0; border-radius:99px; }
+.hud-health__bar::-webkit-meter-optimum-value { background:#6ff0a3; }
+.hud-health__bar::-moz-meter-bar { background:#6ff0a3; }
+.hud-status-chips { display:flex; gap:4px; min-width:0; }
+.hud-status-chips:empty { display:none; }
+.hud-status-chip { min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; padding:2px 7px; border:1px solid var(--border-strong); border-radius:99px; background:var(--overlay-scrim); color:var(--text); font-size:.68rem; font-weight:800; font-variant-numeric:tabular-nums; }
+.hud-status-chip--frenzy { border-color:#ffd54a; }
+.hud-status-chip--apex { border-style:double; border-color:#ffd54a; color:#ffe18b; }
+:root[data-contrast="high"] .hud-bar, :root[data-contrast="high"] .hud-status-chip { background:#000; border-color:#fff; color:#fff; }
 .game-leaderboard, .game-depth-radar, .conn-banner { pointer-events:none; }
 /* The leaderboard grows with the tank (ten rows at 32 sharks) and the ability rail is
    pinned above the minimap, so on a short window the two used to meet. Cap the board to
@@ -380,15 +396,6 @@ body {
    compensated for: white on both fills already clears AA at full opacity. */
 .ability-button small{min-width:0;font-size:.62rem;letter-spacing:.11em;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .bite-button{background:var(--ability-bite)}.dash-button{background:var(--ability-dash)}
-
-/* ── Feeding Frenzy ── */
-.frenzy-banner{position:absolute;z-index:12;top:calc(12px + var(--safe-t));left:50%;transform:translateX(-50%);display:grid;justify-items:center;gap:1px;max-width:calc(100% - 24px);padding:7px 18px;border:2px solid #ffd54a;border-radius:999px;background:linear-gradient(120deg,#9a2a12,#995215);color:#fff;text-align:center;pointer-events:none;box-shadow:0 10px 30px rgba(217,67,34,.4);animation:frenzy-pulse 1.1s ease-in-out infinite}
-.frenzy-banner strong{font-size:.92rem;font-weight:900;letter-spacing:.14em}
-/* White on the darkened gradient measures 5.9:1 at its lightest point, so the .7rem
-   span here and the .6rem one in the phone layout both clear AA. The old .94 opacity
-   took the small text to 2.2:1 — it is gone rather than compensated for. */
-.frenzy-banner span{max-width:100%;font-size:.7rem;font-weight:700}
-@keyframes frenzy-pulse{50%{box-shadow:0 10px 40px rgba(255,213,74,.62)}}
 
 /* ── Respawn card (non-modal on purpose — see DeathOverlay.tsx) ── */
 .scrim--respawn{z-index:100;pointer-events:none;background:rgba(6,5,12,.5);padding:16px}
@@ -439,12 +446,11 @@ body {
 
 
 @media (max-width: 560px) {
-  .game-hud { top: calc(6px + var(--safe-t)); left: calc(6px + var(--safe-l)); gap: 4px; max-width: 58vw; }
-  .hud-card { min-width: 0; padding: 4px 8px; }
-  .hud-card__label { font-size: .6rem; letter-spacing: .04em; }
-  .hud-card__value { font-size: 1.05rem; }
-  .hud-card__sub { font-size: .7rem; }
-  .game-leaderboard { top: calc(6px + var(--safe-t)) !important; right: calc(6px + var(--safe-r)) !important; width: 124px !important; max-width: 38vw !important; padding: 6px !important; }
+  .hud-bar { gap:4px; padding:5px 6px; }
+  .hud-metric__label { font-size:.6rem; }
+  .hud-metric__value { font-size:.82rem; }
+  .hud-tier__badge { font-size:.68rem; }
+  .game-leaderboard { top: calc(86px + var(--safe-t)) !important; right: calc(6px + var(--safe-r)) !important; width: 124px !important; max-width: 38vw !important; padding: 6px !important; }
   .game-leaderboard h2 { margin-bottom: 3px !important; font-size: .65rem !important; }
   .game-leaderboard li { grid-template-columns: 12px 8px 1fr auto !important; gap: 3px !important; font-size: .7rem !important; }
   .game-leaderboard li:nth-child(n+5) { display: none !important; }
@@ -469,11 +475,6 @@ body {
   .stick-knob{width:54px;height:54px;margin:-27px 0 0 -27px}
   .stick-hint{left:calc(100% - 78px);width:130px}
   .touch-stick-zone--left .stick-hint{left:78px}
-  /* No room for a centred banner between the HUD and the leaderboard on a phone —
-     tuck it directly under the HUD chips instead, where the water is empty. */
-  .frenzy-banner{top:calc(64px + var(--safe-t));left:calc(6px + var(--safe-l));right:auto;transform:none;justify-items:start;max-width:56vw;padding:5px 12px;border-radius:14px;text-align:left}
-  .frenzy-banner strong{font-size:.72rem;letter-spacing:.08em}
-  .frenzy-banner span{font-size:.6rem;line-height:1.25}
 }
 /* Very short viewports (landscape phones): the pads and the tools trigger cannot stack. */
 @media (max-height: 430px) {
@@ -540,7 +541,7 @@ body {
 .game-caption-pill{display:inline-block;padding:6px 14px;border:1px solid var(--border-strong);border-radius:999px;background:rgba(6,5,12,.85);color:var(--text);font-weight:700;letter-spacing:.4px}
 .control-key{display:inline-block;min-width:22px;padding:2px 6px;border:1px solid var(--border-strong);border-radius:6px;background:var(--surface-3);color:var(--text);font-family:ui-monospace,monospace;font-size:.85rem;text-align:center}
 
-.game-leaderboard{position:absolute;top:12px;right:12px;width:220px;max-width:40vw;padding:10px 12px;border:1px solid var(--border);border-radius:var(--radius);background:var(--overlay-scrim);color:var(--text);z-index:10}
+.game-leaderboard{position:absolute;top:calc(86px + var(--safe-t));right:12px;width:220px;max-width:40vw;padding:10px 12px;border:1px solid var(--border);border-radius:var(--radius);background:var(--overlay-scrim);color:var(--text);z-index:10}
 .game-leaderboard__heading{margin:0 0 8px;color:var(--text-muted);font-size:.85rem;letter-spacing:.6px;text-transform:uppercase}
 .game-leaderboard__list{list-style:none;margin:0;padding:0;display:grid;gap:4px}
 .game-leaderboard__row{display:grid;grid-template-columns:20px 12px 1fr auto;align-items:center;gap:8px;padding:3px 4px;border-radius:6px;font-size:.95rem}
@@ -553,14 +554,7 @@ body {
 .shark-label-layer{position:absolute;inset:0;z-index:9;overflow:hidden;pointer-events:none}
 .shark-label text{fill:#0b0a14;font:600 .75rem ui-sans-serif,system-ui,sans-serif;paint-order:stroke;stroke:rgba(255,255,255,.12);stroke-width:.4px}.shark-label.is-me text{font-size:.85rem;font-weight:800}
 
-.frenzy-banner--reduced-motion,.frenzy-banner--ended{animation:none}
-.frenzy-banner--ended{border-color:#8ee9dc;background:rgba(8,74,78,.94);box-shadow:0 10px 24px rgba(8,74,78,.3)}
-
-
 /* ── ST-124 authoritative round/Apex presentation ── */
-.hud-card--round{min-width:118px}
-.hud-card--round.is-apex{border-color:#ffd54a;box-shadow:0 0 0 1px rgba(255,213,74,.28)}
-.hud-card__phase{font-size:.72em;letter-spacing:.08em;color:#ffd54a}
 .game-leaderboard__row.is-apex{outline:1px solid #ffd54a;background:rgba(255,213,74,.11)}
 .game-leaderboard__apex{display:inline-block;margin-left:6px;padding:1px 4px;border:1px solid #ffd54a;border-radius:4px;color:#ffd54a;font-size:.56rem;font-weight:900;letter-spacing:.08em;vertical-align:middle}
 .round-result-layer{position:absolute;inset:0;z-index:200;display:grid;place-items:center;padding:calc(16px + var(--safe-t)) calc(16px + var(--safe-r)) calc(16px + var(--safe-b)) calc(16px + var(--safe-l));background:rgba(6,5,12,.58);pointer-events:auto}
@@ -569,7 +563,6 @@ body {
 .round-result-kicker{color:#ffd54a;font-size:.76rem;font-weight:900;letter-spacing:.14em}
 .round-result-next{color:var(--text-muted);font-variant-numeric:tabular-nums}
 @media (max-width:560px){
-  .hud-card--round{min-width:94px}
   .game-leaderboard__apex{margin-left:3px;padding:0 3px;font-size:.48rem}
   .round-result-card{padding:18px}
 }
@@ -595,11 +588,6 @@ body {
 .game-screen.game-screen--portrait .game-tools{top:calc(32% + var(--safe-t));bottom:auto}
 .game-screen--portrait .gearbox__popover{top:60px;bottom:auto}
 .game-screen--portrait .game-depth-radar{bottom:calc(220px + var(--safe-b));width:min(300px,80vw)}
-.game-screen--portrait .game-hud{gap:4px;max-width:58vw}
-.game-screen--portrait .hud-card{min-width:0;padding:4px 6px}
-.game-screen--portrait .hud-card__label{font-size:.6rem}
-.game-screen--portrait .hud-card__value{font-size:1.05rem}
-.game-screen--portrait .hud-card__sub{font-size:.7rem}
 
 /* Golden-fish proximity cue is semantic DOM, not a WebGL label or audio-only notification. */
 .game-golden-caption{position:absolute;z-index:12;bottom:calc(138px + var(--safe-b));left:50%;transform:translateX(-50%);pointer-events:none;max-width:calc(100% - 24px);padding:6px 14px;border:2px solid #fff2a3;border-radius:999px;background:rgba(20,14,3,.94);color:#fff5bd;font-weight:800;white-space:nowrap;box-shadow:0 2px 18px rgba(20,14,3,.5)}
@@ -614,7 +602,7 @@ body {
 @media (prefers-reduced-motion:reduce){.game-evolution__ring{display:none}}
 
 /* ST-274: compact semantic streak chip; score float is presentation-only. */
-.hud-card--score{position:relative}
+.hud-score{position:relative}
 .hud-eat-streak{display:block;font-size:.65rem;font-weight:900;line-height:1.25;white-space:nowrap;color:#ffe18b}
 .hud-score-float{position:absolute;z-index:2;top:-8px;right:-10px;pointer-events:none;font-size:.92rem;font-weight:900;color:#ffe18b;text-shadow:0 2px 4px #000;animation:hud-score-rise .8s ease-out both}
 @keyframes hud-score-rise{from{transform:translateY(0);opacity:1}to{transform:translateY(-22px);opacity:0}}
