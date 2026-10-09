@@ -107,18 +107,6 @@ Tasks follow these defaults unless the owner changes them before the task starts
 
 ## Open tasks
 
-### ST-277 — [FEAT] Add percussion and a lead motif to the score
-
-**Goal:** Give the score layers that can carry intensity.
-
-**Scope:** A soft kick and shaker built from filtered noise, plus a sparse lead motif, as optional layers on their own gains.
-
-**Acceptance:** Pattern tests pass.
-
-**Validation:** Score tests.
-
----
-
 ### ST-278 — [FEAT] Drive music intensity from gameplay and turn music on by default
 
 **Goal:** Music should rise with danger, Frenzy and Apex, and players should actually hear it.

@@ -1,5 +1,5 @@
 import { MusicLookaheadScheduler } from "./musicScheduler.js";
-import { midiToHz, scoreEventAtStep } from "./underwaterScore.js";
+import { midiToHz, scoreEventAtStep, type PercussionHit } from "./underwaterScore.js";
 import {
   AUDIO_LIMITS,
   spatialMix,
@@ -115,6 +115,9 @@ class AudioManagerImpl {
   private ambienceNodes: AudioNode[] = [];
   private musicPadGain: GainNode | null = null;
   private musicBassGain: GainNode | null = null;
+  private musicPercussionGain: GainNode | null = null;
+  private musicLeadGain: GainNode | null = null;
+  private musicNoise: AudioBuffer | null = null;
   private musicScheduler: MusicLookaheadScheduler | null = null;
   private musicNotes = new Set<Voice>();
   private vols = { master: 0.8, sfx: 0.9, music: 0 };
@@ -359,6 +362,21 @@ class AudioManagerImpl {
     this.musicPadGain.connect(this.musicGain);
     this.musicBassGain.connect(this.musicGain);
     const ctx = this.ctx;
+    this.musicPercussionGain = ctx.createGain();
+    this.musicLeadGain = ctx.createGain();
+    // ST-278 will fade these opt-in buses in response to game intensity.
+    this.musicPercussionGain.gain.value = 0;
+    this.musicLeadGain.gain.value = 0;
+    this.musicPercussionGain.connect(this.musicGain);
+    this.musicLeadGain.connect(this.musicGain);
+    const buffer = ctx.createBuffer(1, Math.ceil(ctx.sampleRate * 0.2), ctx.sampleRate);
+    const noise = buffer.getChannelData(0);
+    let seed = 0x51eaf00d;
+    for (let i = 0; i < noise.length; i++) {
+      seed = (Math.imul(seed, 1664525) + 1013904223) >>> 0;
+      noise[i] = seed / 0x80000000 - 1;
+    }
+    this.musicNoise = buffer;
     this.musicScheduler = new MusicLookaheadScheduler(
       () => ctx.currentTime,
       () => ctx.state === "running",
@@ -373,8 +391,13 @@ class AudioManagerImpl {
     for (const note of [...this.musicNotes]) note.stop();
     this.musicPadGain?.disconnect();
     this.musicBassGain?.disconnect();
+    this.musicPercussionGain?.disconnect();
+    this.musicLeadGain?.disconnect();
     this.musicPadGain = null;
     this.musicBassGain = null;
+    this.musicPercussionGain = null;
+    this.musicLeadGain = null;
+    this.musicNoise = null;
   }
 
   private syncDesiredLoops(): void {
@@ -395,6 +418,8 @@ class AudioManagerImpl {
     if (!event) return;
     if (event.padMidi) this.scheduleMusicPad(event.padMidi, at);
     if (event.bassMidi !== null) this.scheduleMusicBass(event.bassMidi, at);
+    if (event.percussionHit) this.scheduleMusicPercussion(event.percussionHit, at);
+    if (event.leadMidi !== null) this.scheduleMusicLead(event.leadMidi, at);
   }
 
   private scheduleMusicPad(midi: readonly number[], at: number): void {
@@ -488,6 +513,78 @@ class AudioManagerImpl {
     upper.start(at);
     osc.stop(at + 0.84);
     upper.stop(at + 0.84);
+  }
+
+  private scheduleMusicPercussion(hit: PercussionHit, at: number): void {
+    const ctx = this.ctx;
+    const output = this.musicPercussionGain;
+    const buffer = this.musicNoise;
+    if (!ctx || !output || !buffer) return;
+    const source = ctx.createBufferSource();
+    const filter = ctx.createBiquadFilter();
+    const gain = ctx.createGain();
+    const kick = hit === "kick";
+    const duration = kick ? 0.18 : 0.105;
+    source.buffer = buffer;
+    filter.type = kick ? "lowpass" : "highpass";
+    filter.frequency.setValueAtTime(kick ? 180 : 1900, at);
+    if (kick) filter.frequency.exponentialRampToValueAtTime(75, at + duration);
+    filter.Q.value = 0.65;
+    gain.gain.setValueAtTime(0.0001, at);
+    gain.gain.linearRampToValueAtTime(kick ? 0.09 : 0.035, at + 0.008);
+    gain.gain.exponentialRampToValueAtTime(0.0001, at + duration);
+    source.connect(filter).connect(gain).connect(output);
+    let ended = false;
+    const note: Voice = {
+      stop: () => {
+        if (ended) return;
+        ended = true;
+        try { source.stop(); } catch { /* already ended */ }
+        source.disconnect();
+        filter.disconnect();
+        gain.disconnect();
+        this.musicNotes.delete(note);
+      },
+    };
+    this.musicNotes.add(note);
+    source.onended = () => note.stop();
+    source.start(at);
+    source.stop(at + duration + 0.01);
+  }
+
+  private scheduleMusicLead(midi: number, at: number): void {
+    const ctx = this.ctx;
+    const output = this.musicLeadGain;
+    if (!ctx || !output) return;
+    const osc = ctx.createOscillator();
+    const filter = ctx.createBiquadFilter();
+    const gain = ctx.createGain();
+    osc.type = "sine";
+    osc.frequency.value = midiToHz(midi);
+    filter.type = "lowpass";
+    filter.frequency.value = 1150;
+    filter.Q.value = 0.5;
+    gain.gain.setValueAtTime(0.0001, at);
+    gain.gain.linearRampToValueAtTime(0.075, at + 0.035);
+    gain.gain.setValueAtTime(0.065, at + 0.16);
+    gain.gain.exponentialRampToValueAtTime(0.0001, at + 0.54);
+    osc.connect(filter).connect(gain).connect(output);
+    let ended = false;
+    const note: Voice = {
+      stop: () => {
+        if (ended) return;
+        ended = true;
+        try { osc.stop(); } catch { /* already ended */ }
+        osc.disconnect();
+        filter.disconnect();
+        gain.disconnect();
+        this.musicNotes.delete(note);
+      },
+    };
+    this.musicNotes.add(note);
+    osc.onended = () => note.stop();
+    osc.start(at);
+    osc.stop(at + 0.56);
   }
 
   playSfx(type: Sfx, options: PlayOptions = {}): boolean {
