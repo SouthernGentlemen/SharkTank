@@ -1,4 +1,5 @@
 import { MusicLookaheadScheduler } from "./musicScheduler.js";
+import { createUnderwaterBus, type UnderwaterBus } from "./underwaterBus.js";
 import { MUSIC_CROSSFADE_SECONDS, MUSIC_MIX, mixAt, type MusicMix, type MusicMode } from "./musicIntensity.js";
 import { midiToHz, scoreEventAtStep, type PercussionHit } from "./underwaterScore.js";
 import {
@@ -110,6 +111,7 @@ function tone(type: Sfx): ToneSpec {
 class AudioManagerImpl {
   private ctx: AudioContext | null = null;
   private master: GainNode | null = null;
+  private outputBus: UnderwaterBus | null = null;
   private sfxGain: GainNode | null = null;
   private musicGain: GainNode | null = null;
   private ambienceGain: GainNode | null = null;
@@ -168,9 +170,7 @@ class AudioManagerImpl {
       this.musicGain = this.ctx.createGain();
       this.ambienceGain = this.ctx.createGain();
       this.ambienceGain.connect(this.sfxGain);
-      this.sfxGain.connect(this.master);
-      this.musicGain.connect(this.master);
-      this.master.connect(this.ctx.destination);
+      this.outputBus = createUnderwaterBus(this.ctx, this.musicGain, this.sfxGain, this.master);
       this.applyVolumes();
     }
     this.bindLifecycle();
@@ -222,6 +222,8 @@ class AudioManagerImpl {
     this.stopSession();
     this.unbindActivation();
     this.unbindLifecycle();
+    this.outputBus?.disconnect();
+    this.outputBus = null;
     try { void this.ctx?.close(); } catch { /* already closed */ }
     this.ctx = null;
     this.master = null;
