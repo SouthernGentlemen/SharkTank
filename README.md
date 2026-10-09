@@ -49,7 +49,7 @@ Mobile defaults to **Simple** one-thumb pitch/yaw with automatic camera recentri
 
 Combat is directional bite plus burst. Feeding Frenzy and Apex are server-owned round phases.
 
-Music plays an eight-bar, four-chord minor-key progression with pads, bass, filtered-noise percussion and a sparse lead motif on independent buses. It crossfades over 1.2 s from Calm (pads/bass) to Hunt (percussion near devouring sharks or low health), Frenzy (faster offbeats and lead), Apex (tense lead variation), and round result (short existing sting, then calm). On new devices music defaults to 35% after browser activation and respects saved mute; 25 ms audio-clock wakes look no more than 100 ms ahead. Audio pauses with visibility and stops on mute or session end.
+Music plays an eight-bar, four-chord minor-key progression with pads, bass, filtered-noise percussion and a sparse lead motif on independent buses. It crossfades over 1.2 s from Calm (pads/bass) to Hunt (percussion near devouring sharks or low health), Frenzy (faster offbeats and lead), Apex (tense lead variation), and round result (short existing sting, then calm). On new devices music defaults to 35% after browser activation and respects saved mute; 25 ms audio-clock wakes look no more than 100 ms ahead. Audio pauses with visibility and stops on mute or session end. Music, ambient sound and SFX share a seeded stereo impulse reverb with a gentle 2.4 kHz low-pass and separate 88% dry / 12% wet mix; the single master output passes through a fast 12:1 compressor/limiter before reaching the speakers. Independent 0–1 music, SFX and master controls remain unchanged.
 
 ## Accessibility and performance
 

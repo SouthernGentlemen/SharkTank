@@ -108,18 +108,6 @@ Tasks follow these defaults unless the owner changes them before the task starts
 ## Open tasks
 
 
-### ST-279 — [FEAT] Route audio through an underwater reverb and limiter bus
-
-**Goal:** Make everything sound underwater, without clipping.
-
-**Scope:** A generated-impulse convolver and a gentle low-pass on the music and SFX sends, then a compressor/limiter before the output.
-
-**Acceptance:** Graph tests with a fake AudioContext pass; volumes still map 0–1.
-
-**Validation:** `npm test -- tests/spatial-audio.test.ts`.
-
----
-
 ### ST-280 — [FEAT] Replace harsh beeps and droning cues with crunches, whooshes, plucks and a swim layer
 
 **Goal:** SFX are square and saw chirps, and the swim and presence cues drone about once a second.
