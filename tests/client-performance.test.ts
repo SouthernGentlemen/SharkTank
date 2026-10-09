@@ -200,7 +200,7 @@ describe("ST-127 3D client performance contracts", () => {
     expect(audio).toContain("this.listenerPose.position.x = position.x");
     expect(radar).toContain("buildDepthNavigation(socket.stateRef.current");
     expect(radar).toContain("setInterval(update, 250)");
-    expect(pkg.version).toBe("2.4.0");
+    expect(pkg.version).toBe("2.5.0");
     expect(ROOM_SCHEMA_VERSION).toBe(11);
     expect(REALTIME_PROTOCOL_VERSION).toBe(12);
   });
