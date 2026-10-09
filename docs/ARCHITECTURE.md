@@ -51,6 +51,10 @@ React Three Fiber / Three.js is the only gameplay renderer. The world is full X/
 
 The semantic DOM owns menus, HUD, leaderboard, settings, dialogs, captions, announcements, labels and depth cues. WebGL does not replace those interfaces.
 
+## Audio scheduling
+
+The existing six-note melody is unchanged. The browser audio manager wakes its music scheduler every 25 ms and queues oscillators up to 100 ms ahead using `AudioContext.currentTime` for note and envelope timestamps. A throttled wake skips expired notes rather than replaying a backlog. Muting or ending the session cancels the timer and queued voices; the browser's visibility suspension and first-gesture activation still own playback. Music remains off by default until the queued adaptive-score task.
+
 ## Controls
 
 Desktop:

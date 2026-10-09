@@ -61,6 +61,11 @@ describe("ST-125 spatial underwater game audio", () => {
     expect(manager).toContain("this.ctx.suspend()");
     expect(manager).toContain("stopSession()");
     expect(manager).toContain("startAmbience");
+    expect(manager).toContain("new MusicLookaheadScheduler(");
+    expect(manager).toContain("this.musicScheduler?.stop()");
+    expect(manager).toContain("for (const note of [...this.musicNotes]) note.stop()");
+    expect(manager).toContain("osc.start(at)");
+    expect(manager).not.toContain("this.seqTimer = setInterval");
   });
 
   it("drives cues only from existing authoritative snapshot truth", () => {

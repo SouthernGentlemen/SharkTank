@@ -80,7 +80,7 @@ Tasks follow these defaults unless the owner changes them before the task starts
    - a shark at least 1.5× the victim's length devours it in one bite;
    - even fights take two bites;
    - health regenerates at 4 HP/s.
-6. Music is a first-party adaptive score, on by default at 35% once the first tap unlocks audio, with a visible mute (ST-275–ST-278).
+6. Music uses 25 ms audio-clock lookahead for the existing melody; later tasks add an adaptive score, on by default at 35% after the first tap, with a visible mute (ST-276–ST-278).
 7. Releases are semantic versions at each checkpoint: `v2.2.0`, `v2.3.0`, `v2.4.0`, `v2.5.0`, `v2.6.0`.
 8. The release and change-control tooling (controlled commits, protected releases, GitHub settings checks) stays as it is for now.
 
@@ -103,21 +103,9 @@ Tasks follow these defaults unless the owner changes them before the task starts
 | Fish | 2 looks | 8 school looks + tuna, squid, rays, golden fish | ST-263–ST-267 |
 | Coral | 3 rock clusters outside the wall | Reef sites of brain, branching, plate, fan and tube coral plus kelp | ST-261–ST-262 |
 | Growth | Five engine tiers; +0.38 length per bait, premium prey capped at +1.1; Megalodon ≈ 2.5× Pup scale | Five tiers reachable in one round; Megalodon ≈ 2.5× spawn scale | ST-269 |
-| Music | Six-note loop on `setInterval`, off by default | Layered adaptive score on the audio clock, on at 35% | ST-275–ST-278 |
+| Music | Six-note audio-clock loop with 25 ms / 100 ms lookahead, off by default | Layered adaptive score on the audio clock, on at 35% | ST-276–ST-278 |
 
 ## Open tasks
-
-### ST-275 — [REFACTOR] Schedule music on the audio clock with lookahead
-
-**Goal:** Music notes come from `setInterval`, which jitters on phones.
-
-**Scope:** A timer wakes about every 25 ms and schedules notes up to 100 ms ahead on `AudioContext.currentTime`. The melody is unchanged until ST-276.
-
-**Acceptance:** Fake-clock scheduler tests pass; start, stop and visibility handling are unchanged.
-
-**Validation:** `npm test -- tests/spatial-audio.test.ts` plus the scheduler test.
-
----
 
 ### ST-276 — [FEAT] Compose a layered underwater score with pads and bass
 

@@ -1,3 +1,4 @@
+import { MusicLookaheadScheduler } from "./musicScheduler.js";
 import {
   AUDIO_LIMITS,
   spatialMix,
@@ -79,7 +80,6 @@ type LegacyPanner = PannerNode & {
 };
 
 const MELODY = [110, 146.83, 164.81, 220, 164.81, 146.83];
-const STEP_MS = 320;
 
 function clamp01(value: number): number {
   return Math.max(0, Math.min(1, Number.isFinite(value) ? value : 0));
@@ -116,8 +116,8 @@ class AudioManagerImpl {
   private ambienceNodes: AudioNode[] = [];
   private drone: OscillatorNode | null = null;
   private musicDroneGain: GainNode | null = null;
-  private seqTimer: ReturnType<typeof setInterval> | null = null;
-  private step = 0;
+  private musicScheduler: MusicLookaheadScheduler | null = null;
+  private musicNotes = new Set<Voice>();
   private vols = { master: 0.8, sfx: 0.9, music: 0 };
   private voices = new Set<Voice>();
   private lastCueAt = new Map<string, number>();
@@ -352,7 +352,7 @@ class AudioManagerImpl {
   }
 
   private startMusicNodes(): void {
-    if (!this.ctx || !this.musicGain || this.seqTimer || this.ctx.state !== "running") return;
+    if (!this.ctx || !this.musicGain || this.musicScheduler || this.ctx.state !== "running") return;
     this.drone = this.ctx.createOscillator();
     this.musicDroneGain = this.ctx.createGain();
     this.drone.type = "sine";
@@ -360,13 +360,19 @@ class AudioManagerImpl {
     this.musicDroneGain.gain.value = 0.09;
     this.drone.connect(this.musicDroneGain).connect(this.musicGain);
     this.drone.start();
-    this.step = 0;
-    this.seqTimer = setInterval(() => this.tickSeq(), STEP_MS);
+    const ctx = this.ctx;
+    this.musicScheduler = new MusicLookaheadScheduler(
+      () => ctx.currentTime,
+      () => ctx.state === "running",
+      (step, at) => this.scheduleMusicNote(step, at),
+    );
+    this.musicScheduler.start();
   }
 
   private stopMusicNodes(): void {
-    if (this.seqTimer) clearInterval(this.seqTimer);
-    this.seqTimer = null;
+    this.musicScheduler?.stop();
+    this.musicScheduler = null;
+    for (const note of [...this.musicNotes]) note.stop();
     try { this.drone?.stop(); } catch { /* already stopped */ }
     try { this.drone?.disconnect(); } catch { /* already disconnected */ }
     try { this.musicDroneGain?.disconnect(); } catch { /* already disconnected */ }
@@ -386,24 +392,35 @@ class AudioManagerImpl {
     else this.stopMusicNodes();
   }
 
-  private tickSeq(): void {
+  private scheduleMusicNote(step: number, at: number): void {
     if (!this.ctx || !this.musicGain || this.ctx.state !== "running") return;
-    const freq = MELODY[this.step % MELODY.length];
-    this.step += 1;
-    const t = this.ctx.currentTime;
     const osc = this.ctx.createOscillator();
     const g = this.ctx.createGain();
     const filter = this.ctx.createBiquadFilter();
     osc.type = "triangle";
-    osc.frequency.value = freq;
+    osc.frequency.value = MELODY[step % MELODY.length];
     filter.type = "lowpass";
     filter.frequency.value = 900;
-    g.gain.setValueAtTime(0.0001, t);
-    g.gain.exponentialRampToValueAtTime(0.14, t + 0.02);
-    g.gain.exponentialRampToValueAtTime(0.0001, t + 0.28);
+    g.gain.setValueAtTime(0.0001, at);
+    g.gain.exponentialRampToValueAtTime(0.14, at + 0.02);
+    g.gain.exponentialRampToValueAtTime(0.0001, at + 0.28);
     osc.connect(filter).connect(g).connect(this.musicGain);
-    osc.start(t);
-    osc.stop(t + 0.3);
+    let ended = false;
+    const note: Voice = {
+      stop: () => {
+        if (ended) return;
+        ended = true;
+        try { osc.stop(); } catch { /* note already ended */ }
+        osc.disconnect();
+        filter.disconnect();
+        g.disconnect();
+        this.musicNotes.delete(note);
+      },
+    };
+    this.musicNotes.add(note);
+    osc.onended = () => note.stop();
+    osc.start(at);
+    osc.stop(at + 0.3);
   }
 
   playSfx(type: Sfx, options: PlayOptions = {}): boolean {

@@ -8,7 +8,7 @@ The keyboard map covers W/S pitch, A/D yaw, Arrow-key camera look, burst, bite, 
 
 Menus, HUD, leaderboard, settings, dialogs, captions, live announcements, projected shark labels and depth cues remain semantic HTML/React. The WebGL view has an accessible description of the active controls.
 
-Reduced motion limits camera easing, banking, particles and environmental motion without hiding gameplay state. High contrast and non-color cues preserve Apex, depth, health, score and navigation meaning. Captions are produced independently of Web Audio playback.
+Reduced motion limits camera easing, banking, particles and environmental motion without hiding gameplay state. High contrast and non-color cues preserve Apex, depth, health, score and navigation meaning. Captions are produced independently of Web Audio playback. Music scheduling now uses audio-clock timestamps with a 100 ms lookahead; it does not introduce automatic playback or change the device-local mute setting, caption path or audio activation gesture.
 
 Four existing bait fish form a visible school ahead of a living human spawn, respawn or new-round spawn. The Room also biases about 35% of replenished bait near living humans, using sorted ids and seeded RNG. This changes no input control, client announcement, accessibility presentation setting or protocol-12 field.
 
