@@ -108,18 +108,6 @@ Tasks follow these defaults unless the owner changes them before the task starts
 ## Open tasks
 
 
-### ST-282 — [FEAT] Replace the HUD cards with one compact top bar and status chips
-
-**Goal:** Five cards and a two-line Frenzy banner cover the top of a phone.
-
-**Scope:** One row holding the tier badge with progress, score, round clock, rank and a slim health bar. Frenzy and Apex become small chips under it ("FRENZY 12s", "APEX 0:32"). Keep the screen-reader snapshot and announcements.
-
-**Acceptance:** The HUD fits one row at 740×360 and at most two rows at 375 px wide (CSS contract).
-
-**Validation:** `npm test -- tests/accessibility-contract.test.ts tests/round-apex.test.ts tests/feeding-frenzy-3d.test.ts`.
-
----
-
 ### ST-283 — [FEAT] Collapse the leaderboard to the top three plus you
 
 **Goal:** A ten-row board is too much for a phone.

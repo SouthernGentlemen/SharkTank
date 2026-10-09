@@ -1,9 +1,9 @@
-// Heads-up display: points, rank, and shark size. Values are
+// Compact heads-up display and authoritative phase chips. Values are
 // sampled from the socket snapshot at a low rate (not every frame) to keep the DOM
 // cheap. Key changes are announced to screen readers via the announcer.
 
 import { useEffect, useRef, useState } from "react";
-import { TICKS_PER_SECOND, roundTicksLeft } from "../../engine/index.js";
+import { FRENZY_RULES, TICKS_PER_SECOND, frenzyTiming, roundTicksLeft, tierForLength, tierProgress } from "../../engine/index.js";
 import type { RoomSocket } from "../net/useRoomSocket.js";
 import { useAnnouncer } from "../a11y/announcer.js";
 import { audio } from "../audio/AudioManager.js";
@@ -22,6 +22,7 @@ export interface HudStats {
   roundNumber: number;
   roundPhase: "active" | "apex" | "result";
   roundSeconds: number;
+  frenzySeconds: number;
 }
 
 const SPAWN_LENGTH = 10; // engine START_LENGTH; the baseline a size multiplier is read against
@@ -38,6 +39,7 @@ export function useHudStats(socket: RoomSocket): HudStats {
     roundNumber: 1,
     roundPhase: "active",
     roundSeconds: 0,
+    frenzySeconds: 0,
   });
   useEffect(() => {
     const id = setInterval(() => {
@@ -58,6 +60,7 @@ export function useHudStats(socket: RoomSocket): HudStats {
         roundNumber: s.round.number,
         roundPhase: s.round.phase,
         roundSeconds: Math.ceil(roundTicksLeft(s) / TICKS_PER_SECOND),
+        frenzySeconds: Math.ceil(frenzyTiming(s).remainingTicks / TICKS_PER_SECOND),
       });
     }, 200);
     return () => clearInterval(id);
@@ -74,6 +77,23 @@ export function Hud({ socket, reducedMotion }: { socket: RoomSocket; reducedMoti
   const stats = useHudStats(socket);
   const { announce } = useAnnouncer();
   const lastMilestone = useRef(0);
+  const wasFrenzyOn = useRef(false);
+  const [frenzyEnded, setFrenzyEnded] = useState(false);
+  const frenzyOn = stats.frenzySeconds > 0;
+
+  useEffect(() => {
+    let timer: ReturnType<typeof setTimeout> | undefined;
+    if (frenzyOn && !wasFrenzyOn.current) {
+      announce("Feeding frenzy. Converge on the central water column.", "assertive");
+      setFrenzyEnded(false);
+    } else if (!frenzyOn && wasFrenzyOn.current) {
+      announce("Feeding frenzy ended.", "polite");
+      setFrenzyEnded(true);
+      timer = setTimeout(() => setFrenzyEnded(false), 1800);
+    }
+    wasFrenzyOn.current = frenzyOn;
+    return () => { if (timer) clearTimeout(timer); };
+  }, [frenzyOn, announce]);
   const streakTracker = useRef<EatStreakTracker | null>(null);
   const nextGainKey = useRef(0);
   const lastStreakAnnouncementAt = useRef(-Infinity);
@@ -129,45 +149,66 @@ export function Hud({ socket, reducedMotion }: { socket: RoomSocket; reducedMoti
     }
   }, [stats.points, stats.rank, stats.players, announce]);
 
+  return <HudReadout stats={stats} gainCue={gainCue} reducedMotion={reducedMotion} frenzyEnded={frenzyEnded} />;
+}
+
+/** Pure DOM readout: presentation tests can cover every phase without a live socket. */
+export function HudReadout({ stats, gainCue = null, reducedMotion, frenzyEnded = false }: {
+  stats: HudStats;
+  gainCue?: { points: number; streak: number; key: number } | null;
+  reducedMotion: boolean;
+  frenzyEnded?: boolean;
+}) {
+  const length = stats.size * SPAWN_LENGTH;
+  const tier = tierForLength(length);
+  const progress = tierProgress(length);
+  const speedBonus = Math.round((FRENZY_RULES.speedMultiplier - 1) * 100);
+  const dashRecharge = Math.round(1 / FRENZY_RULES.dashCooldownMultiplier);
   return (
-    <div className="game-hud" aria-hidden={false}>
-      <div className="hud-card hud-card--score">
-        <div className="hud-card__label">Points</div>
-        <div className="hud-card__value" aria-label={`${stats.points} points`}>{stats.points}</div>
-        {gainCue && <span className="hud-eat-streak">×{gainCue.streak} streak</span>}
-        {gainCue && !reducedMotion && (
-          <span key={gainCue.key} className="hud-score-float" aria-hidden="true">+{gainCue.points}</span>
-        )}
-      </div>
-      <div className={`hud-card hud-card--round${stats.roundPhase === "apex" ? " is-apex" : ""}`}>
-        <div className="hud-card__label">Round {stats.roundNumber}</div>
-        <div
-          className="hud-card__value"
-          aria-label={`${stats.roundPhase} phase, ${stats.roundSeconds} seconds remaining`}
-        >
-          {stats.roundPhase === "apex" ? <span className="hud-card__phase">APEX </span> : null}
-          {stats.roundPhase === "result" ? <span className="hud-card__phase">NEXT </span> : null}
-          {formatRoundClock(stats.roundSeconds)}
+    <div className="game-hud">
+      <div className="hud-bar">
+        <div className="hud-metric hud-tier">
+          <strong className="hud-tier__badge">{tier}</strong>
+          <progress className="hud-tier__progress" value={progress} max={1}
+            aria-label={tier === "Megalodon" ? "Megalodon, maximum tier" : `${tier}, ${Math.round(progress * 100)}% to next tier`} />
+        </div>
+        <div className="hud-metric hud-score">
+          <span className="hud-metric__label">Points</span>
+          <strong className="hud-metric__value" aria-label={`${stats.points} points`}>{stats.points}</strong>
+          {gainCue && !reducedMotion && (
+            <span key={gainCue.key} className="hud-score-float" aria-hidden="true">+{gainCue.points}</span>
+          )}
+        </div>
+        <div className="hud-metric">
+          <span className="hud-metric__label">{stats.roundPhase === "result" ? "Next" : `Round ${stats.roundNumber}`}</span>
+          <strong className="hud-metric__value" aria-label={`${stats.roundPhase} phase, ${stats.roundSeconds} seconds remaining`}>
+            {formatRoundClock(stats.roundSeconds)}
+          </strong>
+        </div>
+        <div className="hud-metric">
+          <span className="hud-metric__label">Rank</span>
+          <strong className="hud-metric__value" aria-label={`Rank ${stats.rank} of ${stats.players}`}>
+            {stats.rank || "—"}<span className="hud-metric__sub">/{stats.players}</span>
+          </strong>
+        </div>
+        <div className="hud-metric hud-health">
+          <span className="hud-metric__label">HP {stats.health}</span>
+          <meter className="hud-health__bar" min={0} max={100} value={stats.health} aria-label="Health" />
         </div>
       </div>
-      <div className="hud-card">
-        <div className="hud-card__label">Rank</div>
-        <div className="hud-card__value">
-          {stats.rank || "—"}
-          <span className="hud-card__sub"> / {stats.players}</span>
-        </div>
-      </div>
-      <div className="hud-card">
-        <div className="hud-card__label">Size</div>
-        <div className="hud-card__value">{stats.size.toFixed(1)}<span className="hud-card__sub">×</span></div>
-      </div>
-      <div className="hud-card">
-        <div className="hud-card__label">Health</div>
-        <div className="hud-card__value" aria-label={`${stats.health} health`}>{stats.health}<span className="hud-card__sub"> / 100</span></div>
+      <div className="hud-status-chips">
+        {stats.frenzySeconds > 0 ? (
+          <span className="hud-status-chip hud-status-chip--frenzy"
+            aria-label={`Feeding Frenzy, ${stats.frenzySeconds} seconds. Central water column, +${speedBonus}% swim speed, dash recharge ${dashRecharge} times.`}>
+            FRENZY {stats.frenzySeconds}s
+          </span>
+        ) : frenzyEnded ? <span className="hud-status-chip">FRENZY ENDED</span> : null}
+        {stats.roundPhase === "apex" && <span className="hud-status-chip hud-status-chip--apex">APEX {formatRoundClock(stats.roundSeconds)}</span>}
+        {gainCue && <span className="hud-status-chip hud-eat-streak">×{gainCue.streak} streak</span>}
       </div>
       <div className="sr-only" role="status" aria-live="off">
         {/* Snapshot the SRs can query on demand; live milestones go through announce(). */}
-        Round {stats.roundNumber}, {stats.roundPhase} phase, {stats.roundSeconds} seconds remaining. {stats.points} points, {gainCue ? `${gainCue.streak} eat streak,` : ""} {stats.health} health, size {stats.size.toFixed(1)} times, rank {stats.rank} of {stats.players}.
+        Round {stats.roundNumber}, {stats.roundPhase} phase, {stats.roundSeconds} seconds remaining. {stats.points} points, {gainCue ? `${gainCue.streak} eat streak,` : ""} {stats.health} health, {tier}, size {stats.size.toFixed(1)} times, rank {stats.rank} of {stats.players}.
       </div>
     </div>
   );

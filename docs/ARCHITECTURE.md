@@ -152,3 +152,5 @@ ST-273 tier feedback is derived on the client from the local shark's authoritati
 ## Local eat feedback
 
 The HUD derives cosmetic +N score gains and 1.5-second consecutive eat streaks solely from successive authoritative local score samples. A pure helper guards identity, tick ordering, death, respawn, reconnect and round resets. A pitch-limited local eat SFX is on the existing bounded browser audio graph; the floating +N is decorative and never affects Room authority or protocol 12.
+
+The HUD uses one compact top bar for tier/progress, points, round clock, rank and a slim health meter. Frenzy and Apex countdowns share a small status-chip row below with eat streaks. Five flexible CSS tracks keep the bar on one row at 740×360 and 375 px wide, safe-area insets are respected, and the leaderboard starts below the HUD. The on-demand screen-reader snapshot, bounded score/streak and phase announcements remain available. Protocol 12 and the 14,000-byte snapshot gate are unchanged.
