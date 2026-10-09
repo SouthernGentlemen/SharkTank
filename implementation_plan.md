@@ -108,21 +108,6 @@ Tasks follow these defaults unless the owner changes them before the task starts
 ## Open tasks
 
 
-### ST-280 — [FEAT] Replace harsh beeps and droning cues with crunches, whooshes, plucks and a swim layer
-
-**Goal:** SFX are square and saw chirps, and the swim and presence cues drone about once a second.
-
-**Scope**
-- Bite: a noise crunch with a thump. Dash: a noise-sweep whoosh. Eat: a soft pluck pitched by the streak. Tier-up: a chime. Gentler death and respawn stingers.
-- One continuous speed-driven swim layer replaces the periodic chirps.
-- Nearby-shark presence becomes occasional and distance-scaled; captions are kept.
-
-**Acceptance:** Voice and cadence tests pass and peak levels are bounded.
-
-**Validation:** `npm test -- tests/spatial-audio.test.ts tests/feeding-frenzy-3d.test.ts tests/accessibility-contract.test.ts`.
-
----
-
 ### ST-281 — [OPS] Release the growth and music update as v2.5.0
 
 **Goal:** Ship ST-269 through ST-280.

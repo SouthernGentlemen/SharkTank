@@ -1,4 +1,5 @@
-import { isPreyConsumeCandidate } from "../src/game/audio/spatialAudio.js";
+import { isPreyConsumeCandidate, presenceCueInterval, swimSpeedBetween } from "../src/game/audio/spatialAudio.js";
+import { createSfxNoise, SFX_RECIPES, swimTexture } from "../src/game/audio/sfxVoices.js";
 import { readFileSync } from "node:fs";
 import { describe, expect, it, vi } from "vitest";
 import { audio } from "../src/game/audio/AudioManager.js";
@@ -268,5 +269,72 @@ describe("ST-279 underwater output graph", () => {
       audio.dispose();
       vi.unstubAllGlobals();
     }
+  });
+});
+
+
+// ST-280: voice shapes, deterministic samples, peak headroom and sparse spatial cues.
+describe("ST-280 natural SFX and continuous swim", () => {
+  it("uses bounded, non-buzzy synth voices with crunch, whoosh, pluck and chime", () => {
+    const recipes = Object.values(SFX_RECIPES);
+    expect(recipes).toHaveLength(16);
+    for (const voice of recipes) {
+      expect(["sine", "triangle"]).toContain(voice.wave);
+      expect(voice.duration).toBeGreaterThan(0.1);
+      expect(voice.duration).toBeLessThanOrEqual(0.65);
+      expect(voice.peak).toBeLessThanOrEqual(0.12);
+      expect(voice.peak + (voice.noise?.peak ?? 0) + (voice.harmonic?.peak ?? 0))
+        .toBeLessThanOrEqual(0.26);
+    }
+    expect(SFX_RECIPES.biteImpact.noise?.type).toBe("lowpass");
+    expect(SFX_RECIPES.biteImpact.endHz).toBeLessThan(SFX_RECIPES.biteImpact.startHz);
+    expect(SFX_RECIPES.boost.noise?.toHz).toBeGreaterThan(SFX_RECIPES.boost.noise!.fromHz);
+    expect(SFX_RECIPES.preyConsume.endHz).toBeLessThan(SFX_RECIPES.preyConsume.startHz);
+    expect(SFX_RECIPES.evolve.harmonic?.ratio).toBeGreaterThan(1);
+    expect(SFX_RECIPES.die.peak).toBeLessThan(SFX_RECIPES.biteImpact.peak);
+    expect(SFX_RECIPES.spawn.peak).toBeLessThan(SFX_RECIPES.biteImpact.peak);
+  });
+
+  it("reuses a short deterministic first-party noise texture without clipping", () => {
+    const first = createSfxNoise(new FakeContext() as unknown as AudioContext);
+    const second = createSfxNoise(new FakeContext() as unknown as AudioContext);
+    expect(first.length).toBeLessThanOrEqual(first.sampleRate);
+    expect(Array.from(first.getChannelData(0).slice(0, 80)))
+      .toEqual(Array.from(second.getChannelData(0).slice(0, 80)));
+    expect(Array.from(first.getChannelData(0).slice(0, 80)).every((x) => Math.abs(x) <= 1)).toBe(true);
+  });
+
+  it("follows authoritative swim speed continuously and rejects stale jumps", () => {
+    const start = { tick: 100, position: { x: 0, y: 0, z: 0 } };
+    const cruise = { tick: 102, position: { x: 1.2, y: 0, z: 0 } };
+    expect(swimSpeedBetween(null, start)).toBe(0);
+    expect(swimSpeedBetween(start, cruise)).toBeCloseTo(12);
+    expect(swimSpeedBetween(cruise, cruise)).toBe(0);
+    expect(swimSpeedBetween(cruise, start)).toBe(0);
+    expect(swimSpeedBetween(start, { tick: 103, position: { x: 30, y: 0, z: 0 } })).toBe(0);
+    expect(swimSpeedBetween(start, { tick: 120, position: { x: 1, y: 0, z: 0 } })).toBe(0);
+    expect(swimTexture(0).gain).toBe(0);
+    expect(swimTexture(18).gain).toBeGreaterThan(swimTexture(6).gain);
+    expect(swimTexture(40).gain).toBeLessThanOrEqual(0.06);
+    expect(swimTexture(NaN).gain).toBe(0);
+  });
+
+  it("makes shark-presence sounds occasional, distance-spaced and caption-independent", () => {
+    expect(presenceCueInterval(0)).toBeGreaterThanOrEqual(2000);
+    expect(presenceCueInterval(24)).toBe(5600);
+    expect(presenceCueInterval(18)).toBeGreaterThan(presenceCueInterval(5));
+    const hook = read("../src/game/audio/useGameAudio.ts");
+    const manager = read("../src/game/audio/AudioManager.ts");
+    expect(hook).toContain("audio.setSwimSpeed(");
+    expect(hook).toContain("presenceCueInterval(");
+    expect(hook).toContain('"Shark nearby — " + directionCaption');
+    expect(hook).not.toContain('"swimRush"');
+    expect(manager).toContain("source.loop = true");
+    expect(manager).toContain("source.connect(filter).connect(local).connect(this.ambienceGain)");
+    expect(manager).toContain("this.stopAmbienceNodes()");
+    expect(manager).toContain("AUDIO_LIMITS.maxWorldVoices");
+    expect(manager).toContain("source.connect(noiseFilter).connect(noiseGain).connect(output)");
+    expect(manager).toContain("output.connect(panner).connect(this.sfxGain)");
+    expect(manager).toContain("this.sfxNoise = null");
   });
 });

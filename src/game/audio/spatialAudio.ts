@@ -34,9 +34,8 @@ export const AUDIO_LIMITS = {
   listenerUpdateMs: 50,
   worldUpdateMs: 160,
   maxWorldVoices: 16,
-  sharkCueMs: 900,
+  sharkCueMs: 2000,
   preyCueMs: 1200,
-  swimCueMs: 1200,
   apexCueMs: 1100,
   frenzyCueMs: 1400,
   captionRepeatMs: 3200,
@@ -156,4 +155,23 @@ export function isPreyConsumeCandidate(prey: AudioPoint, sharks: readonly {
     };
     return audioDistance(prey, mouth) <= 12;
   });
+}
+
+/** Presence pulses get sparser with range, while spatial gain still attenuates them. */
+export function presenceCueInterval(distance: number): number {
+  const fraction = Math.min(1, Math.max(0,
+    Number.isFinite(distance) ? distance / AUDIO_LIMITS.sharkPresenceRange : 1));
+  return AUDIO_LIMITS.sharkCueMs + Math.round(fraction * 3600);
+}
+
+export interface SwimSample { tick: number; position: AudioPoint }
+
+/** Use consecutive authoritative positions, never extra protocol fields or timers. */
+export function swimSpeedBetween(previous: SwimSample | null, current: SwimSample): number {
+  if (!previous || !Number.isFinite(current.tick) || current.tick <= previous.tick) return 0;
+  const ticks = current.tick - previous.tick;
+  if (ticks > 8) return 0;
+  const distance = audioDistance(previous.position, current.position);
+  if (!Number.isFinite(distance) || distance > 12) return 0;
+  return Math.min(30, distance * 20 / ticks);
 }
