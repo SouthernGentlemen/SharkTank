@@ -53,7 +53,7 @@ The semantic DOM owns menus, HUD, leaderboard, settings, dialogs, captions, anno
 
 ## Audio scheduling
 
-The existing six-note melody is unchanged. The browser audio manager wakes its music scheduler every 25 ms and queues oscillators up to 100 ms ahead using `AudioContext.currentTime` for note and envelope timestamps. A throttled wake skips expired notes rather than replaying a backlog. Muting or ending the session cancels the timer and queued voices; the browser's visibility suspension and first-gesture activation still own playback. Music remains off by default until the queued adaptive-score task.
+ST-276 replaces the six-note melody with a deterministic, eight-bar D minor score: Dm9 → Bbmaj7 → Gm9 → A7, two bars per chord with a different second-bar pad voicing. Each bar contains eight 320 ms steps; detuned low-pass pad voices start on beat one, and a filtered bass sounds twice per bar. Pad and bass have independent gain buses for later adaptive mixing (ST-278). The browser audio manager still wakes every 25 ms and queues only onsets up to 100 ms ahead using `AudioContext.currentTime`; throttled wakes skip expired notes. Muting or ending a session cancels the timer and all active or queued voices, with browser visibility suspension and first-gesture activation unchanged. Music stays off by default until ST-278.
 
 ## Controls
 

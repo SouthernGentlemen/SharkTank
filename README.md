@@ -49,7 +49,7 @@ Mobile defaults to **Simple** one-thumb pitch/yaw with automatic camera recentri
 
 Combat is directional bite plus burst. Feeding Frenzy and Apex are server-owned round phases.
 
-Music retains its current six-note sequence and opt-in volume. A 25 ms timer schedules oscillator envelopes against the audio clock up to 100 ms ahead, rather than using timer callbacks as note onsets. Audio still waits for browser activation, pauses with page visibility and stops on mute or session end.
+Music now plays an eight-bar, four-chord minor-key progression with evolving detuned filtered pads and soft bass on separate gain buses, replacing the six-note sequence. The 25 ms scheduler queues note onsets and envelopes on the audio clock no more than 100 ms ahead. Music remains opt-in until ST-278; audio waits for browser activation, pauses with page visibility and stops on mute or session end.
 
 ## Accessibility and performance
 
