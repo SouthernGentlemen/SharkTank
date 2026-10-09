@@ -1,4 +1,5 @@
 import { MusicLookaheadScheduler } from "./musicScheduler.js";
+import { midiToHz, scoreEventAtStep } from "./underwaterScore.js";
 import {
   AUDIO_LIMITS,
   spatialMix,
@@ -79,8 +80,6 @@ type LegacyPanner = PannerNode & {
   setPosition?: (x: number, y: number, z: number) => void;
 };
 
-const MELODY = [110, 146.83, 164.81, 220, 164.81, 146.83];
-
 function clamp01(value: number): number {
   return Math.max(0, Math.min(1, Number.isFinite(value) ? value : 0));
 }
@@ -114,8 +113,8 @@ class AudioManagerImpl {
   private musicGain: GainNode | null = null;
   private ambienceGain: GainNode | null = null;
   private ambienceNodes: AudioNode[] = [];
-  private drone: OscillatorNode | null = null;
-  private musicDroneGain: GainNode | null = null;
+  private musicPadGain: GainNode | null = null;
+  private musicBassGain: GainNode | null = null;
   private musicScheduler: MusicLookaheadScheduler | null = null;
   private musicNotes = new Set<Voice>();
   private vols = { master: 0.8, sfx: 0.9, music: 0 };
@@ -353,13 +352,12 @@ class AudioManagerImpl {
 
   private startMusicNodes(): void {
     if (!this.ctx || !this.musicGain || this.musicScheduler || this.ctx.state !== "running") return;
-    this.drone = this.ctx.createOscillator();
-    this.musicDroneGain = this.ctx.createGain();
-    this.drone.type = "sine";
-    this.drone.frequency.value = 82;
-    this.musicDroneGain.gain.value = 0.09;
-    this.drone.connect(this.musicDroneGain).connect(this.musicGain);
-    this.drone.start();
+    this.musicPadGain = this.ctx.createGain();
+    this.musicBassGain = this.ctx.createGain();
+    this.musicPadGain.gain.value = 0.58;
+    this.musicBassGain.gain.value = 0.42;
+    this.musicPadGain.connect(this.musicGain);
+    this.musicBassGain.connect(this.musicGain);
     const ctx = this.ctx;
     this.musicScheduler = new MusicLookaheadScheduler(
       () => ctx.currentTime,
@@ -373,11 +371,10 @@ class AudioManagerImpl {
     this.musicScheduler?.stop();
     this.musicScheduler = null;
     for (const note of [...this.musicNotes]) note.stop();
-    try { this.drone?.stop(); } catch { /* already stopped */ }
-    try { this.drone?.disconnect(); } catch { /* already disconnected */ }
-    try { this.musicDroneGain?.disconnect(); } catch { /* already disconnected */ }
-    this.drone = null;
-    this.musicDroneGain = null;
+    this.musicPadGain?.disconnect();
+    this.musicBassGain?.disconnect();
+    this.musicPadGain = null;
+    this.musicBassGain = null;
   }
 
   private syncDesiredLoops(): void {
@@ -393,34 +390,104 @@ class AudioManagerImpl {
   }
 
   private scheduleMusicNote(step: number, at: number): void {
-    if (!this.ctx || !this.musicGain || this.ctx.state !== "running") return;
-    const osc = this.ctx.createOscillator();
-    const g = this.ctx.createGain();
-    const filter = this.ctx.createBiquadFilter();
-    osc.type = "triangle";
-    osc.frequency.value = MELODY[step % MELODY.length];
+    if (!this.ctx || this.ctx.state !== "running") return;
+    const event = scoreEventAtStep(step);
+    if (!event) return;
+    if (event.padMidi) this.scheduleMusicPad(event.padMidi, at);
+    if (event.bassMidi !== null) this.scheduleMusicBass(event.bassMidi, at);
+  }
+
+  private scheduleMusicPad(midi: readonly number[], at: number): void {
+    const ctx = this.ctx;
+    const output = this.musicPadGain;
+    if (!ctx || !output) return;
+    const filter = ctx.createBiquadFilter();
+    const g = ctx.createGain();
     filter.type = "lowpass";
-    filter.frequency.value = 900;
+    filter.frequency.value = 780;
+    filter.Q.value = 0.65;
     g.gain.setValueAtTime(0.0001, at);
-    g.gain.exponentialRampToValueAtTime(0.14, at + 0.02);
-    g.gain.exponentialRampToValueAtTime(0.0001, at + 0.28);
-    osc.connect(filter).connect(g).connect(this.musicGain);
+    g.gain.linearRampToValueAtTime(0.065, at + 0.52);
+    g.gain.setValueAtTime(0.065, at + 1.94);
+    g.gain.exponentialRampToValueAtTime(0.0001, at + 2.55);
+    filter.connect(g).connect(output);
+    const oscillators: OscillatorNode[] = [];
+    for (const noteMidi of midi) {
+      for (const detune of [-7, 7]) {
+        const osc = ctx.createOscillator();
+        osc.type = "triangle";
+        osc.frequency.value = midiToHz(noteMidi);
+        osc.detune.value = detune;
+        osc.connect(filter);
+        oscillators.push(osc);
+      }
+    }
     let ended = false;
     const note: Voice = {
       stop: () => {
         if (ended) return;
         ended = true;
-        try { osc.stop(); } catch { /* note already ended */ }
-        osc.disconnect();
+        for (const osc of oscillators) {
+          try { osc.stop(); } catch { /* note already ended */ }
+          osc.disconnect();
+        }
         filter.disconnect();
         g.disconnect();
         this.musicNotes.delete(note);
       },
     };
     this.musicNotes.add(note);
-    osc.onended = () => note.stop();
+    oscillators[oscillators.length - 1].onended = () => note.stop();
+    for (const osc of oscillators) {
+      osc.start(at);
+      osc.stop(at + 2.57);
+    }
+  }
+
+  private scheduleMusicBass(midi: number, at: number): void {
+    const ctx = this.ctx;
+    const output = this.musicBassGain;
+    if (!ctx || !output) return;
+    const filter = ctx.createBiquadFilter();
+    const g = ctx.createGain();
+    const osc = ctx.createOscillator();
+    const upper = ctx.createOscillator();
+    const overtone = ctx.createGain();
+    filter.type = "lowpass";
+    filter.frequency.value = 250;
+    filter.Q.value = 0.55;
+    osc.type = "sine";
+    osc.frequency.value = midiToHz(midi);
+    upper.type = "triangle";
+    upper.frequency.value = midiToHz(midi + 12);
+    overtone.gain.value = 0.18;
+    g.gain.setValueAtTime(0.0001, at);
+    g.gain.linearRampToValueAtTime(0.18, at + 0.035);
+    g.gain.exponentialRampToValueAtTime(0.0001, at + 0.82);
+    osc.connect(filter);
+    upper.connect(overtone).connect(filter);
+    filter.connect(g).connect(output);
+    let ended = false;
+    const note: Voice = {
+      stop: () => {
+        if (ended) return;
+        ended = true;
+        for (const voice of [osc, upper]) {
+          try { voice.stop(); } catch { /* note already ended */ }
+          voice.disconnect();
+        }
+        overtone.disconnect();
+        filter.disconnect();
+        g.disconnect();
+        this.musicNotes.delete(note);
+      },
+    };
+    this.musicNotes.add(note);
+    upper.onended = () => note.stop();
     osc.start(at);
-    osc.stop(at + 0.3);
+    upper.start(at);
+    osc.stop(at + 0.84);
+    upper.stop(at + 0.84);
   }
 
   playSfx(type: Sfx, options: PlayOptions = {}): boolean {

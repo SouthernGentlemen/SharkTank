@@ -107,18 +107,6 @@ Tasks follow these defaults unless the owner changes them before the task starts
 
 ## Open tasks
 
-### ST-276 — [FEAT] Compose a layered underwater score with pads and bass
-
-**Goal:** Replace the six-note loop.
-
-**Scope:** An evolving minor-key progression (about eight bars, four chords) on detuned, filtered pads and a soft bass, each on its own gain.
-
-**Acceptance:** Score-data tests cover the progression and voice ranges.
-
-**Validation:** `npm test -- tests/spatial-audio.test.ts` plus the score test.
-
----
-
 ### ST-277 — [FEAT] Add percussion and a lead motif to the score
 
 **Goal:** Give the score layers that can carry intensity.
